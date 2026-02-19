@@ -110,6 +110,7 @@ public class ConnectorZipValidationTest {
         Path targetPath = projectPath.resolve("target");
         Field targetPathField = ModuleCmd.class.getDeclaredField("targetPath");
         targetPathField.setAccessible(true);
+        targetPathField.set(moduleCmd, targetPath.toString());
         moduleCmd.execute();
 
         // Validate the generated artifacts
