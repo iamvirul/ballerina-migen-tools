@@ -39,8 +39,8 @@ plugins {
 
 description = 'Ballerina MI Module Gen Tool'
 
-def packageName = "mi_module_gen"
-def toolId = "mi-module-gen"
+def packageName = "tool.migen"
+def toolId = "migen"
 def packageOrg = "wso2"
 def tomlVersion = stripBallerinaExtensionVersion("${project.version}")
 
@@ -132,14 +132,14 @@ tasks.register('testLocalPublish') {
 }
 
 localPublish.dependsOn "build"
-localPublish.dependsOn ":tool-mi-module-gen-cli:build"
+localPublish.dependsOn ":tool-migen-cli:build"
 
 task release {
     dependsOn("publishBallerinaPackage")
 }
 
 task publishBallerinaPackage {
-    dependsOn(":tool-mi-module-gen-cli:build")
+    dependsOn(":tool-migen-cli:build")
     doLast {
         exec {
             if (Os.isFamily(Os.FAMILY_WINDOWS)) {
@@ -155,6 +155,6 @@ task publishBallerinaPackage {
 
 
 updateTomlFiles.dependsOn copyStdlibs
-build.dependsOn ":tool-mi-module-gen-cli:build"
+build.dependsOn ":tool-migen-cli:build"
 publishBallerinaPackage.dependsOn build
 commitTomlFiles.dependsOn updateTomlFiles

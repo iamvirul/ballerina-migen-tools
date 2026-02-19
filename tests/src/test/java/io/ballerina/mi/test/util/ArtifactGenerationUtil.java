@@ -16,11 +16,10 @@
 
 package io.ballerina.mi.test.util;
 
-import io.ballerina.mi.cmd.MiCmd;
+import io.ballerina.mi.cmd.MigenExecutor;
 import org.testng.Assert;
 
 import java.io.*;
-import java.lang.reflect.Field;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -51,7 +50,7 @@ import java.util.zip.ZipInputStream;
  * <b>Artifact Generation Process:</b>
  * <ol>
  *   <li>Cleans up any existing expected artifacts for the given project.</li>
- *   <li>Executes the {@link io.ballerina.mi.MiCmd} command to generate new artifacts.</li>
+ *   <li>Executes the {@link io.ballerina.mi.cmd.MigenExecutor} to generate new artifacts.</li>
  *   <li>Copies the generated artifacts from the build output directory to the expected directory.</li>
  * </ol>
  * </p>
@@ -113,24 +112,21 @@ public class ArtifactGenerationUtil {
                     });
         }
 
-        // 2. Programmatically execute MiCmd
-        System.out.println("Executing MiCmd for project: " + projectPathStr);
+        // 2. Programmatically execute MigenExecutor
+        System.out.println("Executing MigenExecutor for project: " + projectPathStr);
         // Reset Connector state to avoid pollution from previous tests
         io.ballerina.mi.model.Connector.reset();
         
-        MiCmd miCmd = new MiCmd();
-        Field sourcePathField = MiCmd.class.getDeclaredField("sourcePath");
-        sourcePathField.setAccessible(true);
-        sourcePathField.set(miCmd, projectPathStr);
         if (targetPathStr == null || targetPathStr.isBlank()) {
             targetPathStr = projectPathStr + File.separator + "target";
         }
-        Field targetPathField = MiCmd.class.getDeclaredField("targetPath");
-        targetPathField.setAccessible(true);
-        targetPathField.set(miCmd, targetPathStr);
 
-        miCmd.execute();
-        System.out.println("MiCmd execution completed.");
+        // Determine if it is a connector (Bala) or function (Source) generation
+        // Source projects must have Ballerina.toml
+        boolean isConnector = !Files.exists(projectPath.resolve("Ballerina.toml"));
+        
+        MigenExecutor.executeGeneration(projectPathStr, targetPathStr, System.out, isConnector);
+        System.out.println("MigenExecutor execution completed.");
 
         // 3. Find the generated zip file and unzip it to the expected directory
         //    The zip file name pattern for connectors is: "ballerina-connector-<moduleName>-<version>.zip"

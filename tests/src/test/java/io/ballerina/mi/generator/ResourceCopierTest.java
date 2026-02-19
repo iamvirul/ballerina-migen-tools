@@ -29,7 +29,7 @@ import org.testng.annotations.Test;
 import java.io.IOException;
 import java.io.InputStream;
 import java.lang.reflect.Method;
-import java.nio.file.FileSystem;
+import java.util.jar.JarFile;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.util.List;
@@ -287,11 +287,11 @@ public class ResourceCopierTest {
             // Since we don't have a valid FileSystem, this will throw an exception
             // But the branch for null icon path is covered
             ClassLoader classLoader = getClass().getClassLoader();
-            FileSystem fs = mock(FileSystem.class);
+            JarFile jar = null;
             Path destination = tempDir.resolve("output");
 
             try {
-                ResourceCopier.copyIcons(classLoader, fs, destination);
+                ResourceCopier.copyIcons(classLoader, jar, destination);
             } catch (Exception e) {
                 // Expected - mocked FileSystem won't work
                 // The important thing is the null icon path branch was exercised
@@ -308,11 +308,11 @@ public class ResourceCopierTest {
 
             // copyIcons will fall back to copying from JAR resources
             ClassLoader classLoader = getClass().getClassLoader();
-            FileSystem fs = mock(FileSystem.class);
+            JarFile jar = null;
             Path destination = tempDir.resolve("output");
 
             try {
-                ResourceCopier.copyIcons(classLoader, fs, destination);
+                ResourceCopier.copyIcons(classLoader, jar, destination);
             } catch (Exception e) {
                 // Expected - mocked FileSystem won't work
                 // The important thing is the non-existent path branch was exercised
@@ -334,11 +334,11 @@ public class ResourceCopierTest {
 
             // copyIcons should use copySingleIconAsBoth for a single file
             ClassLoader classLoader = getClass().getClassLoader();
-            FileSystem fs = mock(FileSystem.class);
+            JarFile jar = null;
             Path destination = tempDir.resolve("output");
             Files.createDirectories(destination);
 
-            ResourceCopier.copyIcons(classLoader, fs, destination);
+            ResourceCopier.copyIcons(classLoader, jar, destination);
 
             // Verify both icons were created
             Path smallIcon = destination.resolve(Connector.ICON_FOLDER).resolve(Connector.SMALL_ICON_NAME);
@@ -364,11 +364,11 @@ public class ResourceCopierTest {
             when(mockConnector.getIconPath()).thenReturn(iconDir.toString());
 
             ClassLoader classLoader = getClass().getClassLoader();
-            FileSystem fs = mock(FileSystem.class);
+            JarFile jar = null;
             Path destination = tempDir.resolve("output");
             Files.createDirectories(destination);
 
-            ResourceCopier.copyIcons(classLoader, fs, destination);
+            ResourceCopier.copyIcons(classLoader, jar, destination);
 
             // Verify both icons were created (single file copied as both)
             Path smallIcon = destination.resolve(Connector.ICON_FOLDER).resolve(Connector.SMALL_ICON_NAME);
@@ -395,11 +395,11 @@ public class ResourceCopierTest {
             when(mockConnector.getIconPath()).thenReturn(iconDir.toString());
 
             ClassLoader classLoader = getClass().getClassLoader();
-            FileSystem fs = mock(FileSystem.class);
+            JarFile jar = null;
             Path destination = tempDir.resolve("output");
             Files.createDirectories(destination);
 
-            ResourceCopier.copyIcons(classLoader, fs, destination);
+            ResourceCopier.copyIcons(classLoader, jar, destination);
 
             // Verify icons were separated by size
             Path smallIcon = destination.resolve(Connector.ICON_FOLDER).resolve(Connector.SMALL_ICON_NAME);
@@ -425,12 +425,12 @@ public class ResourceCopierTest {
             when(mockConnector.getIconPath()).thenReturn(iconDir.toString());
 
             ClassLoader classLoader = getClass().getClassLoader();
-            FileSystem fs = mock(FileSystem.class);
+            JarFile jar = null;
             Path destination = tempDir.resolve("output");
             Files.createDirectories(destination);
 
             try {
-                ResourceCopier.copyIcons(classLoader, fs, destination);
+                ResourceCopier.copyIcons(classLoader, jar, destination);
             } catch (Exception e) {
                 // Expected - falls back to JAR resources which don't work with mocked fs
                 // The branch for >2 files is exercised
@@ -451,12 +451,12 @@ public class ResourceCopierTest {
             when(mockConnector.getIconPath()).thenReturn("relative-icon.png");
 
             ClassLoader classLoader = getClass().getClassLoader();
-            FileSystem fs = mock(FileSystem.class);
+            JarFile jar = null;
             Path destination = tempDir.resolve("output");
             Files.createDirectories(destination);
 
             try {
-                ResourceCopier.copyIcons(classLoader, fs, destination);
+                ResourceCopier.copyIcons(classLoader, jar, destination);
             } catch (Exception e) {
                 // The relative path branch is exercised
                 // May fail because the resolved path doesn't exist at expected location

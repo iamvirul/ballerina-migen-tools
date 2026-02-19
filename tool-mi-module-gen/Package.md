@@ -1,6 +1,6 @@
 # Package Overview
 
-The `mi-module-gen` package provides a Ballerina tool for generating WSO2 Micro Integrator modules from Ballerina code.
+The `tool.migen` package provides a Ballerina tool for generating WSO2 Micro Integrator modules from Ballerina code.
 
 ## Overview
 
@@ -23,7 +23,7 @@ This tool enables developers to:
 Pull the tool using the Ballerina CLI:
 
 ```bash
-$ bal tool pull mi-module-gen
+$ bal tool pull tool.migen
 ```
 
 ### Usage
@@ -42,7 +42,7 @@ public function transform(xml input) returns xml {
 2. **Generate the MI module**:
 
 ```bash
-$ bal mi-module-gen -i <path_to_ballerina_project>
+$ bal migen module -p <path_to_ballerina_project> -o <output_directory>
 ```
 
 3. **Deploy** the generated module to WSO2 Micro Integrator.
@@ -60,19 +60,21 @@ $ bal pull ballerinax/<connector_name>
 2. **Generate the MI connector**:
 
 ```bash
-$ bal mi-module-gen -i {user.home}/.ballerina/repositories/central.ballerina.io/bala/ballerinax/<connector_name>/<version>/any -t <output_directory>
+$ bal migen connector -p {user.home}/.ballerina/repositories/central.ballerina.io/bala/ballerinax/<connector_name>/<version>/any -o <output_directory>
 ```
 
 For example, to generate an MI connector from the `ballerinax/github` connector:
 
 ```bash
 $ bal pull ballerinax/github
-$ bal mi-module-gen -i {user.home}/.ballerina/repositories/central.ballerina.io/bala/ballerinax/github/6.0.0/any -t generatedMiConnector
+$ bal migen connector -p {user.home}/.ballerina/repositories/central.ballerina.io/bala/ballerinax/github/6.0.0/any -o generatedMiConnector
 ```
 
 ## Command Options
 
-| Option | Description |
-|--------|-------------|
-| `-i, --input` | Path to the Ballerina project or pulled connector |
-| `-t, --target` | Output directory for the generated MI connector |
+| Command | Option | Description |
+|---------|--------|-------------|
+| `module` | `-p, --path` | Path to the Ballerina project |
+| | `-o, --output` | Output directory for the generated artifacts |
+| `connector` | `-p, --path` | Path to the Ballerina connector (bala) |
+| | `-o, --output` | Output directory for the generated artifacts |

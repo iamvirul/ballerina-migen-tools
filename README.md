@@ -1,13 +1,13 @@
 # Ballerina tool for WSO2 Micro Integrator module generator
 
-[![codecov](https://codecov.io/gh/wso2-extensions/ballerina-mi-module-gen-tool/branch/main/graph/badge.svg)](https://codecov.io/gh/wso2-extensions/ballerina-mi-module-gen-tool)
-[![GitHub Release](https://img.shields.io/github/v/release/wso2-extensions/ballerina-mi-module-gen-tool)](https://github.com/wso2-extensions/ballerina-mi-module-gen-tool/releases)
-![Last Commit](https://img.shields.io/github/last-commit/wso2-extensions/ballerina-mi-module-gen-tool)
-[![Publish Release Workflow](https://github.com/wso2-extensions/ballerina-mi-module-gen-tool/actions/workflows/publish-release.yml/badge.svg)](https://github.com/wso2-extensions/ballerina-mi-module-gen-tool/actions/workflows/publish-release.yml)
+[![codecov](https://codecov.io/gh/wso2/ballerina-migen-tools/branch/main/graph/badge.svg)](https://codecov.io/gh/wso2/ballerina-migen-tools)
+[![GitHub Release](https://img.shields.io/github/v/release/wso2/ballerina-migen-tools)](https://github.com/wso2/ballerina-migen-tools/releases)
+![Last Commit](https://img.shields.io/github/last-commit/wso2/ballerina-migen-tools)
+[![Publish Release Workflow](https://github.com/wso2/ballerina-migen-tools/actions/workflows/publish-release.yml/badge.svg)](https://github.com/wso2/ballerina-migen-tools/actions/workflows/publish-release.yml)
 
 ## Overview
 
-The `mi-module-gen` tools allows generation of modules for WSO2 Micro Integrator from Ballerina code.
+The `migen` tools allows generation of modules for WSO2 Micro Integrator from Ballerina code.
 
 **Version compatibility**:
 
@@ -19,12 +19,12 @@ The `mi-module-gen` tools allows generation of modules for WSO2 Micro Integrator
 
 ## Steps to create a module for WSO2 MI from Ballerina
 
-### Pull `mi-module-gen` tool
+### Pull `migen` tool
 
-First, you need to pull the `mi-module-gen` tool which is used to create the module.
+First, you need to pull the `migen` tool which is used to create the module.
 
 ```bash
-$ bal tool pull mi-module-gen
+$ bal tool pull migen
 ```
 
 ### Write Ballerina transformation
@@ -52,17 +52,17 @@ Ballerina function that contains `@mi:Operation` annotation maps with a componen
 
 ### Generate the module
 
-Finally, use the `bal mi-module-gen` command to generate the Module for the WSO2 Micro Integrator.
+Finally, use the `bal migen` command to generate the Module for the WSO2 Micro Integrator.
 
 ```bash
-$ bal mi-module-gen -i <path_to_ballerina_project>
+$ bal migen module -p <path_to_ballerina_project> -o <output_directory>
 ```
 
-Above command generates the connector zip in the same location.
+Above command generates the connector zip in the specified output directory.
 
 ## Local build
 
-1. Clone the repository [ballerina-mi-module-gen-tool](https://github.com/wso2-extensions/ballerina-mi-module-gen-tool.git)
+1. Clone the repository [ballerina-migen-tools](https://github.com/wso2/ballerina-migen-tools.git)
 
 2. Build the tool and publish locally:
 

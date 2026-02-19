@@ -103,7 +103,7 @@ release {
 }
 
 task build {
-    dependsOn ":tool-mi-module-gen:build"
+    dependsOn ":tool-migen:build"
     dependsOn ":mi-tests:test"  // Include tests in build
 }
 
