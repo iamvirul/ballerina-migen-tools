@@ -60,7 +60,7 @@ $ bal pull ballerinax/<connector_name>
 2. **Generate the MI connector**:
 
 ```bash
-$ bal migen connector -p {user.home}/.ballerina/repositories/central.ballerina.io/bala/ballerinax/<connector_name>/<version>/any -o <output_directory>
+$ bal migen connector -p $HOME/.ballerina/repositories/central.ballerina.io/bala/ballerinax/<connector_name>/<version>/any -o <output_directory>
 ```
 
 For example, to generate an MI connector from the `ballerinax/github` connector:
