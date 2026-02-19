@@ -110,8 +110,7 @@ public class ConnectorZipValidationTest {
         Path targetPath = projectPath.resolve("target");
         Field targetPathField = ModuleCmd.class.getDeclaredField("targetPath");
         targetPathField.setAccessible(true);
-        targetPathField.set(moduleCmd, targetPath.toString());
-        moduleCmd.run();
+        moduleCmd.execute();
 
         // Validate the generated artifacts
         Path connectorPath = targetPath.resolve("generated");
@@ -242,7 +241,7 @@ public class ConnectorZipValidationTest {
             // (sourcePath/targetPath are on ConnectorCmd after CLI redesign in issue #4638)
             ConnectorCmd connectorCmd = getConnectorCmd(tempBalaDir, tempTargetDir);
 
-            connectorCmd.run();
+            connectorCmd.execute();
 
             // For bala projects, artifacts are generated in the target path's "generated" subdirectory
             tempGeneratedPath = tempTargetDir.resolve("generated");
