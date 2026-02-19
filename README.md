@@ -7,7 +7,7 @@
 
 ## Overview
 
-The `migen` tools allows generation of modules for WSO2 Micro Integrator from Ballerina code.
+The `migen` tool allows generation of modules for WSO2 Micro Integrator from Ballerina code.
 
 **Version compatibility**:
 
