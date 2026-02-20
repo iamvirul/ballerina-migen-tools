@@ -65,7 +65,7 @@ dependencies {
     compileOnly "org.ballerinalang:ballerina-lang:${ballerinaLangVersion}"
     compileOnly group: 'org.ballerinalang', name: 'ballerina-parser', version: "${ballerinaLangVersion}"
     compileOnly "org.ballerinalang:ballerina-tools-api:${ballerinaLangVersion}"
-    compileOnly "org.ballerinalang:diagram-util:${ballerinaLangVersion}"
+    implementation "org.ballerinalang:diagram-util:${ballerinaLangVersion}"
     implementation "com.github.jknack:handlebars:${handlebarsVersion}"
     implementation "org.apache.commons:commons-compress:${commonsCompressVersion}"
     implementation "org.ow2.asm:asm:${asmVersion}"
