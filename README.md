@@ -14,7 +14,8 @@ The `migen` tool allows generation of modules for WSO2 Micro Integrator from Bal
 **Tool version**|**`wso2/mi` Connector version**| **Ballerina Version** |**Java version**|**WSO2 MI version**|
 :-----:|:-----:|:---------------------:|:-----:|:-----:
 0.2| 0.2|       2201.10.3       | 17| 4.2.0, 4.3.0
-\>= 0.3| 0.3|     2201.12.7         | 21| 4.4.0
+\>= 0.3 | 0.3|     2201.12.7         | 21| >= 4.4.0
+\>= 0.4.1 | 0.4.1+|     2201.13.x         | 21| >= 4.4.0
 
 
 ## Steps to create a module for WSO2 MI from Ballerina
@@ -58,7 +59,22 @@ Finally, use the `bal migen` command to generate the Module for the WSO2 Micro I
 $ bal migen module -p <path_to_ballerina_project> -o <output_directory>
 ```
 
-Above command generates the connector zip in the specified output directory.
+Above command generates the module zip in the specified output directory.
+
+## Generate MI Connector from Ballerina Connector
+
+**Option 1: Directly from Ballerina Central (fetches automatically):**
+
+```bash
+$ bal migen connector --package ballerinax/<connector_name>
+$ bal migen connector --package ballerinax/<connector_name>:<version>
+```
+
+**Option 2: From a locally cached bala:**
+
+```bash
+$ bal migen connector -p $HOME/.ballerina/repositories/central.ballerina.io/bala/ballerinax/<connector_name>/<version>/any -o <output_directory>
+```
 
 ## Local build
 

@@ -49,21 +49,22 @@ $ bal migen module -p <path_to_ballerina_project> -o <output_directory>
 
 ### Generate MI Connector from Ballerina Connector
 
-You can generate an MI connector from an existing Ballerina connector:
+You can generate an MI connector from an existing Ballerina connector.
 
-1. **Pull the Ballerina connector** from Ballerina Central:
+**Option 1: Directly from Ballerina Central (fetches automatically):**
 
 ```bash
-$ bal pull ballerinax/<connector_name>
+$ bal migen connector --package ballerinax/<connector_name>
+$ bal migen connector --package ballerinax/<connector_name>:<version>
 ```
 
-2. **Generate the MI connector**:
+**Option 2: From a locally cached bala:**
 
 ```bash
 $ bal migen connector -p $HOME/.ballerina/repositories/central.ballerina.io/bala/ballerinax/<connector_name>/<version>/any -o <output_directory>
 ```
 
-For example, to generate an MI connector from the `ballerinax/github` connector:
+For example, to generate an MI connector from the locally cached `ballerinax/github` connector:
 
 ```bash
 $ bal pull ballerinax/github
@@ -74,7 +75,8 @@ $ bal migen connector -p {user.home}/.ballerina/repositories/central.ballerina.i
 
 | Command | Option | Description |
 |---------|--------|-------------|
-| `module` | `-p, --path` | Path to the Ballerina project |
-| | `-o, --output` | Output directory for the generated artifacts |
-| `connector` | `-p, --path` | Path to the Ballerina connector (bala) |
-| | `-o, --output` | Output directory for the generated artifacts |
+| `module` | `-p, --path` | Path to the Ballerina project (defaults to CWD) |
+| | `-o, --output` | Output directory for the generated artifacts (defaults to `target/mi/`) |
+| `connector` | `--package` | Ballerina Central package (`org/name` or `org/name:version`) |
+| | `-p, --path` | Path to the Ballerina connector bala (mutually exclusive with `--package`) |
+| | `-o, --output` | Output directory for the generated artifacts (defaults to `target/mi/`) |

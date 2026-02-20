@@ -15,7 +15,7 @@ The `tool.migen` Ballerina tool allows generation of modules and connectors for 
 ### Pull the Tool
 
 ```bash
-$ bal tool pull tool.migen
+$ bal tool pull migen
 ```
 
 ### Generate MI module from Ballerina source
@@ -36,13 +36,13 @@ public function GPA(xml rawMarks, xml credits) returns xml {
 Run from inside the Ballerina project (package-aware):
 
 ```bash
-$ bal migen function
+$ bal migen module
 ```
 
 Or specify the path and output directory explicitly:
 
 ```bash
-$ bal migen function --path <path_to_ballerina_project> --output <output_directory>
+$ bal migen module --path <path_to_ballerina_project> --output <output_directory>
 ```
 
 ### Generate MI Connector from Ballerina Connector
@@ -55,13 +55,19 @@ You can generate an MI connector from an existing Ballerina connector.
 $ bal migen connector
 ```
 
-**Option 2: Specify an explicit bala path:**
+**Option 2: From a central package (fetches automatically):**
+
+```bash
+$ bal migen connector --package ballerinax/github
+```
+
+**Option 3: Specify an explicit bala path:**
 
 ```bash
 $ bal migen connector --path {user.home}/.ballerina/repositories/central.ballerina.io/bala/ballerinax/<connector_name>/<version>/any --output <output_directory>
 ```
 
-For example, to generate an MI connector from the `ballerinax/github` connector:
+For example, to generate an MI connector from the locally cached `ballerinax/github` connector:
 
 ```bash
 $ bal pull ballerinax/github
@@ -74,12 +80,12 @@ $ bal migen connector --path {user.home}/.ballerina/repositories/central.balleri
 bal migen <subcommand> [OPTIONS]
 
 SUBCOMMANDS
-  function    Generate MI module from @mi:Operation annotated functions
+  module      Generate MI module from @mi:Operation annotated functions
   connector   Generate MI connector from a Ballerina connector
 
 COMMON OPTIONS
   -p, --path <path>      Path to local project/bala (defaults to CWD)
-  -o, --output <path>    Output directory (defaults to <path>/target/mi/)
+  -o, --output <path>    Output directory (defaults to <path>/target/mi/ or ./target/mi/)
   -h, --help             Show help
 
 CONNECTOR-ONLY OPTIONS
