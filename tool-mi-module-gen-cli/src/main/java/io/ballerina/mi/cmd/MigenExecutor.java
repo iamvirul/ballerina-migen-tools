@@ -106,6 +106,15 @@ public class MigenExecutor {
         } finally {
             // Deterministic cleanup
             lifecycle.cleanup();
+            // Remove the intermediate BalConnectors folder from the output directory
+            Path balConnectorsDir = miArtifactsPath.resolve("BalConnectors");
+            if (Files.exists(balConnectorsDir)) {
+                try {
+                    Utils.deleteDirectory(balConnectorsDir);
+                } catch (IOException e) {
+                    printStream.println("WARN: Failed to remove intermediate BalConnectors directory: " + e.getMessage());
+                }
+            }
         }
     }
 
