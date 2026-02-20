@@ -198,7 +198,7 @@ public final class ResourceCopier {
         Enumeration<JarEntry> entries = jar.entries();
         while (entries.hasMoreElements()) {
             JarEntry entry = entries.nextElement();
-            if (entry.getName().contains(resourceFolder) && entry.getName().endsWith(fileExtension)) {
+            if (entry.getName().startsWith(resourceFolder + "/") && entry.getName().endsWith(fileExtension)) {
                 // When copying from JAR resources, we use the entry name as the resource path.
                 // However, classLoader.getResourceAsStream expects path starting from classpath root.
                 // JarEntry names usually don't have leading slash, which is good.
