@@ -301,7 +301,7 @@ task buildMiProject(type: Exec) {
                 mvnCommand = [mvnw.absolutePath]
             } else {
                 // Fallback to system Maven
-                mvnCommand = ['mvn']
+                mvnCommand = ['sh', '-c', 'mvn "$@"', '--']
             }
         }
         
