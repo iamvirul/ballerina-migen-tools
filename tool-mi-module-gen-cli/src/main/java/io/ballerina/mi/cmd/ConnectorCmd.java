@@ -109,10 +109,16 @@ public class ConnectorCmd implements BLauncherCmd {
                     : Paths.get(System.getProperty("user.dir")).toAbsolutePath();
         }
 
-        // Resolve targetPath: default to <resolvedSource>/target/mi/
-        String resolvedTarget = targetPath != null
-                ? targetPath
-                : resolvedSource.resolve("target").resolve("mi").toString();
+        String resolvedTarget;
+        if (packageId != null) {
+            resolvedTarget = targetPath != null
+                    ? targetPath
+                    : Paths.get(System.getProperty("user.dir")).resolve("target").resolve("mi").toString();
+        } else {
+            resolvedTarget = targetPath != null
+                    ? targetPath
+                    : resolvedSource.resolve("target").resolve("mi").toString();
+        }
 
         MigenExecutor.executeGeneration(resolvedSource.toString(), resolvedTarget, printStream, true);
     }
