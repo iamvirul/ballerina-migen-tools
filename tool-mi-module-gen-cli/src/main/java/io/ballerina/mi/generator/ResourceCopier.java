@@ -246,8 +246,7 @@ public final class ResourceCopier {
     private static void copyResource(ClassLoader classLoader, String resourcePath, Path destination) throws IOException {
         Path outputPath = destination.resolve(resourcePath);
         Files.createDirectories(outputPath.getParent());
-        try {
-            InputStream inputStream = getFileFromResourceAsStream(classLoader, resourcePath);
+        try (InputStream inputStream = getFileFromResourceAsStream(classLoader, resourcePath)) {
             Files.copy(inputStream, outputPath, StandardCopyOption.REPLACE_EXISTING);
         } catch (IllegalArgumentException e) {
             // Resource not found in classpath (maybe only in fs/jar?)
