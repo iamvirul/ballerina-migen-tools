@@ -99,15 +99,30 @@ public class BalConnectorAnalyzer implements Analyzer {
 
         SemanticModel semanticModel = compilePackage.getCompilation().getSemanticModel(module.moduleId());
         List<Symbol> moduleSymbols = semanticModel.moduleSymbols();
-        List<Symbol> classSymbols = moduleSymbols.stream().filter((s) -> s instanceof BallerinaClassSymbol).toList();
+
+        // Filter to get only client classes (public client class) from the root module
+        List<ClassSymbol> clientClassSymbols = moduleSymbols.stream()
+                .filter(s -> s instanceof ClassSymbol)
+                .map(s -> (ClassSymbol) s)
+                .filter(this::isClientClass)
+                .toList();
+
+        if (clientClassSymbols.isEmpty()) {
+            printStream.println("No client classes found in root module: " + module.moduleName());
+            return;
+        }
+
+        printStream.println("Found " + clientClassSymbols.size() + " client class(es) in root module: " + module.moduleName());
 
         // Extract default values from syntax trees
         Map<String, Map<String, Map<String, String>>> classMethodDefaultValues = extractDefaultValues(module);
 
-        for (Symbol classSymbol : classSymbols) {
-            String className = classSymbol.getName().orElse("");
+        // Process ALL client classes in the root module
+        for (ClassSymbol clientClass : clientClassSymbols) {
+            String className = clientClass.getName().orElse("");
+            printStream.println("Processing client class: " + className);
             Map<String, Map<String, String>> methodDefaultValues = classMethodDefaultValues.getOrDefault(className, Map.of());
-            analyzeClass(compilePackage, module, (ClassSymbol) classSymbol, methodDefaultValues);
+            analyzeClass(compilePackage, module, clientClass, methodDefaultValues);
         }
     }
 
@@ -174,7 +189,8 @@ public class BalConnectorAnalyzer implements Analyzer {
                               Map<String, Map<String, String>> defaultValues) {
         SemanticModel semanticModel = compilePackage.getCompilation().getSemanticModel(module.moduleId());
 
-        if (!isClientClass(classSymbol) || classSymbol.getName().isEmpty()) {
+        // Client class validation is now done in analyzeModule, but keep as safety check
+        if (classSymbol.getName().isEmpty()) {
             return;
         }
         String clientClassName = classSymbol.getName().get();
