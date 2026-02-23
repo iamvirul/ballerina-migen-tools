@@ -44,8 +44,6 @@ public class MiCmd implements BLauncherCmd {
         printStream.println(commandUsageInfo);
     }
 
-
-
     @Override
     public String getName() {
         return CMD_NAME;
