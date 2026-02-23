@@ -16,7 +16,7 @@
 
 package org.ballerina.test;
 
-import io.ballerina.mi.cmd.MiCmd;
+import io.ballerina.mi.cmd.MigenExecutor;
 import io.ballerina.mi.model.Connector;
 import io.ballerina.mi.test.util.ArtifactGenerationUtil;
 import org.testng.Assert;
@@ -24,10 +24,10 @@ import org.testng.annotations.BeforeClass;
 import org.testng.annotations.Test;
 
 import java.io.IOException;
-import java.lang.reflect.Field;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.Comparator;
 
 /**
  * Test class for validating sub-module client filtering.
@@ -89,17 +89,9 @@ public class SubModuleFilteringTest {
                 }
             }
 
-            // Execute MiCmd to generate artifacts
-            MiCmd miCmd = new MiCmd();
-            Field sourcePathField = MiCmd.class.getDeclaredField("sourcePath");
-            sourcePathField.setAccessible(true);
-            sourcePathField.set(miCmd, tempBalaDir.toAbsolutePath().toString());
-
-            Field targetPathField = MiCmd.class.getDeclaredField("targetPath");
-            targetPathField.setAccessible(true);
-            targetPathField.set(miCmd, tempTargetDir.toAbsolutePath().toString());
-
-            miCmd.execute();
+            // Execute MigenExecutor to generate artifacts
+            // This is a bala project, so it's connector generation
+            MigenExecutor.executeGeneration(tempBalaDir.toAbsolutePath().toString(), tempTargetDir.toAbsolutePath().toString(), System.out, true);
 
             // Verify generated artifacts exist
             Path generatedPath = tempTargetDir.resolve("generated");
@@ -156,7 +148,7 @@ public class SubModuleFilteringTest {
             // Cleanup temporary directories
             if (tempTargetDir != null && Files.exists(tempTargetDir)) {
                 try (var walk = Files.walk(tempTargetDir)) {
-                    walk.sorted((a, b) -> b.compareTo(a))
+                    walk.sorted(Comparator.reverseOrder())
                             .forEach(path -> {
                                 try {
                                     Files.delete(path);
@@ -171,7 +163,7 @@ public class SubModuleFilteringTest {
 
             if (tempBalaDir != null && Files.exists(tempBalaDir)) {
                 try (var walk = Files.walk(tempBalaDir)) {
-                    walk.sorted((a, b) -> b.compareTo(a))
+                    walk.sorted(Comparator.reverseOrder())
                             .forEach(path -> {
                                 try {
                                     Files.delete(path);
@@ -205,3 +197,4 @@ public class SubModuleFilteringTest {
         Assert.assertTrue(true, "Sub-module identification is verified through artifact generation test");
     }
 }
+

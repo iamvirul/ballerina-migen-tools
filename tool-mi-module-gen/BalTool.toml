@@ -1,5 +1,5 @@
 [tool]
-id = "mi-module-gen"
+id = "migen"
 
 [[dependency]]
-path = "../tool-mi-module-gen-cli/build/libs/tool-mi-module-gen-cli-0.4.4-SNAPSHOT.jar"
+path = "../tool-mi-module-gen-cli/build/libs/tool-migen-cli-0.4.4-SNAPSHOT.jar"

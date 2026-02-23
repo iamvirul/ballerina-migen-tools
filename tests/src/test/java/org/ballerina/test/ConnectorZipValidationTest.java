@@ -16,9 +16,11 @@
 
 package org.ballerina.test;
 
-import io.ballerina.mi.cmd.MiCmd;
+import io.ballerina.mi.cmd.ConnectorCmd;
+import io.ballerina.mi.cmd.ModuleCmd;
 import io.ballerina.mi.model.Connector;
 import io.ballerina.mi.test.util.ArtifactGenerationUtil;
+import org.jetbrains.annotations.NotNull;
 import org.testng.Assert;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.DataProvider;
@@ -100,16 +102,16 @@ public class ConnectorZipValidationTest {
         Path projectPath = BALLERINA_PROJECTS_DIR.resolve(projectName);
         Path expectedPath = EXPECTED_DIR.resolve(projectName);
 
-        // Programmatically execute MiCmd
-        MiCmd miCmd = new MiCmd();
-        Field sourcePathField = MiCmd.class.getDeclaredField("sourcePath");
+        // Programmatically execute ModuleCmd (sourcePath/targetPath are on ModuleCmd after CLI redesign)
+        ModuleCmd moduleCmd = new ModuleCmd();
+        Field sourcePathField = ModuleCmd.class.getDeclaredField("sourcePath");
         sourcePathField.setAccessible(true);
-        sourcePathField.set(miCmd, projectPath.toString());
+        sourcePathField.set(moduleCmd, projectPath.toString());
         Path targetPath = projectPath.resolve("target");
-        Field targetPathField = MiCmd.class.getDeclaredField("targetPath");
+        Field targetPathField = ModuleCmd.class.getDeclaredField("targetPath");
         targetPathField.setAccessible(true);
-        targetPathField.set(miCmd, targetPath.toString());
-        miCmd.execute();
+        targetPathField.set(moduleCmd, targetPath.toString());
+        moduleCmd.execute();
 
         // Validate the generated artifacts
         Path connectorPath = targetPath.resolve("generated");
@@ -236,18 +238,11 @@ public class ConnectorZipValidationTest {
         Path tempGeneratedPath = null;
         
         try {
-            // Programmatically execute MiCmd with extracted bala directory and temporary target path
-            MiCmd miCmd = new MiCmd();
-            Field sourcePathField = MiCmd.class.getDeclaredField("sourcePath");
-            sourcePathField.setAccessible(true);
-            // Use the extracted directory path
-            sourcePathField.set(miCmd, tempBalaDir.toAbsolutePath().toString());
+            // Programmatically execute ConnectorCmd with extracted bala directory and temporary target path
+            // (sourcePath/targetPath are on ConnectorCmd after CLI redesign in issue #4638)
+            ConnectorCmd connectorCmd = getConnectorCmd(tempBalaDir, tempTargetDir);
 
-            Field targetPathField = MiCmd.class.getDeclaredField("targetPath");
-            targetPathField.setAccessible(true);
-            targetPathField.set(miCmd, tempTargetDir.toAbsolutePath().toString());
-
-            miCmd.execute();
+            connectorCmd.execute();
 
             // For bala projects, artifacts are generated in the target path's "generated" subdirectory
             tempGeneratedPath = tempTargetDir.resolve("generated");
@@ -393,6 +388,20 @@ public class ConnectorZipValidationTest {
                 }
             }
         }
+    }
+
+    @NotNull
+    private static ConnectorCmd getConnectorCmd(Path tempBalaDir, Path tempTargetDir) throws NoSuchFieldException, IllegalAccessException {
+        ConnectorCmd connectorCmd = new ConnectorCmd();
+        Field sourcePathField = ConnectorCmd.class.getDeclaredField("sourcePath");
+        sourcePathField.setAccessible(true);
+        // Use the extracted directory path
+        sourcePathField.set(connectorCmd, tempBalaDir.toAbsolutePath().toString());
+
+        Field targetPathField = ConnectorCmd.class.getDeclaredField("targetPath");
+        targetPathField.setAccessible(true);
+        targetPathField.set(connectorCmd, tempTargetDir.toAbsolutePath().toString());
+        return connectorCmd;
     }
 
     private void compareFileContent(Path actualFilePath, Path expectedFilePath) throws IOException {

@@ -58,13 +58,13 @@ configurations {
 }
 
 dependencies {
-    implementation "org.ballerinalang:ballerina-cli:${ballerinaLangVersion}"
+    compileOnly "org.ballerinalang:ballerina-cli:${ballerinaLangVersion}"
     implementation 'info.picocli:picocli:4.0.1'
     implementation 'com.google.code.gson:gson:2.10.1'
     implementation 'commons-io:commons-io:2.20.0'
-    implementation "org.ballerinalang:ballerina-lang:${ballerinaLangVersion}"
-    implementation group: 'org.ballerinalang', name: 'ballerina-parser', version: "${ballerinaLangVersion}"
-    implementation "org.ballerinalang:ballerina-tools-api:${ballerinaLangVersion}"
+    compileOnly "org.ballerinalang:ballerina-lang:${ballerinaLangVersion}"
+    compileOnly group: 'org.ballerinalang', name: 'ballerina-parser', version: "${ballerinaLangVersion}"
+    compileOnly "org.ballerinalang:ballerina-tools-api:${ballerinaLangVersion}"
     implementation "org.ballerinalang:diagram-util:${ballerinaLangVersion}"
     implementation "com.github.jknack:handlebars:${handlebarsVersion}"
     implementation "org.apache.commons:commons-compress:${commonsCompressVersion}"
@@ -101,6 +101,7 @@ task copyMiRuntimeLibs(type: Copy) {
 processResources.dependsOn copyMiRuntimeLibs
 
 shadowJar {
+    archiveBaseName.set('tool-migen-cli')
     archiveClassifier.set('')
     from sourceSets.main.output
     configurations = [project.configurations.shadowIncludes]

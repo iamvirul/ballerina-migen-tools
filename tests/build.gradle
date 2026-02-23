@@ -1,5 +1,6 @@
 import org.apache.tools.ant.taskdefs.condition.Os
 
+
 plugins {
     id 'java'
     id 'jacoco'
@@ -8,6 +9,8 @@ plugins {
 
 group = project.group
 version = project.version
+evaluationDependsOn(':tool-migen-cli')
+
 def ballerinaDist = "${layout.buildDirectory.get()}/jballerina-tools-${ballerinaLangVersion}"
 def tomlVersion = stripBallerinaExtensionVersion("${project.version}")
 def balToolFile = new File("$project.projectDir/resources/bal-tools.toml")
@@ -42,8 +45,18 @@ dependencies {
     testImplementation 'io.rest-assured:xml-path:5.4.0'
     testImplementation 'org.mockito:mockito-core:5.8.0'
     testImplementation 'com.google.code.gson:gson:2.10.1'
+    testImplementation "com.github.jknack:handlebars:${handlebarsVersion}"
     implementation project(':mi-native')
-    testImplementation project(path: ':tool-mi-module-gen-cli')
+}
+
+// The CLI project disables the regular jar (replaced by shadow jar), so we can't use
+// testImplementation project(':tool-migen-cli'). Instead, wire in the class output
+// and the compile classpath directly using Gradle 8-compatible API.
+afterEvaluate {
+    dependencies {
+        testImplementation files(project(':tool-migen-cli').sourceSets.main.output)
+        testImplementation files(project(':tool-migen-cli').configurations.compileClasspath.resolve())
+    }
 }
 
 
@@ -139,7 +152,7 @@ task updateBalToolTomlFile {
 }
 
 task pushMiToolToLocal() {
-    dependsOn(":tool-mi-module-gen:build")
+    dependsOn(":tool-migen:build")
     dependsOn(updateBalToolTomlFile)
     doLast {
         // First run bal pack to create the bala file
@@ -171,7 +184,7 @@ task copyMiToolToCentral() {
         // wso2 org tools are resolved from central repository, not local
         // Copy the tool from local to central repository
         def homeDir = System.getProperty("user.home")
-        def localRepo = file("${homeDir}/.ballerina/repositories/local/bala/wso2/mi_module_gen")
+        def localRepo = file("${homeDir}/.ballerina/repositories/local/bala/wso2/tool.migen")
         def centralRepo = file("${homeDir}/.ballerina/repositories/central.ballerina.io/bala/wso2")
 
         // Ensure central repo directory exists
@@ -181,7 +194,7 @@ task copyMiToolToCentral() {
         if (localRepo.exists()) {
             copy {
                 from localRepo
-                into "${centralRepo}/mi_module_gen"
+                into "${centralRepo}/tool.migen"
             }
             println "Copied MI tool from local to central repository"
         } else {
@@ -288,7 +301,7 @@ task buildMiProject(type: Exec) {
                 mvnCommand = [mvnw.absolutePath]
             } else {
                 // Fallback to system Maven
-                mvnCommand = ['mvn']
+                mvnCommand = ['sh', '-c', 'mvn "$@"', '--']
             }
         }
         
@@ -306,7 +319,7 @@ tasks.register("generateExpectedArtifacts", JavaExec) {
     description = "Regenerates expected connector artifacts used by tests."
     dependsOn copyStdlibs
     dependsOn copyMiToolToCentral
-    dependsOn(":tool-mi-module-gen-cli:build")
+    dependsOn(":tool-migen-cli:build")
     dependsOn testClasses
     classpath = sourceSets.test.runtimeClasspath
     main = "io.ballerina.mi.test.util.TestArtifactGenerationUtil"
@@ -327,7 +340,7 @@ tasks.register("generateExpectedArtifacts", JavaExec) {
 test {
     dependsOn copyMiToolToCentral  // This depends on pushMiToolToLocal
     dependsOn copyStdlibs
-    dependsOn(":tool-mi-module-gen-cli:build")
+    dependsOn(":tool-migen-cli:build")
     dependsOn buildMiProject  // Build MI project before running tests
     //dependsOn(":tool-compiler-plugin:build")
 
@@ -399,7 +412,7 @@ jacocoTestReport {
 gradle.projectsEvaluated {
     def coverageProjects = [
         project(':mi-native'),
-        project(':tool-mi-module-gen-cli')
+        project(':tool-migen-cli')
     ]
 
     jacocoTestReport {

@@ -1,6 +1,6 @@
 [[tool]]
-id = "mi-module-gen"
+id = "migen"
 org = "wso2"
-name = "mi_module_gen"
+name = "migen"
 version = "@toml.version@"
 active = true

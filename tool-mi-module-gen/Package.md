@@ -1,6 +1,6 @@
 # Package Overview
 
-The `mi-module-gen` package provides a Ballerina tool for generating WSO2 Micro Integrator modules from Ballerina code.
+The `tool.migen` package provides a Ballerina tool for generating WSO2 Micro Integrator modules from Ballerina code.
 
 ## Overview
 
@@ -23,7 +23,7 @@ This tool enables developers to:
 Pull the tool using the Ballerina CLI:
 
 ```bash
-$ bal tool pull mi-module-gen
+$ bal tool pull tool.migen
 ```
 
 ### Usage
@@ -42,37 +42,41 @@ public function transform(xml input) returns xml {
 2. **Generate the MI module**:
 
 ```bash
-$ bal mi-module-gen -i <path_to_ballerina_project>
+$ bal migen module -p <path_to_ballerina_project> -o <output_directory>
 ```
 
 3. **Deploy** the generated module to WSO2 Micro Integrator.
 
 ### Generate MI Connector from Ballerina Connector
 
-You can generate an MI connector from an existing Ballerina connector:
+You can generate an MI connector from an existing Ballerina connector.
 
-1. **Pull the Ballerina connector** from Ballerina Central:
-
-```bash
-$ bal pull ballerinax/<connector_name>
-```
-
-2. **Generate the MI connector**:
+**Option 1: Directly from Ballerina Central (fetches automatically):**
 
 ```bash
-$ bal mi-module-gen -i {user.home}/.ballerina/repositories/central.ballerina.io/bala/ballerinax/<connector_name>/<version>/any -t <output_directory>
+$ bal migen connector --package ballerinax/<connector_name>
+$ bal migen connector --package ballerinax/<connector_name>:<version>
 ```
 
-For example, to generate an MI connector from the `ballerinax/github` connector:
+**Option 2: From a locally cached bala:**
+
+```bash
+$ bal migen connector -p $HOME/.ballerina/repositories/central.ballerina.io/bala/ballerinax/<connector_name>/<version>/any -o <output_directory>
+```
+
+For example, to generate an MI connector from the locally cached `ballerinax/github` connector:
 
 ```bash
 $ bal pull ballerinax/github
-$ bal mi-module-gen -i {user.home}/.ballerina/repositories/central.ballerina.io/bala/ballerinax/github/6.0.0/any -t generatedMiConnector
+$ bal migen connector -p {user.home}/.ballerina/repositories/central.ballerina.io/bala/ballerinax/github/6.0.0/any -o generatedMiConnector
 ```
 
 ## Command Options
 
-| Option | Description |
-|--------|-------------|
-| `-i, --input` | Path to the Ballerina project or pulled connector |
-| `-t, --target` | Output directory for the generated MI connector |
+| Command | Option | Description |
+|---------|--------|-------------|
+| `module` | `-p, --path` | Path to the Ballerina project (defaults to CWD) |
+| | `-o, --output` | Output directory for the generated artifacts (defaults to `target/mi/`) |
+| `connector` | `--package` | Ballerina Central package (`org/name` or `org/name:version`) |
+| | `-p, --path` | Path to the Ballerina connector bala (mutually exclusive with `--package`) |
+| | `-o, --output` | Output directory for the generated artifacts (defaults to `target/mi/`) |
