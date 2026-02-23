@@ -34,8 +34,8 @@ public class ConnectorCmd implements BLauncherCmd {
     private boolean helpFlag;
 
     @CommandLine.Option(names = {"--path"},
-            description = "Path to the local Ballerina connector project or bala (defaults to CWD). " +
-                    "Mutually exclusive with --package.")
+            description = "Path to the local Ballerina connector bala or extracted bala directory " +
+                    "(defaults to CWD). Mutually exclusive with --package.")
     private String sourcePath;
 
     @CommandLine.Option(names = {"--output", "-o"},
