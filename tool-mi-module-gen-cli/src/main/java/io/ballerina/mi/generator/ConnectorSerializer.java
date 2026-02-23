@@ -235,12 +235,16 @@ public class ConnectorSerializer {
 
     /**
      * Phase 2: Generate per-connection config JSON UI schema files.
+     * Files are named with "Connection" suffix (e.g., asb_AdministratorConnection.json)
+     * to match the MI VS Code extension's expected naming convention.
      */
     private void generateConnectionConfigs(Connector connector, File connectorFolder) {
         for (Connection connection : connector.getConnections()) {
             if (connection.getInitComponent() != null) {
+                // Use "Connection" suffix to match MI VS Code extension naming convention
+                String connectionFileName = connection.getConnectionType() + "Connection";
                 connection.getInitComponent().generateUIJson(connectorFolder, CONFIG_TEMPLATE_PATH,
-                        connection.getConnectionType());
+                        connectionFileName);
             }
         }
     }
