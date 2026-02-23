@@ -137,7 +137,11 @@ public final class ResourceCopier {
     private static Path resolveIconPath(String iconPathStr, Path destination) {
         Path iconPath = Paths.get(iconPathStr);
         if (!iconPath.isAbsolute()) {
-            return destination.getParent().resolve(iconPathStr).normalize();
+            Path parent = destination.getParent();
+            if (parent == null) {
+                parent = destination;
+            }
+            return parent.resolve(iconPathStr).normalize();
         }
         return iconPath;
     }
