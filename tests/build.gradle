@@ -55,7 +55,7 @@ dependencies {
 afterEvaluate {
     dependencies {
         testImplementation files(project(':tool-migen-cli').sourceSets.main.output)
-        testImplementation files(project(':tool-migen-cli').configurations.compileClasspath.resolve())
+        testImplementation files(project(':tool-migen-cli').configurations.compileClasspath)
     }
 }
 
