@@ -49,7 +49,7 @@ $ bal migen module --path <path_to_ballerina_project> -o <output_directory>
 
 ### Generate MI Connector from Ballerina Connector
 
-You can generate an MI connector from an existing Ballerina connector.
+You can generate an MI connector from an existing Ballerina connector bala.
 
 **Option 1: Directly from Ballerina Central (fetches automatically):**
 
@@ -75,7 +75,7 @@ $ bal migen connector --path {user.home}/.ballerina/repositories/central.balleri
 
 | Command | Option | Description |
 |---------|--------|-------------|
-| `module` | `--path` | Path to the Ballerina project (defaults to CWD) |
+| `module` | `--path` | Path to the Ballerina source project (defaults to CWD) |
 | | `-o, --output` | Output directory for the generated artifacts (defaults to `target/mi/`) |
 | `connector` | `--package` | Ballerina Central package (`org/name` or `org/name:version`) |
 | | `--path` | Path to the Ballerina connector bala (mutually exclusive with `--package`) |

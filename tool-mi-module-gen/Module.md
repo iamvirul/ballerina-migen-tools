@@ -47,27 +47,16 @@ $ bal migen module --path <path_to_ballerina_project> --output <output_directory
 
 ### Generate MI Connector from Ballerina Connector
 
-You can generate an MI connector from an existing Ballerina connector.
+You can generate an MI connector from an existing Ballerina connector bala.
 
-**Option 1: From a local connector project/bala (run from inside the connector directory):**
-
-```bash
-$ bal migen connector
-```
-
-**Option 2: From a central package (fetches automatically):**
+**Option 1: From Ballerina Central (fetches automatically):**
 
 ```bash
 $ bal migen connector --package ballerinax/github
+$ bal migen connector --package ballerinax/github:6.0.0
 ```
 
-**Option 3: Specify an explicit bala path:**
-
-```bash
-$ bal migen connector --path {user.home}/.ballerina/repositories/central.ballerina.io/bala/ballerinax/<connector_name>/<version>/any --output <output_directory>
-```
-
-For example, to generate an MI connector from the locally cached `ballerinax/github` connector:
+**Option 2: From a locally cached bala:**
 
 ```bash
 $ bal pull ballerinax/github
@@ -81,15 +70,18 @@ bal migen <subcommand> [OPTIONS]
 
 SUBCOMMANDS
   module      Generate MI module from @mi:Operation annotated functions
-  connector   Generate MI connector from a Ballerina connector
+  connector   Generate MI connector from a Ballerina connector bala
 
-COMMON OPTIONS
-  --path <path>          Path to local project/bala (defaults to CWD)
-  -o, --output <path>    Output directory (defaults to <path>/target/mi/ or ./target/mi/)
+MODULE OPTIONS
+  --path <path>          Path to Ballerina source project (defaults to CWD)
+  -o, --output <path>    Output directory (defaults to <path>/target/mi/)
   -h, --help             Show help
 
-CONNECTOR-ONLY OPTIONS
-  --package <org/name:version>   Ballerina Central package. Mutually exclusive with --path.
+CONNECTOR OPTIONS
+  --package <org/name:version>   Ballerina Central package (fetches automatically)
+  --path <path>                  Path to local bala (mutually exclusive with --package)
+  -o, --output <path>            Output directory (defaults to ./target/mi/)
+  -h, --help                     Show help
 ```
 
 ## Version Compatibility

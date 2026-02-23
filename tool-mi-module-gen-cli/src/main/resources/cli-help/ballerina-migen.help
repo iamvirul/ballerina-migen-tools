@@ -19,4 +19,3 @@ EXAMPLES
        $ bal migen module
        $ bal migen connector --package ballerinax/github
        $ bal migen connector --package ballerinax/github:6.0.0
-       $ bal migen connector --path ./my-connector -o ./output
