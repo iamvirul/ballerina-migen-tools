@@ -7,7 +7,7 @@ The `tool.migen` Ballerina tool allows generation of modules and connectors for 
 - Generate WSO2 Micro Integrator modules from Ballerina code
 - Generate MI connectors from Ballerina connectors
 - Support for `@mi:Operation` annotation to define MI components
-- Package-aware CWD detection (no need to specify `--path` when inside a Ballerina project)
+- Defaults to current working directory (no need to specify `--path` when running from project root)
 - Seamless integration with Ballerina build tools
 
 ## Usage
@@ -33,7 +33,7 @@ public function GPA(xml rawMarks, xml credits) returns xml {
 
 ### Generate the Module
 
-Run from inside the Ballerina project (package-aware):
+Run from the Ballerina project root directory (where `Ballerina.toml` is located):
 
 ```bash
 $ bal migen module
