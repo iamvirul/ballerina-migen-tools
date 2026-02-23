@@ -42,23 +42,32 @@ public class CentralPackagePuller {
         }
 
         String apiUrl = String.format(CENTRAL_API_URL, org, name, version);
-        
+
         // 1. Fetch package details
+        String balaUrl;
         HttpURLConnection connection = (HttpURLConnection) new URL(apiUrl).openConnection();
-        connection.setRequestMethod("GET");
-        connection.setRequestProperty("Accept", "application/json");
+        try {
+            connection.setRequestMethod("GET");
+            connection.setRequestProperty("Accept", "application/json");
 
-        if (connection.getResponseCode() != 200) {
-            throw new RuntimeException("Failed to fetch package details from Ballerina Central. HTTP code: " + connection.getResponseCode());
-        }
+            if (connection.getResponseCode() != 200) {
+                throw new RuntimeException("Failed to fetch package details from Ballerina Central. HTTP code: "
+                        + connection.getResponseCode());
+            }
 
-        JsonObject responseJson = JsonParser.parseReader(new InputStreamReader(connection.getInputStream())).getAsJsonObject();
-        
-        if (!responseJson.has("balaURL")) {
-            throw new RuntimeException("The package details did not contain a balaURL.");
+            JsonObject responseJson;
+            try (InputStreamReader reader = new InputStreamReader(connection.getInputStream())) {
+                responseJson = JsonParser.parseReader(reader).getAsJsonObject();
+            }
+
+            if (!responseJson.has("balaURL")) {
+                throw new RuntimeException("The package details did not contain a balaURL.");
+            }
+
+            balaUrl = responseJson.get("balaURL").getAsString();
+        } finally {
+            connection.disconnect();
         }
-        
-        String balaUrl = responseJson.get("balaURL").getAsString();
 
         // 2. Download and Extract bala
         Path extractedBalaPath = targetDir.resolve("extracted-bala").resolve(org + "-" + name + "-" + version);
@@ -68,50 +77,63 @@ public class CentralPackagePuller {
         Files.createDirectories(extractedBalaPath);
 
         HttpURLConnection downloadConnection = (HttpURLConnection) new URL(balaUrl).openConnection();
-        downloadConnection.setRequestMethod("GET");
-        
-        if (downloadConnection.getResponseCode() != 200) {
-            throw new RuntimeException("Failed to download bala file. HTTP code: " + downloadConnection.getResponseCode());
-        }
+        try {
+            downloadConnection.setRequestMethod("GET");
 
-        try (ZipInputStream zis = new ZipInputStream(downloadConnection.getInputStream())) {
-            ZipEntry entry;
-            while ((entry = zis.getNextEntry()) != null) {
-                Path extractedFilePath = extractedBalaPath.resolve(entry.getName()).normalize();
-                if (!extractedFilePath.startsWith(extractedBalaPath)) {
-                    throw new RuntimeException("Bad zip entry: " + entry.getName());
-                }
-
-                if (entry.isDirectory()) {
-                    Files.createDirectories(extractedFilePath);
-                } else {
-                    if (extractedFilePath.getParent() != null) {
-                        Files.createDirectories(extractedFilePath.getParent());
-                    }
-                    Files.copy(zis, extractedFilePath, StandardCopyOption.REPLACE_EXISTING);
-                }
-                zis.closeEntry();
+            if (downloadConnection.getResponseCode() != 200) {
+                throw new RuntimeException("Failed to download bala file. HTTP code: "
+                        + downloadConnection.getResponseCode());
             }
+
+            try (ZipInputStream zis = new ZipInputStream(downloadConnection.getInputStream())) {
+                ZipEntry entry;
+                while ((entry = zis.getNextEntry()) != null) {
+                    Path extractedFilePath = extractedBalaPath.resolve(entry.getName()).normalize();
+                    if (!extractedFilePath.startsWith(extractedBalaPath)) {
+                        throw new RuntimeException("Bad zip entry: " + entry.getName());
+                    }
+
+                    if (entry.isDirectory()) {
+                        Files.createDirectories(extractedFilePath);
+                    } else {
+                        if (extractedFilePath.getParent() != null) {
+                            Files.createDirectories(extractedFilePath.getParent());
+                        }
+                        Files.copy(zis, extractedFilePath, StandardCopyOption.REPLACE_EXISTING);
+                    }
+                    zis.closeEntry();
+                }
+            }
+        } finally {
+            downloadConnection.disconnect();
         }
-        
+
         return extractedBalaPath;
     }
 
     private static String fetchLatestVersion(String org, String name) throws Exception {
         String apiUrl = String.format(CENTRAL_API_VERSION_URL, org, name);
         HttpURLConnection connection = (HttpURLConnection) new URL(apiUrl).openConnection();
-        connection.setRequestMethod("GET");
-        connection.setRequestProperty("Accept", "application/json");
+        try {
+            connection.setRequestMethod("GET");
+            connection.setRequestProperty("Accept", "application/json");
 
-        if (connection.getResponseCode() != 200) {
-            throw new RuntimeException("Failed to fetch package versions from Ballerina Central. HTTP code: " + connection.getResponseCode());
+            if (connection.getResponseCode() != 200) {
+                throw new RuntimeException("Failed to fetch package versions from Ballerina Central. HTTP code: "
+                        + connection.getResponseCode());
+            }
+
+            JsonArray versionsArray;
+            try (InputStreamReader reader = new InputStreamReader(connection.getInputStream())) {
+                versionsArray = JsonParser.parseReader(reader).getAsJsonArray();
+            }
+            if (versionsArray.isEmpty()) {
+                throw new RuntimeException("No versions found for package " + org + "/" + name);
+            }
+
+            return versionsArray.get(0).getAsString();
+        } finally {
+            connection.disconnect();
         }
-
-        JsonArray versionsArray = JsonParser.parseReader(new InputStreamReader(connection.getInputStream())).getAsJsonArray();
-        if (versionsArray.isEmpty()) {
-            throw new RuntimeException("No versions found for package " + org + "/" + name);
-        }
-
-        return versionsArray.get(0).getAsString();
     }
 }
