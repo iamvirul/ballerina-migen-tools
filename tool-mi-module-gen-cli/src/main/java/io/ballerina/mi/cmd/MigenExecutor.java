@@ -41,12 +41,10 @@ import io.ballerina.projects.EmitResult;
 import io.ballerina.tools.diagnostics.Diagnostic;
 import io.ballerina.tools.diagnostics.DiagnosticSeverity;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Objects;
 
 public class MigenExecutor {
     private static final String CONNECTOR_NAME_SEPARATOR = "-";
@@ -222,13 +220,9 @@ public class MigenExecutor {
     }
 
     static void createBinFolder(Path bin) throws IOException {
-        File[] files = bin.toFile().listFiles();
-        if (files != null) {
-            for (File file : Objects.requireNonNull(files)) {
-                file.delete();
-            }
+        if (Files.exists(bin)) {
+            Utils.deleteDirectory(bin);
         }
-        Files.deleteIfExists(bin);
         Files.createDirectories(bin);
     }
 }
