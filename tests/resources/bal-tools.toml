@@ -1,6 +1,6 @@
 [[tool]]
 id = "migen"
 org = "wso2"
-name = "migen"
+name = "tool.migen"
 version = "@toml.version@"
 active = true
