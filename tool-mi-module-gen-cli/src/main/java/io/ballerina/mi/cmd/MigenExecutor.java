@@ -59,23 +59,17 @@ public class MigenExecutor {
         Path projectPath = Path.of(sourcePath).normalize();
         Path[] executablePathRef = new Path[1];
 
-        // Determine project type up front and validate against the command.
-        boolean isBuildProject;
-        Project project;
+        // Compile, analyze, and emit (returns project type for validation)
+        Boolean isBuildProject;
         try {
-            project = ProjectLoader.loadProject(projectPath);
-        } catch (Exception e) {
-            printStream.println("ERROR: Failed to load Ballerina project from path: " + projectPath);
+            isBuildProject = compileAnalyzeAndEmit(projectPath, miArtifactsPath, printStream, executablePathRef, isConnector);
+        } catch (IOException e) {
+            printStream.println("ERROR: Failed to create output directories: " + e.getMessage());
             return;
         }
 
-        if (project instanceof BuildProject) {
-            isBuildProject = true;
-        } else if (project instanceof BalaProject) {
-            isBuildProject = false;
-        } else {
-            printStream.println("ERROR: Unsupported Ballerina project type at: " + projectPath);
-            return;
+        if (isBuildProject == null) {
+            return; // Compilation/Analysis failed
         }
 
         if (isConnector && isBuildProject) {
@@ -85,19 +79,6 @@ public class MigenExecutor {
         if (!isConnector && !isBuildProject) {
             printStream.println("ERROR: Expected a Ballerina source project for 'module' command, but found a Bala project.");
             return;
-        }
-
-        // Compile, analyze, and emit
-        Boolean compileResult;
-        try {
-            compileResult = compileAnalyzeAndEmit(projectPath, miArtifactsPath, printStream, executablePathRef, isConnector);
-        } catch (IOException e) {
-            printStream.println("ERROR: Failed to create output directories: " + e.getMessage());
-            return;
-        }
-
-        if (compileResult == null) {
-            return; // Compilation/Analysis failed
         }
         // Deterministic lifecycle management
         ResourceLifecycleManager lifecycle = new ResourceLifecycleManager();
