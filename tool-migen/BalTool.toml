@@ -1,0 +1,5 @@
+[tool]
+id = "migen"
+
+[[dependency]]
+path = "../tool-migen-cli/build/libs/tool-migen-cli-0.4.4-SNAPSHOT.jar"

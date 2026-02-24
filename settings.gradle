@@ -21,8 +21,8 @@ include(':mi-native')
 
 project(':checkstyle').projectDir = file("build-config${File.separator}checkstyle")
 project(':mi-native').projectDir = file('native')
-project(':tool-migen').projectDir = file("tool-mi-module-gen")
-project(':tool-migen-cli').projectDir = file("tool-mi-module-gen-cli")
+project(':tool-migen').projectDir = file("tool-migen")
+project(':tool-migen-cli').projectDir = file("tool-migen-cli")
 project(':mi-tests').projectDir = file('tests')
 
 gradleEnterprise {

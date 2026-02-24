@@ -157,7 +157,7 @@ task pushMiToolToLocal() {
     doLast {
         // First run bal pack to create the bala file
         exec {
-            workingDir "${project.rootDir}/tool-mi-module-gen"
+            workingDir "${project.rootDir}/tool-migen"
             if (Os.isFamily(Os.FAMILY_WINDOWS)) {
                 commandLine 'cmd', '/c', "${balCommand}", 'pack'
             } else {
@@ -168,7 +168,7 @@ task pushMiToolToLocal() {
         // Then push to local repository
         // This will automatically update bal-tools.toml
         exec {
-            workingDir "${project.rootDir}/tool-mi-module-gen"
+            workingDir "${project.rootDir}/tool-migen"
             if (Os.isFamily(Os.FAMILY_WINDOWS)) {
                 commandLine 'cmd', '/c', "${balCommand}", 'push', '--repository=local'
             } else {
