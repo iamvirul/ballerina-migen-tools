@@ -1,0 +1,21 @@
+NAME
+       bal migen - Generate WSO2 Micro Integrator artifacts from Ballerina
+
+SYNOPSIS
+       bal migen <subcommand> [OPTIONS]
+
+DESCRIPTION
+       Generate WSO2 MI modules and connectors from Ballerina packages.
+
+SUBCOMMANDS
+       module      Generate MI module from @mi:Operation functions
+       connector   Generate MI connector from Ballerina connector
+
+OPTIONS
+       -h, --help
+           Display this help message.
+
+EXAMPLES
+       $ bal migen module
+       $ bal migen connector --package ballerinax/github
+       $ bal migen connector --package ballerinax/github:6.0.0

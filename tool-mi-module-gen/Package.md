@@ -23,7 +23,7 @@ This tool enables developers to:
 Pull the tool using the Ballerina CLI:
 
 ```bash
-$ bal tool pull tool.migen
+$ bal tool pull migen
 ```
 
 ### Usage
@@ -42,14 +42,14 @@ public function transform(xml input) returns xml {
 2. **Generate the MI module**:
 
 ```bash
-$ bal migen module -p <path_to_ballerina_project> -o <output_directory>
+$ bal migen module --path <path_to_ballerina_project> -o <output_directory>
 ```
 
 3. **Deploy** the generated module to WSO2 Micro Integrator.
 
 ### Generate MI Connector from Ballerina Connector
 
-You can generate an MI connector from an existing Ballerina connector.
+You can generate an MI connector from an existing Ballerina connector bala.
 
 **Option 1: Directly from Ballerina Central (fetches automatically):**
 
@@ -61,22 +61,22 @@ $ bal migen connector --package ballerinax/<connector_name>:<version>
 **Option 2: From a locally cached bala:**
 
 ```bash
-$ bal migen connector -p $HOME/.ballerina/repositories/central.ballerina.io/bala/ballerinax/<connector_name>/<version>/any -o <output_directory>
+$ bal migen connector --path $HOME/.ballerina/repositories/central.ballerina.io/bala/ballerinax/<connector_name>/<version>/any -o <output_directory>
 ```
 
 For example, to generate an MI connector from the locally cached `ballerinax/github` connector:
 
 ```bash
 $ bal pull ballerinax/github
-$ bal migen connector -p {user.home}/.ballerina/repositories/central.ballerina.io/bala/ballerinax/github/6.0.0/any -o generatedMiConnector
+$ bal migen connector --path {user.home}/.ballerina/repositories/central.ballerina.io/bala/ballerinax/github/6.0.0/any -o generatedMiConnector
 ```
 
 ## Command Options
 
 | Command | Option | Description |
 |---------|--------|-------------|
-| `module` | `-p, --path` | Path to the Ballerina project (defaults to CWD) |
+| `module` | `--path` | Path to the Ballerina source project (defaults to CWD) |
 | | `-o, --output` | Output directory for the generated artifacts (defaults to `target/mi/`) |
 | `connector` | `--package` | Ballerina Central package (`org/name` or `org/name:version`) |
-| | `-p, --path` | Path to the Ballerina connector bala (mutually exclusive with `--package`) |
+| | `--path` | Path to the Ballerina connector bala (mutually exclusive with `--package`) |
 | | `-o, --output` | Output directory for the generated artifacts (defaults to `target/mi/`) |

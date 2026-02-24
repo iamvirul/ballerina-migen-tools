@@ -34,8 +34,8 @@ public class ConnectorCmd implements BLauncherCmd {
     private boolean helpFlag;
 
     @CommandLine.Option(names = {"--path"},
-            description = "Path to the local Ballerina connector project or bala (defaults to CWD). " +
-                    "Mutually exclusive with --package.")
+            description = "Path to the local Ballerina connector bala or extracted bala directory " +
+                    "(defaults to CWD). Mutually exclusive with --package.")
     private String sourcePath;
 
     @CommandLine.Option(names = {"--output", "-o"},
@@ -53,23 +53,55 @@ public class ConnectorCmd implements BLauncherCmd {
     @Override
     public void execute() {
         if (helpFlag) {
-            CommandLine.usage(this, printStream);
+            String commandUsageInfo = BLauncherCmd.getCommandUsageInfo("migen-connector",
+                    ConnectorCmd.class.getClassLoader());
+            printStream.println(commandUsageInfo);
             return;
         }
 
-        // If both --package and --path are provided, give priority to --path
+        // If both --package and --path are provided, fail fast as they are mutually exclusive.
         if (packageId != null && sourcePath != null) {
-            printStream.println("WARNING: Both --package and --path provided. Giving priority to --path.");
-            packageId = null;
+            printStream.println("ERROR: Options --package and --path are mutually exclusive. Please provide only one.");
+            System.exit(1);
         }
 
         Path resolvedSource;
 
         if (packageId != null) {
-            // --package mode: not yet fully supported, placeholder
-            printStream.println("Warning: --package is not yet fully supported. " +
-                    "Please use 'bal pull <org/package>' and provide the extracted bala path with --path.");
-            return;
+            String[] parts = packageId.split(":");
+            String basePackage;
+            String version = null;
+
+            if (parts.length == 1) {
+                basePackage = parts[0];
+            } else if (parts.length == 2) {
+                basePackage = parts[0];
+                version = parts[1];
+            } else {
+                printStream.println("ERROR: Invalid package format. Expected org/name or org/name:version");
+                return;
+            }
+
+            String[] orgName = basePackage.split("/");
+            if (orgName.length != 2) {
+                printStream.println("ERROR: Invalid package format. Expected org/name or org/name:version");
+                return;
+            }
+            String org = orgName[0];
+            String name = orgName[1];
+
+            // Resolve targetPath: default to CWD/target/mi/
+            String target = targetPath != null
+                    ? targetPath
+                    : Paths.get(System.getProperty("user.dir")).resolve("target").resolve("mi").toString();
+
+            try {
+                resolvedSource = io.ballerina.mi.util.CentralPackagePuller.pullAndExtractPackage(
+                        org, name, version, Paths.get(target));
+            } catch (Exception e) {
+                printStream.println("ERROR: Failed to download package " + packageId + " - " + e.getMessage());
+                return;
+            }
         } else {
             // --path mode (or CWD default)
             resolvedSource = sourcePath != null
@@ -77,10 +109,16 @@ public class ConnectorCmd implements BLauncherCmd {
                     : Paths.get(System.getProperty("user.dir")).toAbsolutePath();
         }
 
-        // Resolve targetPath: default to <resolvedSource>/target/mi/
-        String resolvedTarget = targetPath != null
-                ? targetPath
-                : resolvedSource.resolve("target").resolve("mi").toString();
+        String resolvedTarget;
+        if (packageId != null) {
+            resolvedTarget = targetPath != null
+                    ? targetPath
+                    : Paths.get(System.getProperty("user.dir")).resolve("target").resolve("mi").toString();
+        } else {
+            resolvedTarget = targetPath != null
+                    ? targetPath
+                    : resolvedSource.resolve("target").resolve("mi").toString();
+        }
 
         MigenExecutor.executeGeneration(resolvedSource.toString(), resolvedTarget, printStream, true);
     }
@@ -92,9 +130,7 @@ public class ConnectorCmd implements BLauncherCmd {
 
     @Override
     public void printLongDesc(StringBuilder stringBuilder) {
-        stringBuilder.append("Generate WSO2 Micro Integrator artifacts from Ballerina connectors.\n");
-        stringBuilder.append("This command scans the Ballerina connector project or extracted BALA\n");
-        stringBuilder.append("and generates the corresponding MI connector artifacts.\n");
+        stringBuilder.append("Generate WSO2 Micro Integrator connector from Ballerina connector\n");
     }
 
     @Override

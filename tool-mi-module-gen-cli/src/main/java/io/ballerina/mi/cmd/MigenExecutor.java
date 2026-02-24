@@ -41,12 +41,10 @@ import io.ballerina.projects.EmitResult;
 import io.ballerina.tools.diagnostics.Diagnostic;
 import io.ballerina.tools.diagnostics.DiagnosticSeverity;
 
-import java.io.File;
 import java.io.IOException;
 import java.io.PrintStream;
 import java.nio.file.Files;
 import java.nio.file.Path;
-import java.util.Objects;
 
 public class MigenExecutor {
     private static final String CONNECTOR_NAME_SEPARATOR = "-";
@@ -61,22 +59,27 @@ public class MigenExecutor {
         Path projectPath = Path.of(sourcePath).normalize();
         Path[] executablePathRef = new Path[1];
 
-        // Compile, analyze, and emit
-        Boolean isBuildProject = compileAnalyzeAndEmit(projectPath, miArtifactsPath, printStream, executablePathRef, isConnector);
-        
+        // Compile, analyze, and emit (returns project type for validation)
+        Boolean isBuildProject;
+        try {
+            isBuildProject = compileAnalyzeAndEmit(projectPath, miArtifactsPath, printStream, executablePathRef, isConnector);
+        } catch (IOException e) {
+            printStream.println("ERROR: Failed to create output directories: " + e.getMessage());
+            return;
+        }
+
         if (isBuildProject == null) {
             return; // Compilation/Analysis failed
         }
 
         if (isConnector && isBuildProject) {
-             printStream.println("ERROR: Expected a Ballerina connector (Bala) project for 'connector' command, but found a source project.");
-             return;
+            printStream.println("ERROR: Expected a Ballerina connector (Bala) project for 'connector' command, but found a source project.");
+            return;
         }
         if (!isConnector && !isBuildProject) {
-             printStream.println("ERROR: Expected a Ballerina source project for 'module' command, but found a Bala project.");
-             return;
+            printStream.println("ERROR: Expected a Ballerina source project for 'module' command, but found a Bala project.");
+            return;
         }
-
         // Deterministic lifecycle management
         ResourceLifecycleManager lifecycle = new ResourceLifecycleManager();
 
@@ -106,12 +109,27 @@ public class MigenExecutor {
         } finally {
             // Deterministic cleanup
             lifecycle.cleanup();
+            // Remove the intermediate BalConnectors folder from the output directory
+            Path balConnectorsDir = miArtifactsPath.resolve("BalConnectors");
+            if (Files.exists(balConnectorsDir)) {
+                try {
+                    Utils.deleteDirectory(balConnectorsDir);
+                } catch (IOException e) {
+                    printStream.println("WARN: Failed to remove intermediate BalConnectors directory: " + e.getMessage());
+                }
+            }
         }
     }
 
-    static Boolean compileAnalyzeAndEmit(Path projectPath, Path miArtifactsPath, PrintStream printStream, Path[] executablePathRef, boolean isConnector) {
+    static Boolean compileAnalyzeAndEmit(Path projectPath, Path miArtifactsPath, PrintStream printStream, Path[] executablePathRef, boolean isConnector) throws IOException {
         BuildOptions buildOptions = BuildOptions.builder().setOffline(false).build();
-        ProjectLoadResult projectLoadResult = ProjectLoader.load(projectPath.toAbsolutePath(), buildOptions);
+        ProjectLoadResult projectLoadResult;
+        try {
+            projectLoadResult = ProjectLoader.load(projectPath.toAbsolutePath(), buildOptions);
+        } catch (io.ballerina.projects.ProjectException e) {
+            printStream.println("ERROR: Valid Ballerina package or bala file not found at " + projectPath.toAbsolutePath() + ". " + e.getMessage());
+            return null;
+        }
         Project project = projectLoadResult.project();
         Package compilePkg = project.currentPackage();
         boolean isBuildProject = project instanceof BuildProject;
@@ -129,11 +147,7 @@ public class MigenExecutor {
                     CONNECTOR_NAME_SEPARATOR + compilePkg.descriptor().name().value() +
                     CONNECTOR_NAME_SEPARATOR + compilePkg.descriptor().version().toString() + ".jar" );
 
-            try {
-                Files.createDirectories(miConnectorCache);
-            } catch (IOException e) {
-                throw  new RuntimeException(e);
-            }
+            Files.createDirectories(miConnectorCache);
             System.setProperty(Constants.CONNECTOR_TARGET_PATH, executablePathRef[0].toString());
         } else {
             balAnalyzer = new BalModuleAnalyzer();
@@ -156,11 +170,7 @@ public class MigenExecutor {
 
         if (isBuildProject) {
             Path bin = miArtifactsPath.resolve("bin");
-            try {
-                createBinFolder(bin);
-            } catch (IOException e) {
-                throw new RuntimeException(e);
-            }
+            createBinFolder(bin);
             executablePathRef[0] = bin.resolve(compilePkg.descriptor().name().value() + ".jar");
         }
 
@@ -174,6 +184,11 @@ public class MigenExecutor {
 
         if (!emitResult.diagnostics().diagnostics().isEmpty()) {
             emitResult.diagnostics().diagnostics().forEach(d -> printStream.println("\n" + d.toString()));
+        }
+
+        if (!emitResult.successful()) {
+            printStream.println("ERROR: Ballerina project emit failed; artifact generation aborted.");
+            return null;
         }
 
         Connector.getConnector().clearTypeSymbols();
@@ -204,13 +219,9 @@ public class MigenExecutor {
     }
 
     static void createBinFolder(Path bin) throws IOException {
-        File[] files = bin.toFile().listFiles();
-        if (files != null) {
-            for (File file : Objects.requireNonNull(files)) {
-                file.delete();
-            }
+        if (Files.exists(bin)) {
+            Utils.deleteDirectory(bin);
         }
-        Files.deleteIfExists(bin);
         Files.createDirectories(bin);
     }
 }

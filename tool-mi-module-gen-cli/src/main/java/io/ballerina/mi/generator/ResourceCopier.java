@@ -68,9 +68,18 @@ public final class ResourceCopier {
             // while CodeSource points to build/classes/java/main.
             Path resourcesPath = sourcePath;
             if (sourcePath.endsWith(Paths.get("classes", "java", "main"))) {
-                Path potentialResources = sourcePath.getParent().getParent().getParent().resolve("resources").resolve("main");
-                if (Files.exists(potentialResources)) {
-                    resourcesPath = potentialResources;
+                Path ancestor = sourcePath;
+                for (int i = 0; i < 3; i++) {
+                    if (ancestor == null) {
+                        break;
+                    }
+                    ancestor = ancestor.getParent();
+                }
+                if (ancestor != null) {
+                    Path potentialResources = ancestor.resolve("resources").resolve("main");
+                    if (Files.exists(potentialResources)) {
+                        resourcesPath = potentialResources;
+                    }
                 }
             }
             
@@ -128,7 +137,11 @@ public final class ResourceCopier {
     private static Path resolveIconPath(String iconPathStr, Path destination) {
         Path iconPath = Paths.get(iconPathStr);
         if (!iconPath.isAbsolute()) {
-            return destination.getParent().resolve(iconPathStr).normalize();
+            Path parent = destination.getParent();
+            if (parent == null) {
+                parent = destination;
+            }
+            return parent.resolve(iconPathStr).normalize();
         }
         return iconPath;
     }
@@ -241,7 +254,13 @@ public final class ResourceCopier {
     }
 
     private static void copyResource(ClassLoader classLoader, String resourcePath, Path destination) throws IOException {
-        Path outputPath = destination.resolve(resourcePath);
+        // Zip-slip / path-traversal guard: normalize both paths and verify containment
+        // before creating any directories or writing any bytes.
+        Path normalizedDestination = destination.toAbsolutePath().normalize();
+        Path outputPath = normalizedDestination.resolve(resourcePath).normalize();
+        if (!outputPath.startsWith(normalizedDestination)) {
+            throw new IOException("Path traversal detected in resource entry: " + resourcePath);
+        }
         Files.createDirectories(outputPath.getParent());
         try (InputStream inputStream = getFileFromResourceAsStream(classLoader, resourcePath)) {
             Files.copy(inputStream, outputPath, StandardCopyOption.REPLACE_EXISTING);

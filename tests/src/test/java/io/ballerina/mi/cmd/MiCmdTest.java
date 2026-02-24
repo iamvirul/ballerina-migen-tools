@@ -22,6 +22,9 @@ import org.testng.Assert;
 import org.testng.annotations.Test;
 import picocli.CommandLine;
 
+import java.io.ByteArrayOutputStream;
+import java.io.PrintStream;
+
 public class MiCmdTest {
 
     @Test
@@ -37,7 +40,32 @@ public class MiCmdTest {
         StringBuilder usage = new StringBuilder();
         cmd.printUsage(usage);
         Assert.assertTrue(usage.toString().contains("bal migen <subcommand>"));
-        
+
         cmd.setParentCmdParser(new CommandLine(cmd));
+    }
+
+    /**
+     * Verifies that MiCmd.execute() (the no-subcommand / missing-args path) writes
+     * some help/usage text to stdout.  MiCmd has no required arguments — when invoked
+     * with no subcommand it simply delegates to BLauncherCmd.getCommandUsageInfo and
+     * prints the result, so we assert the output is non-empty.
+     */
+    @Test
+    public void testExecutePrintsHelp() {
+        ByteArrayOutputStream captured = new ByteArrayOutputStream();
+        PrintStream originalOut = System.out;
+        System.setOut(new PrintStream(captured));
+        try {
+            // MiCmd must be constructed AFTER the redirect: its constructor does
+            // `this.printStream = System.out`, so it must see our capturing stream.
+            MiCmd cmd = new MiCmd();
+            cmd.execute();
+        } finally {
+            System.setOut(originalOut);
+        }
+
+        String output = captured.toString();
+        Assert.assertFalse(output.isEmpty(),
+                "MiCmd.execute() should print help/usage text when no subcommand is provided");
     }
 }

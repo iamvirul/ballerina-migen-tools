@@ -34,7 +34,7 @@ public class ModuleCmd implements BLauncherCmd {
     @CommandLine.Option(names = {"--help", "-h"}, usageHelp = true, hidden = true)
     private boolean helpFlag;
 
-    @CommandLine.Option(names = {"--path", "-p"}, description = "Path to the Ballerina project (defaults to CWD)")
+    @CommandLine.Option(names = {"--path"}, description = "Path to the Ballerina project (defaults to CWD)")
     private String sourcePath;
 
     @CommandLine.Option(names = {"--output", "-o"}, description = "Output directory (defaults to <path>/target/mi/)")
@@ -47,7 +47,9 @@ public class ModuleCmd implements BLauncherCmd {
     @Override
     public void execute() {
         if (helpFlag) {
-            CommandLine.usage(this, printStream);
+            String commandUsageInfo = BLauncherCmd.getCommandUsageInfo("migen-module",
+                    ModuleCmd.class.getClassLoader());
+            printStream.println(commandUsageInfo);
             return;
         }
 
@@ -78,9 +80,7 @@ public class ModuleCmd implements BLauncherCmd {
 
     @Override
     public void printLongDesc(StringBuilder stringBuilder) {
-        stringBuilder.append("Generate WSO2 Micro Integrator artifacts from Ballerina functions annotated with @mi:Operation.\n");
-        stringBuilder.append("This command scans the Ballerina project for functions with @mi:Operation annotation\n");
-        stringBuilder.append("and generates the corresponding MI artifacts.\n");
+        stringBuilder.append("Generate WSO2 Micro Integrator module artifacts from @mi:Operation functions\n");
     }
 
     @Override

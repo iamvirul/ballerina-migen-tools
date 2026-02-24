@@ -40,7 +40,7 @@ public class TestMediatorContent {
                 Paths.get(System.getProperty("bal.command"));
         Path projectDir = RES_DIR.resolve(project).toAbsolutePath();
         ProcessBuilder processBuilder = new ProcessBuilder()
-                .command(balExecutable.toString(), "migen", "module", "-p", projectDir.toString(), "-o", projectDir.resolve("target").toString());
+                .command(balExecutable.toString(), "migen", "module", "--path", projectDir.toString(), "-o", projectDir.resolve("target").toString());
 
         processBuilder.redirectErrorStream(true);
         Process process = processBuilder.start();

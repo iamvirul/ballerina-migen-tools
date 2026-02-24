@@ -1,0 +1,21 @@
+NAME
+       bal migen connector - Generate MI connector from Ballerina connector
+
+SYNOPSIS
+       bal migen connector [OPTIONS]
+
+OPTIONS
+       --package <org/name:version>
+           Ballerina Central package to generate from. Version is optional.
+
+       --path <path>
+           Path to local Ballerina connector bala.
+           Defaults to the current directory if omitted.
+
+       -o, --output <path>
+           Output directory. Defaults to target/mi/.
+
+EXAMPLES
+       $ bal migen connector --package ballerinax/github
+       $ bal migen connector --package ballerinax/github:6.0.0
+       $ bal migen connector --path ~/.ballerina/repositories/central.ballerina.io/bala/ballerinax/github/6.0.0/any -o ./output

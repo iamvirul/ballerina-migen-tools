@@ -56,7 +56,7 @@ Ballerina function that contains `@mi:Operation` annotation maps with a componen
 Finally, use the `bal migen` command to generate the Module for the WSO2 Micro Integrator.
 
 ```bash
-$ bal migen module -p <path_to_ballerina_project> -o <output_directory>
+$ bal migen module --path <path_to_ballerina_project> -o <output_directory>
 ```
 
 Above command generates the module zip in the specified output directory.
@@ -73,7 +73,7 @@ $ bal migen connector --package ballerinax/<connector_name>:<version>
 **Option 2: From a locally cached bala:**
 
 ```bash
-$ bal migen connector -p $HOME/.ballerina/repositories/central.ballerina.io/bala/ballerinax/<connector_name>/<version>/any -o <output_directory>
+$ bal migen connector --path $HOME/.ballerina/repositories/central.ballerina.io/bala/ballerinax/<connector_name>/<version>/any -o <output_directory>
 ```
 
 ## Local build
@@ -93,7 +93,7 @@ $ bal migen connector -p $HOME/.ballerina/repositories/central.ballerina.io/bala
    Then run the build command:
 
    ```bash
-   $ ./gradlew clean :tool-mi-module-gen:localPublish
+   $ ./gradlew clean :tool-migen:localPublish
    ```
 
 ### Run tests
