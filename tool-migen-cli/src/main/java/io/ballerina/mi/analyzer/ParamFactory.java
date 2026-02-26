@@ -161,6 +161,7 @@ public class ParamFactory {
         param.setParamKind(parameterSymbol.paramKind());
         param.setTypeSymbol(rawTypeSymbol);
         param.setRequired(!isDefaultable);
+        param.setTypeDescriptor(true);
         return Optional.of(param);
     }
 
@@ -181,6 +182,7 @@ public class ParamFactory {
         UnionFunctionParam unionParam = new UnionFunctionParam(Integer.toString(index), paramName, "union");
         unionParam.setTypeSymbol(rawTypeSymbol);
         unionParam.setRequired(!isDefaultable);
+        unionParam.setTypeDescriptor(true);
 
         java.util.Set<String> seen = new java.util.HashSet<>();
         int memberIndex = 0;
@@ -249,6 +251,7 @@ public class ParamFactory {
             simplified.setParamKind(ParameterKind.DEFAULTABLE);
             simplified.setTypeSymbol(rawTypeSymbol);
             simplified.setRequired(unionParam.isRequired());
+            simplified.setTypeDescriptor(true);
             if (isDefaultable && single.getDefaultValue() != null) {
                 simplified.setDefaultValue(single.getDefaultValue());
             }

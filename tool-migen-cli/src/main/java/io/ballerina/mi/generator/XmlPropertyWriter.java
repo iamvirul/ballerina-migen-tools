@@ -204,9 +204,12 @@ public final class XmlPropertyWriter {
             result.append(String.format("\n        <property name=\"%s_%s_paramType%d\" value=\"%s\"/>",
                     connectionType, recordParamName, fieldIndexHolder[0], fieldParam.getParamType()));
             String sanitizedParamName = Utils.sanitizeParamName(fieldValue);
-            result.append(String.format("\n        <property name=\"%s_%s_dataType%d\" value=\"%s\"/>",
-                    connectionType, recordParamName, fieldIndexHolder[0],
-                    String.format("%s_%s", sanitizedParamName, "DataType")));
+            
+            if (!unionFieldParam.isTypeDescriptor()) {
+                result.append(String.format("\n        <property name=\"%s_%s_dataType%d\" value=\"%s\"/>",
+                        connectionType, recordParamName, fieldIndexHolder[0],
+                        String.format("%s_%s", sanitizedParamName, "DataType")));
+            }
 
             if (unionMemberType != null) {
                 result.append(String.format("\n        <property name=\"%s_%s_unionMember%d\" value=\"%s\"/>",
@@ -215,15 +218,17 @@ public final class XmlPropertyWriter {
 
             fieldIndexHolder[0]++;
 
-            for (FunctionParam memberParam : unionFieldParam.getUnionMemberParams()) {
-                if (memberParam instanceof RecordFunctionParam recordMemberParam) {
-                    String memberTypeName = recordMemberParam.getDisplayTypeName();
-                    if (memberTypeName == null || memberTypeName.isEmpty()) {
-                        memberTypeName = recordMemberParam.getRecordName();
-                    }
-                    for (FunctionParam recordField : recordMemberParam.getRecordFieldParams()) {
-                        writeRecordFieldParamPropertiesWithUnionMember(recordField, connectionType, recordParamName,
-                                result, fieldIndexHolder, memberTypeName);
+            if (!unionFieldParam.isTypeDescriptor()) {
+                for (FunctionParam memberParam : unionFieldParam.getUnionMemberParams()) {
+                    if (memberParam instanceof RecordFunctionParam recordMemberParam) {
+                        String memberTypeName = recordMemberParam.getDisplayTypeName();
+                        if (memberTypeName == null || memberTypeName.isEmpty()) {
+                            memberTypeName = recordMemberParam.getRecordName();
+                        }
+                        for (FunctionParam recordField : recordMemberParam.getRecordFieldParams()) {
+                            writeRecordFieldParamPropertiesWithUnionMember(recordField, connectionType, recordParamName,
+                                    result, fieldIndexHolder, memberTypeName);
+                        }
                     }
                 }
             }
@@ -309,24 +314,29 @@ public final class XmlPropertyWriter {
             result.append(String.format("\n        <property name=\"%s_paramType%d\" value=\"%s\"/>",
                     recordParamName, fieldIndexHolder[0], fieldParam.getParamType()));
             String sanitizedParamName = Utils.sanitizeParamName(fieldValue);
-            result.append(String.format("\n        <property name=\"%s_dataType%d\" value=\"%s\"/>",
-                    recordParamName, fieldIndexHolder[0],
-                    String.format("%s_%s", sanitizedParamName, "DataType")));
+            
+            if (!unionFieldParam.isTypeDescriptor()) {
+                result.append(String.format("\n        <property name=\"%s_dataType%d\" value=\"%s\"/>",
+                        recordParamName, fieldIndexHolder[0],
+                        String.format("%s_%s", sanitizedParamName, "DataType")));
+            }
             if (unionMemberType != null) {
                 result.append(String.format("\n        <property name=\"%s_unionMember%d\" value=\"%s\"/>",
                         recordParamName, fieldIndexHolder[0], unionMemberType));
             }
             fieldIndexHolder[0]++;
 
-            for (FunctionParam memberParam : unionFieldParam.getUnionMemberParams()) {
-                if (memberParam instanceof RecordFunctionParam recordMemberParam) {
-                    String memberTypeName = recordMemberParam.getDisplayTypeName();
-                    if (memberTypeName == null || memberTypeName.isEmpty()) {
-                        memberTypeName = recordMemberParam.getRecordName();
-                    }
-                    for (FunctionParam recordField : recordMemberParam.getRecordFieldParams()) {
-                        writeFunctionRecordFieldPropertiesWithUnionMember(recordField, recordParamName,
-                                result, fieldIndexHolder, memberTypeName);
+            if (!unionFieldParam.isTypeDescriptor()) {
+                for (FunctionParam memberParam : unionFieldParam.getUnionMemberParams()) {
+                    if (memberParam instanceof RecordFunctionParam recordMemberParam) {
+                        String memberTypeName = recordMemberParam.getDisplayTypeName();
+                        if (memberTypeName == null || memberTypeName.isEmpty()) {
+                            memberTypeName = recordMemberParam.getRecordName();
+                        }
+                        for (FunctionParam recordField : recordMemberParam.getRecordFieldParams()) {
+                            writeFunctionRecordFieldPropertiesWithUnionMember(recordField, recordParamName,
+                                    result, fieldIndexHolder, memberTypeName);
+                        }
                     }
                 }
             }
@@ -358,33 +368,45 @@ public final class XmlPropertyWriter {
                 writeXmlParameterElements(fieldParam, result, isFirst, processedParams);
             }
         } else if (functionParam instanceof UnionFunctionParam unionParam) {
-            // Expand Union: Add DataType param and expand members
-
-            // 1. DataType parameter
             String sanitizedParamName = Utils.sanitizeParamName(unionParam.getValue());
-            String dataTypeParamName = sanitizedParamName + "_DataType";
 
-            if (!processedParams.contains(dataTypeParamName)) {
-                String description = functionParam.getDescription() != null ? functionParam.getDescription() : "";
-                if (!isFirst[0]) {
-                    result.append("\n    ");
-                }
-                result.append(String.format("<parameter name=\"%s\" description=\"%s\"/>",
-                        dataTypeParamName, escapeXml(description)));
-                isFirst[0] = false;
-                processedParams.add(dataTypeParamName);
-            }
-
-            // 2. Expand all union members properties
-            for (FunctionParam member : unionParam.getUnionMemberParams()) {
-                if (member instanceof RecordFunctionParam memberRecord) {
-                    for (FunctionParam field : memberRecord.getRecordFieldParams()) {
-                        writeXmlParameterElements(field, result, isFirst, processedParams);
+            if (unionParam.isTypeDescriptor()) {
+                if (!processedParams.contains(sanitizedParamName)) {
+                    String description = functionParam.getDescription() != null ? functionParam.getDescription() : "";
+                    if (!isFirst[0]) {
+                        result.append("\n    ");
                     }
-                } else if (member instanceof UnionFunctionParam) {
-                    writeXmlParameterElements(member, result, isFirst, processedParams);
-                } else {
-                    writeXmlParameterElements(member, result, isFirst, processedParams);
+                    result.append(String.format("<parameter name=\"%s\" description=\"%s\"/>",
+                            sanitizedParamName, escapeXml(description)));
+                    isFirst[0] = false;
+                    processedParams.add(sanitizedParamName);
+                }
+            } else {
+                // Expand Union: Add DataType param and expand members
+                String dataTypeParamName = sanitizedParamName + "_DataType";
+
+                if (!processedParams.contains(dataTypeParamName)) {
+                    String description = functionParam.getDescription() != null ? functionParam.getDescription() : "";
+                    if (!isFirst[0]) {
+                        result.append("\n    ");
+                    }
+                    result.append(String.format("<parameter name=\"%s\" description=\"%s\"/>",
+                            dataTypeParamName, escapeXml(description)));
+                    isFirst[0] = false;
+                    processedParams.add(dataTypeParamName);
+                }
+
+                // Expand all union members properties
+                for (FunctionParam member : unionParam.getUnionMemberParams()) {
+                    if (member instanceof RecordFunctionParam memberRecord) {
+                        for (FunctionParam field : memberRecord.getRecordFieldParams()) {
+                            writeXmlParameterElements(field, result, isFirst, processedParams);
+                        }
+                    } else if (member instanceof UnionFunctionParam) {
+                        writeXmlParameterElements(member, result, isFirst, processedParams);
+                    } else {
+                        writeXmlParameterElements(member, result, isFirst, processedParams);
+                    }
                 }
             }
         } else {
