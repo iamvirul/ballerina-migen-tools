@@ -53,6 +53,10 @@ public class JsonGenerator {
         String originalParamValue = functionParam.getValue();
         String displayParamValue = originalParamValue;
 
+        if (functionParam.isTypeDescriptor() && !(functionParam instanceof UnionFunctionParam)) {
+            return;
+        }
+
         // For display purposes, remove group prefix if we're in a group context
         if (groupName != null && !groupName.isEmpty() && displayParamValue != null) {
             displayParamValue = removeGroupPrefix(displayParamValue, groupName);

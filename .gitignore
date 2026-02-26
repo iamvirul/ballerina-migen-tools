@@ -30,3 +30,5 @@ build
 
 !gradle-wrapper.jar
 !module-core-1.0.2.jar
+
+.DS_Store

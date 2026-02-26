@@ -139,6 +139,10 @@ public final class XmlPropertyWriter {
      */
     static void writeXmlParamProperties(FunctionParam functionParam, String connectionType,
                                         StringBuilder result, int[] indexHolder, boolean[] isFirst) {
+        if (functionParam.isTypeDescriptor() && !(functionParam instanceof UnionFunctionParam)) {
+            return;
+        }
+
         if (functionParam instanceof RecordFunctionParam recordParam && !recordParam.getRecordFieldParams().isEmpty()) {
             if (!isFirst[0]) {
                 result.append("\n        ");
