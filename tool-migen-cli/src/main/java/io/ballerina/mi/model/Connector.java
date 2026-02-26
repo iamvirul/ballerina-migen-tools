@@ -44,6 +44,7 @@ public class Connector extends ModelElement {
     private final String moduleName;
     private final String majorVersion;
     private boolean isBalModule;
+    private boolean multiClient = false;
     private boolean generationAborted = false;
     private String abortionReason;
 
@@ -96,6 +97,47 @@ public class Connector extends ModelElement {
 
     public static void reset() {
         connector = null;
+    }
+
+    public boolean isMultiClient() {
+        return multiClient;
+    }
+
+    /**
+     * Detects multi-client modules and applies per-client name prefixing.
+     * Must be called after all connections are added but before serialization.
+     * When multiple clients exist, prefixes each component name with its client class name
+     * (e.g., "getUsers" becomes "GmailClient_getUsers").
+     * Single-client modules are left unchanged.
+     */
+    public void applyMultiClientLayout() {
+        if (isBalModule || connections.size() <= 1) {
+            return;
+        }
+        multiClient = true;
+        for (Connection connection : connections) {
+            String clientName = connection.getObjectTypeName();
+            for (Component component : connection.getComponents()) {
+                component.setOriginalName(component.getName());
+                component.setName(clientName + "_" + component.getName());
+            }
+        }
+    }
+
+    /**
+     * Generates per-client component.xml files in separate directories under connectorFolder.
+     * Each client gets its own directory (e.g., generated/GmailClient/) with a component.xml
+     * listing only that client's operations.
+     */
+    public void generatePerClientFunctionsXml(File connectorFolder, String templatePath) {
+        for (Connection connection : connections) {
+            File clientDir = new File(connectorFolder, connection.getObjectTypeName());
+            if (!clientDir.exists()) {
+                clientDir.mkdirs();
+            }
+            ConnectorSerializer.generateXmlForConnector(templatePath, "client_component",
+                    clientDir + File.separator + "component", connection);
+        }
     }
 
     public boolean isGenerationAborted() {

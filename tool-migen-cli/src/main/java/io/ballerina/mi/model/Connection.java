@@ -20,7 +20,7 @@ package io.ballerina.mi.model;
 
 import java.util.ArrayList;
 
-public class Connection {
+public class Connection extends ModelElement {
     private final Connector parent;
     private final String connectionType;
     private String description;
@@ -64,6 +64,11 @@ public class Connection {
     }
 
     public String getObjectTypeName() {
+        return objectTypeName;
+    }
+
+    @Override
+    public String getName() {
         return objectTypeName;
     }
 

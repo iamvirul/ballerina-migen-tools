@@ -167,6 +167,9 @@ public class ConnectorSerializer {
         // Pre-compute TypeSymbol-derived values and release heavy compiler references
         connector.clearTypeSymbols();
 
+        // Detect multi-client modules and apply per-client name prefixing
+        connector.applyMultiClientLayout();
+
         ResourceLifecycleManager lifecycle = new ResourceLifecycleManager();
 
         try {
@@ -216,8 +219,9 @@ public class ConnectorSerializer {
         int totalComponents = connector.getComponents().size();
         int processed = 0;
         for (Connection connection : connector.getConnections()) {
+            String clientFolder = connector.isMultiClient() ? connection.getObjectTypeName() : null;
             for (Component component : connection.getComponents()) {
-                component.generateTemplateXml(connectorFolder, FUNCTION_TEMPLATE_PATH, "functions");
+                component.generateTemplateXml(connectorFolder, FUNCTION_TEMPLATE_PATH, "functions", clientFolder);
                 component.generateUIJson(connectorFolder, FUNCTION_TEMPLATE_PATH, component.getName());
                 lifecycle.register(component.getFunctionParams()::clear);
                 processed++;
@@ -251,7 +255,11 @@ public class ConnectorSerializer {
     private void generateAggregateXmls(Connector connector, File connectorFolder) {
         System.out.println("Generating aggregate XML files...");
         connector.generateInstanceXml(connectorFolder);
-        connector.generateFunctionsXml(connectorFolder, Constants.FUNCTION_TEMPLATE_PATH, "functions");
+        if (connector.isMultiClient()) {
+            connector.generatePerClientFunctionsXml(connectorFolder, Constants.FUNCTION_TEMPLATE_PATH);
+        } else {
+            connector.generateFunctionsXml(connectorFolder, Constants.FUNCTION_TEMPLATE_PATH, "functions");
+        }
         if (!connector.isBalModule()) {
             connector.generateConfigInstanceXml(connectorFolder, CONFIG_TEMPLATE_PATH, "config");
             connector.generateConfigTemplateXml(connectorFolder, CONFIG_TEMPLATE_PATH, "config");

@@ -50,6 +50,8 @@ public class Component extends ModelElement {
     private List<ResourcePathSegment> resourcePathSegments;
     // Flag to indicate if the component name was derived from OpenAPI operationId
     private boolean hasOperationId = false;
+    // Original operation name before multi-client prefixing (used for display name)
+    private String originalName;
 
     public Component(String name, String documentation, FunctionType functionType, String index, List<PathParamType> pathParams, List<Type> queryParams, String returnType) {
         this.name = name;
@@ -83,6 +85,10 @@ public class Component extends ModelElement {
 
     public void setName(String name) {
         this.name = name;
+    }
+
+    public void setOriginalName(String originalName) {
+        this.originalName = originalName;
     }
 
     public Connection getParent() {
@@ -228,10 +234,15 @@ public class Component extends ModelElement {
         return resourcePathSegments != null ? resourcePathSegments.size() : 0;
     }
 
-    public void generateTemplateXml(File connectorFolder, String templatePath, String typeName) {
-        File file = new File(connectorFolder, typeName);
+    public void generateTemplateXml(File connectorFolder, String templatePath, String typeName, String clientFolder) {
+        File file;
+        if (clientFolder != null) {
+            file = new File(connectorFolder, clientFolder);
+        } else {
+            file = new File(connectorFolder, typeName);
+        }
         if (!file.exists()) {
-            file.mkdir();
+            file.mkdirs();
         }
         ConnectorSerializer.generateXmlForConnector(templatePath, typeName + "_template", file + File.separator + this.getName(), this);
     }
@@ -268,15 +279,18 @@ public class Component extends ModelElement {
      *   - Always humanize the function name (function names are already meaningful)
      */
     public String getDisplayName() {
+        // Use original (unprefixed) name for display when available, and strip single quotes
+        String displaySource = (originalName != null ? originalName : this.name).replace("'", "");
+
         // For non-resource functions, always humanize the name
         // Remote function names are already meaningful (e.g., getAllContinentsStatus)
         if (functionType != FunctionType.RESOURCE) {
-            return Utils.humanizeName(this.name);
+            return Utils.humanizeName(displaySource);
         }
 
         // For resource functions with operationId, humanize the operationId
         if (hasOperationId) {
-            return Utils.humanizeName(this.name);
+            return Utils.humanizeName(displaySource);
         }
 
         // For resource functions without operationId, use documentation if available
@@ -297,6 +311,6 @@ public class Component extends ModelElement {
         }
 
         // Fallback: humanize the generated name
-        return Utils.humanizeName(this.name);
+        return Utils.humanizeName(displaySource);
     }
 }

@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <!--
-  ~ Copyright (c) 2025, WSO2 LLC. (https://www.wso2.com).
+  ~ Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
   ~
   ~ WSO2 LLC. licenses this file to you under the Apache License,
   ~ Version 2.0 (the "License"); you may not use this file except
@@ -16,12 +16,14 @@
   ~ specific language governing permissions and limitations
   ~ under the License.
   -->
-<connector>
-    <component name="{{sanitizeModuleName moduleName}}" package="io.ballerina.stdlib.mi">
-        {{writeConfigDependency this}}
-        {{{writeFunctionDependencies this}}}
-        <description>{{description}}</description>
-    </component>
-    <icon>icon/icon-small.png</icon>
-    <displayName>{{sanitizeModuleName moduleName}}</displayName>
-</connector>
+<component name="{{objectTypeName}}" displayName="{{objectTypeName}}" type="synapse/template">
+    <subComponents>
+        {{#each components ~}}
+        <component name="{{name}}">
+            <displayName>{{displayName}}</displayName>
+            <file>{{name}}.xml</file>
+            <description>{{documentation}}</description>
+        </component>
+        {{/each ~}}
+    </subComponents>
+</component>

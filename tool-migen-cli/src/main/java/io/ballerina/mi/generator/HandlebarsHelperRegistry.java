@@ -423,6 +423,19 @@ public final class HandlebarsHelperRegistry {
             }
             return new Handlebars.SafeString("");
         });
+        handlebar.registerHelper("writeFunctionDependencies", (context, options) -> {
+            Connector connector = (Connector) context;
+            if (connector.isMultiClient()) {
+                StringBuilder result = new StringBuilder();
+                for (Connection connection : connector.getConnections()) {
+                    result.append("<dependency component=\"")
+                            .append(connection.getObjectTypeName())
+                            .append("\"/>\n        ");
+                }
+                return new Handlebars.SafeString(result.toString().trim());
+            }
+            return new Handlebars.SafeString("<dependency component=\"functions\"/>");
+        });
         handlebar.registerHelper("unwrapOptional", ((context, options) -> {
             if (context instanceof Optional<?> optional) {
                 if (optional.isPresent()) {
