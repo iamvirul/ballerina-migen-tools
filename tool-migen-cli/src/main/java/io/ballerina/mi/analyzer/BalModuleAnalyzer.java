@@ -25,6 +25,7 @@ import io.ballerina.mi.model.Component;
 import io.ballerina.mi.model.Connection;
 import io.ballerina.mi.model.Connector;
 import io.ballerina.mi.model.FunctionType;
+import io.ballerina.mi.model.GenerationReport;
 import io.ballerina.mi.model.param.Param;
 import io.ballerina.mi.util.Constants;
 import io.ballerina.mi.util.Utils;
@@ -47,16 +48,26 @@ public class BalModuleAnalyzer implements Analyzer {
 
         Connector connector = Connector.getConnector(compilePackage.descriptor());
         connector.setBalModule(true);
+
+        var descriptor = compilePackage.descriptor();
+        connector.setGenerationReport(new GenerationReport(descriptor.name().value(), descriptor.org().value(),
+                descriptor.version().value().toString()));
+        GenerationReport.ClientReport clientReport = new GenerationReport.ClientReport(
+                descriptor.name().value(), null);
+
         // Get all symbols from the module and filter for functions
         Collection<Symbol> allSymbols = compilePackage.getCompilation().getSemanticModel(compilePackage.getDefaultModule().moduleId()).moduleSymbols();
         for (Symbol symbol : allSymbols) {
             if (symbol.kind() == SymbolKind.FUNCTION && symbol instanceof FunctionSymbol functionSymbol) {
-                analyzeFunctionForMIOperation(functionSymbol, connector);
+                analyzeFunctionForMIOperation(functionSymbol, connector, clientReport);
             }
         }
+
+        connector.getGenerationReport().addClientReport(clientReport);
     }
 
-    private void analyzeFunctionForMIOperation(FunctionSymbol functionSymbol, Connector connector) {
+    private void analyzeFunctionForMIOperation(FunctionSymbol functionSymbol, Connector connector,
+                                               GenerationReport.ClientReport clientReport) {
         // Check if function has @mi:Operation annotation
         List<AnnotationSymbol> annotations = functionSymbol.annotations();
 
@@ -207,5 +218,6 @@ public class BalModuleAnalyzer implements Analyzer {
 
         connection.setComponent(component);
         connector.setConnection(connection);
+        clientReport.addIncluded(functionName.get(), finalSynapseName, functionType.name());
     }
 }

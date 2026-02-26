@@ -24,6 +24,7 @@ import com.github.jknack.handlebars.io.ClassPathTemplateLoader;
 import io.ballerina.mi.model.Component;
 import io.ballerina.mi.model.Connection;
 import io.ballerina.mi.model.Connector;
+import io.ballerina.mi.model.GenerationReport;
 import io.ballerina.mi.model.ModelElement;
 import io.ballerina.mi.util.Constants;
 import io.ballerina.mi.util.JsonTemplateBuilder;
@@ -37,6 +38,7 @@ import java.io.IOException;
 import java.io.PrintStream;
 import java.net.URI;
 import java.net.URISyntaxException;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -191,6 +193,9 @@ public class ConnectorSerializer {
             // Phase 3: Generate aggregate XML files
             generateAggregateXmls(connector, connectorFolder);
 
+            // Capture report before lifecycle clears the connector
+            GenerationReport report = connector.getGenerationReport();
+
             // Cleanup init component FunctionParams
             for (Connection connection : connector.getConnections()) {
                 if (connection.getInitComponent() != null) {
@@ -201,6 +206,11 @@ public class ConnectorSerializer {
 
             // Phase 4: Copy resources and package
             copyResourcesAndPackage(connector, destinationPath, lifecycle);
+
+            // Phase 5: Write generation report
+            if (report != null) {
+                writeGenerationReport(report);
+            }
 
         } catch (IOException | URISyntaxException e) {
             throw new RuntimeException(e);
@@ -292,6 +302,24 @@ public class ConnectorSerializer {
         System.out.println("Packaging connector ZIP... (heap: " + usedMB + "MB used / " + maxMB + "MB max)");
         Utils.zipFolder(destinationPath, zipFilePath);
         System.out.println("Connector ZIP created successfully.");
+    }
+
+    // ─── Generation Report ────────────────────────────────────────────────────
+
+    /**
+     * Writes the generation report to {@code generation-report.txt} in the target directory
+     * and prints it to the console.
+     */
+    private void writeGenerationReport(GenerationReport report) {
+        String reportText = report.toText();
+        printStream.println(reportText);
+        Path reportPath = targetPath.resolve("generation-report.txt");
+        try {
+            Files.writeString(reportPath, reportText, StandardCharsets.UTF_8);
+            printStream.println("Generation report saved to: " + reportPath);
+        } catch (IOException e) {
+            printStream.println("WARNING: Failed to write generation report: " + e.getMessage());
+        }
     }
 
     // ─── File Generation (Template Rendering) ─────────────────────────────────

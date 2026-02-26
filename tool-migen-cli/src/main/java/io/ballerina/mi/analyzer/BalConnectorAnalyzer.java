@@ -28,6 +28,7 @@ import io.ballerina.mi.model.Component;
 import io.ballerina.mi.model.Connection;
 import io.ballerina.mi.model.Connector;
 import io.ballerina.mi.model.FunctionType;
+import io.ballerina.mi.model.GenerationReport;
 import io.ballerina.mi.model.param.FunctionParam;
 import io.ballerina.mi.model.param.Param;
 import io.ballerina.mi.model.param.RecordFunctionParam;
@@ -56,6 +57,9 @@ public class BalConnectorAnalyzer implements Analyzer {
 
         PackageDescriptor descriptor = compilePackage.descriptor();
         Connector connector = Connector.getConnector(descriptor);
+
+        connector.setGenerationReport(new GenerationReport(descriptor.name().value(), descriptor.org().value(),
+                descriptor.version().value().toString()));
 
         // Extract icon from the bala package docs folder
         extractConnectorIcon(compilePackage, connector);
@@ -189,6 +193,7 @@ public class BalConnectorAnalyzer implements Analyzer {
 
         Connector connector = Connector.getConnector();
         Connection connection = new Connection(connector, connectionType, clientClassName, Integer.toString(connector.getConnections().size()));
+        GenerationReport.ClientReport clientReport = new GenerationReport.ClientReport(clientClassName, connectionType);
 
         // Get the connector description
         Optional<PackageReadmeMd> connectorReadMe = compilePackage.readmeMd();
@@ -425,8 +430,10 @@ public class BalConnectorAnalyzer implements Analyzer {
                     Optional<FunctionParam> functionParam = ParamFactory.createFunctionParam(parameterSymbol, paramIndex);
                     if (functionParam.isEmpty()) {
                         String paramType = parameterSymbol.typeDescriptor().typeKind().getName();
+                        String skipReason = "unsupported parameter type: " + paramType;
                         printStream.println("Skipping function '" + functionName +
-                                "' due to unsupported parameter type: " + paramType);
+                                "' due to " + skipReason);
+                        clientReport.addSkipped(functionName, skipReason);
                         skippedOperations++;
                         shouldSkipOperation = true;
                         break; // Exit parameter loop, skip this entire operation
@@ -460,6 +467,7 @@ public class BalConnectorAnalyzer implements Analyzer {
 
             // Only add the component if it wasn't skipped
             if (!shouldSkipOperation) {
+                clientReport.addIncluded(functionName, finalSynapseName, functionType.name());
                 if (functionType == FunctionType.INIT) {
                     // objectTypeName is only needed on Connection, not on Component
                     // to avoid duplication in generated XML
@@ -484,6 +492,11 @@ public class BalConnectorAnalyzer implements Analyzer {
                             "unsupported parameter types for '%s'.",
                     skippedOperations, totalOperations, clientClassName);
             printStream.println(message);
+        }
+
+        GenerationReport report = connector.getGenerationReport();
+        if (report != null) {
+            report.addClientReport(clientReport);
         }
 
         connector.setConnection(connection);
