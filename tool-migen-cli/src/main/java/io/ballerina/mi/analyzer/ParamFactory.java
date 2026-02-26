@@ -229,8 +229,8 @@ public class ParamFactory {
             String sanitized = Utils.sanitizeParamName(paramName);
             memberParam.setEnableCondition("[{\"" + sanitized + "DataType\": \"" + optionLabel + "\"}]");
 
-            // Pre-fill the default value for record options so the field carries the type name
-            if (memberKind == TypeDescKind.RECORD && isDefaultable) {
+            // Pre-fill the default value for typedesc options so the field carries the type name
+            if (unionParam.isTypeDescriptor() || (memberKind == TypeDescKind.RECORD && isDefaultable)) {
                 memberParam.setDefaultValue(optionLabel);
             }
 

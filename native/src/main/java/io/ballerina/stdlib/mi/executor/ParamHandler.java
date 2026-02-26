@@ -22,6 +22,9 @@ import io.ballerina.runtime.api.creators.ValueCreator;
 import io.ballerina.runtime.api.utils.JsonUtils;
 import io.ballerina.runtime.api.utils.StringUtils;
 import io.ballerina.runtime.api.values.*;
+import io.ballerina.runtime.api.types.PredefinedTypes;
+import io.ballerina.runtime.api.types.Type;
+import io.ballerina.stdlib.mi.BalConnectorConfig;
 import io.ballerina.stdlib.mi.Constants;
 import io.ballerina.stdlib.mi.OMElementConverter;
 import io.ballerina.stdlib.mi.utils.SynapseUtils;
@@ -140,13 +143,36 @@ public class ParamHandler {
                 case ARRAY -> getArrayParameter((String) param, context, value);
                 case MAP -> DataTransformer.getMapParameter(param, context, value);
                 case UNION -> getUnionParameter(paramName, context, index);
-                default -> null;
+                case TYPEDESC -> getTypedescValue((String) param);
+                default -> getTypedescValue((String) param);
             };
             return result;
         } catch (Exception e) {
             log.error("Error in getParameter for " + paramName + " (type: " + paramType + "): " + e.getMessage(), e);
             throw new SynapseException("Failed to process parameter " + paramName, e);
         }
+    }
+
+    private Object getTypedescValue(String typeName) {
+        Type type;
+        switch (typeName) {
+            case Constants.STRING -> type = PredefinedTypes.TYPE_STRING;
+            case Constants.INT -> type = PredefinedTypes.TYPE_INT;
+            case Constants.FLOAT -> type = PredefinedTypes.TYPE_FLOAT;
+            case Constants.BOOLEAN -> type = PredefinedTypes.TYPE_BOOLEAN;
+            case Constants.DECIMAL -> type = PredefinedTypes.TYPE_DECIMAL;
+            case Constants.JSON -> type = PredefinedTypes.TYPE_JSON;
+            case Constants.XML -> type = PredefinedTypes.TYPE_XML;
+            default -> {
+                try {
+                    BMap<BString, Object> recordValue = ValueCreator.createRecordValue(BalConnectorConfig.getModule(), typeName);
+                    type = recordValue.getType();
+                } catch (Exception e) {
+                    return StringUtils.fromString(typeName);
+                }
+            }
+        }
+        return ValueCreator.createTypedescValue(type);
     }
 
     private Object getUnionParameter(String paramName, MessageContext context, int index) {
