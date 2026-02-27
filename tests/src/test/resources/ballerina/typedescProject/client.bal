@@ -1,22 +1,15 @@
-/*
- * Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
- *
- * WSO2 LLC. licenses this file to you under the Apache License,
- * Version 2.0 (the "License"); you may not use this file except
- * in compliance with the License.
- * You may obtain a copy of the License at
- *
- *     http://www.apache.org/licenses/LICENSE-2.0
- *
- * Unless required by applicable law or agreed to in writing,
- * software distributed under the License is distributed on an
- * "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
- * KIND, either express or implied. See the License for the
- * specific language governing permissions and limitations
- * under the License.
- */
-
-import ballerina/jballerina.java;
+// Copyright (c) 2026, WSO2 LLC. (https://www.wso2.com).
+// WSO2 LLC. licenses this file to you under the Apache License,
+// Version 2.0 (the "License"); you may not use this file except
+// in compliance with the License.
+// You may obtain a copy of the License at
+//     http://www.apache.org/licenses/LICENSE-2.0
+// Unless required by applicable law or agreed to in writing,
+// software distributed under the License is distributed on an
+// "AS IS" BASIS, WITHOUT WARRANTIES OR CONDITIONS OF ANY
+// KIND, either express or implied. See the License for the
+// specific language governing permissions and limitations
+// under the License.
 
 public isolated client class TypedescClient {
 
@@ -48,18 +41,8 @@ public isolated client class TypedescClient {
         }
     }
 
-    // Test D: Process typedesc<anydata> — accept any JSON-serializable value
+    // Test D: Process typedesc<anydata> - accept any JSON-serializable value
     remote isolated function processTypedescAnydata(json payload, typedesc<anydata> targetType = anydata) returns anydata|error {
         return payload.cloneWithType(targetType);
     }
-
-    // Test E: ASB-style receivePayload — inferred typedesc with @java:Method external
-    isolated remote function receivePayload(
-            @display {label: "Server Wait Time"} int? serverWaitTime = 60,
-            @display {label: "Expected Type"} typedesc<anydata> T = <>,
-            @display {label: "Dead-Lettered Messages"} boolean deadLettered = false)
-                returns @display {label: "Message Payload"} T|error = @java:Method {
-        'class: "io.testorg.typedesc.MessageReceiver"
-    } external;
 }
-

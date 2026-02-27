@@ -18,11 +18,6 @@
   -->
 <component name="functions" type="synapse/template">
     <subComponents>
-        <component name="receivePayload">
-            <displayName>receive payload</displayName>
-            <file>receivePayload.xml</file>
-            <description></description>
-        </component>
         <component name="processTypedescRecord">
             <displayName>process typedesc record</displayName>
             <file>processTypedescRecord.xml</file>
