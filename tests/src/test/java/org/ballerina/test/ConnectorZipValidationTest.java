@@ -31,6 +31,10 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.nio.file.StandardCopyOption;
+import java.util.ArrayList;
+import java.util.List;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 import java.util.zip.ZipEntry;
 import java.util.zip.ZipInputStream;
 
@@ -89,6 +93,7 @@ public class ConnectorZipValidationTest {
                 {"unionProject", null},
                 {"project6", null},
                 {"nestedRecordConflictProject", null},  // Test for qualified naming with nested record conflicts
+                {"multiClientProject", null},  // Test for multi-client per-folder separation
                 // Format: {"projectName", "org/package:version"} or {"projectName", null} for local
                 // Example: {"ballerinax-milvus", "ballerina/http:2.15.3"} - uncomment when connector is available
                 {"ballerinax-milvus", "ballerinax/milvus:1.1.0"},  // project5 is from Central (example)
@@ -262,18 +267,44 @@ public class ConnectorZipValidationTest {
                 "Expected connector.xml does not exist for project: " + projectName);
         compareFileContent(connectorXml, expectedConnectorXml);
 
-        // Validate component directory
-        Path componentDir = connectorPath.resolve("functions");
-        Assert.assertTrue(Files.exists(componentDir), "component 'functions' directory does not exist for project: " + projectName);
-        Assert.assertTrue(Files.isDirectory(componentDir), "component 'functions' path is not a directory for project: " + projectName);
+        // Validate component directories (single-client uses "functions/", multi-client uses per-client folders)
+        Path functionsDir = connectorPath.resolve("functions");
+        if (Files.exists(functionsDir) && Files.isDirectory(functionsDir)) {
+            // Single-client: validate functions/component.xml
+            Path testComponentXml = functionsDir.resolve("component.xml");
+            Assert.assertTrue(Files.exists(testComponentXml), "component.xml does not exist in 'functions' for project: " + projectName);
+            Path expectedComponentXml = expectedPath.resolve("functions").resolve("component.xml");
+            Assert.assertTrue(Files.exists(expectedComponentXml),
+                    "Expected component.xml does not exist in 'functions' for project: " + projectName);
+            compareFileContent(testComponentXml, expectedComponentXml);
+        } else {
+            // Multi-client: read connector.xml to find per-client component folders
+            String connectorXmlContent = new String(Files.readAllBytes(connectorXml));
+            List<String> clientFolders = new ArrayList<>();
+            Pattern depPattern = Pattern.compile("<dependency\\s+component=\"([^\"]+)\"");
+            Matcher depMatcher = depPattern.matcher(connectorXmlContent);
+            while (depMatcher.find()) {
+                clientFolders.add(depMatcher.group(1));
+            }
+            Assert.assertFalse(clientFolders.isEmpty(),
+                    "No <dependency component=\"...\"/> entries found in connector.xml for multi-client project: " + projectName);
 
-        // Validate component xml
-        Path testComponentXml = componentDir.resolve("component.xml");
-        Assert.assertTrue(Files.exists(testComponentXml), "component.xml does not exist in 'functions' for project: " + projectName);
-        Path expectedComponentXml = expectedPath.resolve("functions").resolve("component.xml");
-        Assert.assertTrue(Files.exists(expectedComponentXml), 
-                "Expected component.xml does not exist in 'functions' for project: " + projectName);
-        compareFileContent(testComponentXml, expectedComponentXml);
+            for (String clientFolder : clientFolders) {
+                Path clientDir = connectorPath.resolve(clientFolder);
+                Assert.assertTrue(Files.exists(clientDir),
+                        "Client folder '" + clientFolder + "' does not exist for project: " + projectName);
+                Assert.assertTrue(Files.isDirectory(clientDir),
+                        "Client folder '" + clientFolder + "' is not a directory for project: " + projectName);
+
+                Path clientComponentXml = clientDir.resolve("component.xml");
+                Assert.assertTrue(Files.exists(clientComponentXml),
+                        "component.xml does not exist in '" + clientFolder + "' for project: " + projectName);
+                Path expectedClientComponentXml = expectedPath.resolve(clientFolder).resolve("component.xml");
+                Assert.assertTrue(Files.exists(expectedClientComponentXml),
+                        "Expected component.xml does not exist in '" + clientFolder + "' for project: " + projectName);
+                compareFileContent(clientComponentXml, expectedClientComponentXml);
+            }
+        }
 
         // Validate lib directory and jar
         Path libDir = connectorPath.resolve("lib");

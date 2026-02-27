@@ -1,0 +1,50 @@
+{
+  "connectorName": "multiClientProject",
+  "connectionName": "multiClientProject_UsersClient",
+  "title": "Connection Config for multiClientProject_UsersClient connection",
+  "help": "<h1>multiClientProject_UsersClient Connection</h1> <b>Client for user management operations.</b>",
+  "elements": [
+    {
+      "type": "attribute",
+      "value": {
+        "name": "connectionName",
+        "displayName": "Connection Name",
+        "inputType": "string",
+        "defaultValue": "multiClientProject_UsersClient_connection_1",
+        "required": "true",
+        "helpTip": "The name for the multiClientProject_UsersClient connection",
+        "validation": "nameWithoutSpecialCharactors"
+      }
+    },
+    {
+      "type": "attributeGroup",
+      "value": {
+        "groupName": "General",
+        "elements": [
+          {
+            "type": "attributeGroup",
+            "value": {
+              "groupName": "Basic",
+              "collapsed": false,
+              "elements": [
+                {
+                  "type": "attribute",
+                  "value": {
+                    "name": "baseUrl",
+                    "displayName": "baseUrl",
+                    "inputType": "stringOrExpression",
+                    "defaultValue": "",
+                    "required": true,
+                    "helpTip": "",
+                    "validateType": "",
+                    "matchPattern": ""
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

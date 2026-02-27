@@ -1,0 +1,50 @@
+{
+  "connectorName": "multiClientProject",
+  "connectionName": "multiClientProject_ChatClient",
+  "title": "Connection Config for multiClientProject_ChatClient connection",
+  "help": "<h1>multiClientProject_ChatClient Connection</h1> <b>Client for chat operations.</b>",
+  "elements": [
+    {
+      "type": "attribute",
+      "value": {
+        "name": "connectionName",
+        "displayName": "Connection Name",
+        "inputType": "string",
+        "defaultValue": "multiClientProject_ChatClient_connection_1",
+        "required": "true",
+        "helpTip": "The name for the multiClientProject_ChatClient connection",
+        "validation": "nameWithoutSpecialCharactors"
+      }
+    },
+    {
+      "type": "attributeGroup",
+      "value": {
+        "groupName": "General",
+        "elements": [
+          {
+            "type": "attributeGroup",
+            "value": {
+              "groupName": "Basic",
+              "collapsed": false,
+              "elements": [
+                {
+                  "type": "attribute",
+                  "value": {
+                    "name": "baseUrl",
+                    "displayName": "baseUrl",
+                    "inputType": "stringOrExpression",
+                    "defaultValue": "",
+                    "required": true,
+                    "helpTip": "",
+                    "validateType": "",
+                    "matchPattern": ""
+                  }
+                }
+              ]
+            }
+          }
+        ]
+      }
+    }
+  ]
+}

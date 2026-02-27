@@ -128,7 +128,8 @@ public class ConnectorValidator {
 
                 if (name.equals("connector.xml")) {
                     hasConnectorXml = true;
-                } else if (name.startsWith("functions/") && name.endsWith(".xml")) {
+                } else if (name.endsWith(".xml") && !name.startsWith("config/") && !name.endsWith("component.xml")) {
+                    // Count function XMLs in functions/ (single-client) or per-client folders (multi-client)
                     functionXmlCount++;
                 } else if (name.startsWith("lib/") && name.endsWith(".jar")) {
                     jarCount++;
@@ -142,7 +143,7 @@ public class ConnectorValidator {
                 return false;
             }
             if (functionXmlCount == 0) {
-                ERROR_STREAM.println("ZIP structure invalid: no function XML files in functions/");
+                ERROR_STREAM.println("ZIP structure invalid: no function XML files found");
                 return false;
             }
             if (jarCount == 0) {
