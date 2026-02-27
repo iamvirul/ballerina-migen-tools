@@ -155,6 +155,7 @@ public class ParamFactory {
             param.setParamKind(parameterSymbol.paramKind());
             param.setTypeSymbol(rawTypeSymbol);
             param.setRequired(!isDefaultable);
+            param.setTypeDescriptor(true);
             // Default value = the record type name so it is pre-filled in the UI
             if (isDefaultable) {
                 param.setDefaultValue(recordName);
