@@ -20,9 +20,7 @@
     <parameter name="name" description="Unique name the connection is identified by"/>
     <parameter name="connectionType" description="Connection type"/>
     <!-- TODO: if union, the selected member type becomes a parameter-->
-    {{#each connections ~}}
-    {{writeConfigXmlParameters initComponent.functionParams}}
-    {{/each ~}}
+    {{writeAllConfigXmlParameters connections}}
     <sequence>
         {{#each connections ~}}
         <property name="{{uppercase connectionType}}_objectTypeName" value="{{objectTypeName}}"/>

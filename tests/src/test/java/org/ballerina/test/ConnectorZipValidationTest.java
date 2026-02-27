@@ -27,6 +27,7 @@ import org.testng.annotations.Test;
 
 import java.io.IOException;
 import java.lang.reflect.Field;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -279,7 +280,7 @@ public class ConnectorZipValidationTest {
             compareFileContent(testComponentXml, expectedComponentXml);
         } else {
             // Multi-client: read connector.xml to find per-client component folders
-            String connectorXmlContent = new String(Files.readAllBytes(connectorXml));
+            String connectorXmlContent = new String(Files.readAllBytes(connectorXml), StandardCharsets.UTF_8);
             List<String> clientFolders = new ArrayList<>();
             Pattern depPattern = Pattern.compile("<dependency\\s+component=\"([^\"]+)\"");
             Matcher depMatcher = depPattern.matcher(connectorXmlContent);

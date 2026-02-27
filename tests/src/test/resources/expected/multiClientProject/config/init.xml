@@ -21,7 +21,6 @@
     <parameter name="connectionType" description="Connection type"/>
     <!-- TODO: if union, the selected member type becomes a parameter-->
     <parameter name="baseUrl" description=""/>
-    <parameter name="baseUrl" description=""/>
     <sequence>
         <property name="MULTICLIENTPROJECT_CHATCLIENT_objectTypeName" value="ChatClient"/>
         <property name="MULTICLIENTPROJECT_CHATCLIENT_paramSize" value="1"/>
