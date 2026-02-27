@@ -20,6 +20,7 @@ package io.ballerina.mi.model;
 
 import java.util.ArrayList;
 import java.util.List;
+import java.util.Objects;
 
 /**
  * Captures the status of a connector generation run.
@@ -147,7 +148,7 @@ public class GenerationReport {
             List<IncludedOperation> included = cr.getIncludedOperations();
             sb.append("  Included operations (").append(included.size()).append("):\n");
             for (IncludedOperation op : included) {
-                if (op.synapseName().equals(op.originalName())) {
+                if (Objects.equals(op.synapseName(), op.originalName())) {
                     sb.append("    - ").append(op.originalName())
                             .append(" [").append(op.functionType()).append("]\n");
                 } else {
