@@ -144,7 +144,7 @@ public class ParamFactory {
             if (!(actualConstraint instanceof UnionTypeSymbol unionTypeSymbol)) {
                 return Optional.empty();
             }
-            return buildTypedescUnionParam(paramName, index, unionTypeSymbol, rawTypeSymbol, isDefaultable);
+            return buildTypedescUnionParam(paramName, index, unionTypeSymbol, rawTypeSymbol, isDefaultable, parameterSymbol.paramKind());
         }
 
         // ── RECORD constraint: fixed string field with the record type name ──────
@@ -189,7 +189,7 @@ public class ParamFactory {
      */
     private static Optional<FunctionParam> buildTypedescUnionParam(
             String paramName, int index, UnionTypeSymbol unionTypeSymbol,
-            TypeSymbol rawTypeSymbol, boolean isDefaultable) {
+            TypeSymbol rawTypeSymbol, boolean isDefaultable, ParameterKind paramKind) {
 
         UnionFunctionParam unionParam = new UnionFunctionParam(Integer.toString(index), paramName, "union");
         unionParam.setTypeSymbol(rawTypeSymbol);
@@ -260,7 +260,7 @@ public class ParamFactory {
                 && !(unionParam.getUnionMemberParams().getFirst() instanceof UnionFunctionParam)) {
             FunctionParam single = unionParam.getUnionMemberParams().getFirst();
             FunctionParam simplified = new FunctionParam(Integer.toString(index), paramName, single.getParamType());
-            simplified.setParamKind(ParameterKind.DEFAULTABLE);
+            simplified.setParamKind(paramKind);
             simplified.setTypeSymbol(rawTypeSymbol);
             simplified.setRequired(unionParam.isRequired());
             simplified.setTypeDescriptor(true);
