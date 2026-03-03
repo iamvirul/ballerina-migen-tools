@@ -139,6 +139,9 @@ public class JsonGenerator {
                 if (functionParam instanceof IncludedRecordFunctionParam includedParam
                         && includedParam.isOpenRecord()
                         && includedParam.getRecordFieldParams().isEmpty()) {
+                    if (isConfigContext && !functionParam.isRequired()) {
+                        addCheckboxForOptional(functionParam, includedParam, sanitizedParamName, displayName, builder);
+                    }
                     writeOpenIncludedRecordAsTable(includedParam, builder, isCombo);
                 } else if (expandRecords) {
                     if (isConfigContext && !functionParam.isRequired()) {
