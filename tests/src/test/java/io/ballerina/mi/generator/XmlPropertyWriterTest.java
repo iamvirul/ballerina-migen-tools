@@ -154,7 +154,7 @@ public class XmlPropertyWriterTest {
 
         String output = result.toString();
         // Should contain the DataType parameter
-        Assert.assertTrue(output.contains("<parameter name=\"authConfig_DataType\""));
+        Assert.assertTrue(output.contains("<parameter name=\"authConfigDataType\""));
         // Should contain the member parameter
         Assert.assertTrue(output.contains("<parameter name=\"basicAuth\""));
     }
@@ -381,8 +381,8 @@ public class XmlPropertyWriterTest {
         XmlPropertyWriter.writeXmlParameterElements(outerUnion, result, isFirst, processed);
 
         String output = result.toString();
-        Assert.assertTrue(output.contains("outerUnion_DataType"));
-        Assert.assertTrue(output.contains("innerUnion_DataType"));
+        Assert.assertTrue(output.contains("outerUnionDataType"));
+        Assert.assertTrue(output.contains("innerUnionDataType"));
     }
 
     @Test
@@ -600,7 +600,7 @@ public class XmlPropertyWriterTest {
         XmlPropertyWriter.writeXmlParameterElements(unionParam, result, isFirst, processed);
 
         String output = result.toString();
-        Assert.assertTrue(output.contains("mixedUnion_DataType"));
+        Assert.assertTrue(output.contains("mixedUnionDataType"));
         Assert.assertTrue(output.contains("simpleValue"));
     }
 

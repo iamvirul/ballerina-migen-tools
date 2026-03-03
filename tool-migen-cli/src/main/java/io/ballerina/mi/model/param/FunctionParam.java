@@ -32,6 +32,7 @@ public class FunctionParam extends Param {
     private String enableCondition;
     private String defaultValue;
     private String displayTypeName;  // For unions/records, stores the actual type name (e.g., "Xgafv" instead of "union")
+    private boolean isTypeDescriptor;
 
     // Pre-computed values from TypeSymbol to allow releasing the heavy compiler references
     private TypeDescKind resolvedTypeKind;
@@ -74,6 +75,14 @@ public class FunctionParam extends Param {
 
     public String getResolvedTypeName() {
         return resolvedTypeName;
+    }
+
+    public boolean isTypeDescriptor() {
+        return isTypeDescriptor;
+    }
+
+    public void setTypeDescriptor(boolean typeDescriptor) {
+        isTypeDescriptor = typeDescriptor;
     }
 
     /**

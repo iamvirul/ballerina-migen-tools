@@ -264,6 +264,8 @@ public class Utils {
             case STRING, STRING_CHAR -> Constants.STRING;
             case SINGLETON -> Constants.STRING;  // Singleton types (e.g., "1", "2" in enums) are treated as strings
             case BOOLEAN, FLOAT, DECIMAL, XML, JSON, ARRAY, RECORD, MAP, UNION, NIL -> typeKind.getName();
+            case ANYDATA -> Constants.ANYDATA;
+            case TYPEDESC -> Constants.TYPEDESC;
             default -> null;
         };
     }

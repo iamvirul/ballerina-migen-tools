@@ -53,6 +53,10 @@ public class JsonGenerator {
         String originalParamValue = functionParam.getValue();
         String displayParamValue = originalParamValue;
 
+        if (functionParam.isTypeDescriptor() && !(functionParam instanceof UnionFunctionParam)) {
+            return;
+        }
+
         // For display purposes, remove group prefix if we're in a group context
         if (groupName != null && !groupName.isEmpty() && displayParamValue != null) {
             displayParamValue = removeGroupPrefix(displayParamValue, groupName);
@@ -199,12 +203,16 @@ public class JsonGenerator {
                                 functionParam.getDescription(), effectiveGroupName);
                         builder.addFromTemplate(COMBO_TEMPLATE_PATH, comboField);
 
-                        if (!validMembers.isEmpty()) {
+                        if (!validMembers.isEmpty() && !unionFunctionParam.isTypeDescriptor()) {
                             builder.addSeparator(ATTRIBUTE_SEPARATOR);
                         }
                     } else if (validMembers.size() == 1) {
                         FunctionParam singleMember = validMembers.get(0);
                         singleMember.setEnableCondition(functionParam.getEnableCondition());
+                    }
+
+                    if (unionFunctionParam.isTypeDescriptor()) {
+                        break;
                     }
 
                     List<FunctionParam> recordMembers = new ArrayList<>();
@@ -333,7 +341,9 @@ public class JsonGenerator {
         for (int i = 0; i < unionMembers.size(); i++) {
             FunctionParam member = unionMembers.get(i);
             String comboItem;
-            if (member.getParamType().equals(RECORD)) {
+            if (member.getDisplayTypeName() != null && !member.getDisplayTypeName().isEmpty()) {
+                comboItem = member.getDisplayTypeName();
+            } else if (member.getParamType().equals(RECORD)) {
                 comboItem = getTypeNameOrFallback(member, "Record" + i);
             } else if (member.getParamType().equals(UNION)) {
                 comboItem = getTypeNameOrFallback(member, "Union" + i);
@@ -346,7 +356,11 @@ public class JsonGenerator {
 
         FunctionParam firstMember = unionMembers.get(0);
         String defaultValue;
-        if (firstMember.getParamType().equals(RECORD)) {
+        if (unionFunctionParam.getDefaultValue() != null && !unionFunctionParam.getDefaultValue().isEmpty()) {
+            defaultValue = unionFunctionParam.getDefaultValue();
+        } else if (firstMember.getDisplayTypeName() != null && !firstMember.getDisplayTypeName().isEmpty()) {
+            defaultValue = firstMember.getDisplayTypeName();
+        } else if (firstMember.getParamType().equals(RECORD)) {
             defaultValue = getTypeNameOrFallback(firstMember, RECORD);
         } else if (firstMember.getParamType().equals(UNION)) {
             defaultValue = getTypeNameOrFallback(firstMember, UNION);
@@ -357,13 +371,18 @@ public class JsonGenerator {
         String sanitizedParamName = Utils.sanitizeParamName(paramName);
         String comboName = String.format("%s%s", sanitizedParamName, "DataType");
         
-        String comboDisplayName = comboName;
+        String comboDisplayName = Utils.sanitizeParamName(paramName);
         if (groupName != null && !groupName.isEmpty() && paramName != null) {
             String displayParamName = removeGroupPrefix(paramName, groupName);
             if (displayParamName.contains(".")) {
                 displayParamName = displayParamName.substring(displayParamName.lastIndexOf('.') + 1);
             }
-            comboDisplayName = String.format("%s%s", Utils.sanitizeParamName(displayParamName), "DataType");
+            comboDisplayName = Utils.sanitizeParamName(displayParamName);
+        }
+        
+        // Retain the DataType suffix for display name only if it's NOT a type descriptor
+        if (!unionFunctionParam.isTypeDescriptor()) {
+            comboDisplayName = String.format("%s%s", comboDisplayName, "DataType");
         }
         
         return new Combo(comboName, comboDisplayName, INPUT_TYPE_COMBO, unionComboValues, defaultValue,

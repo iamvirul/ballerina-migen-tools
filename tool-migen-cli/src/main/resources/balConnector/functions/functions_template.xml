@@ -25,32 +25,33 @@
     <parameter name="{{sanitizeParamName value}}DataType" description="Select the data type for '{{value}}' parameter"/>
 {{~#each unionMemberParams}}
     <parameter name="{{sanitizeParamName value}}" description="{{description}}"/>
-{{~/each}}{{else}}
+{{~/each}}
+{{~else}}
     <parameter name="{{sanitizeParamName value}}" description="{{description}}"/>
 {{~/eq}}{{~/eq}}{{/each}}
     <sequence>
         {{#each functionParams ~}}
         <property name="param{{@index}}" value="{{sanitizeParamName value}}"/>
         <property name="paramType{{@index}}" value="{{paramType}}"/>
-        {{#eq paramType "array" ~}}
+        {{~#eq paramType "array"}}
         <property name="arrayElementType{{@index}}" value="{{arrayElementType this}}"/>
-        {{/eq ~}}
-        {{#eq paramType "map" ~}}
+        {{~/eq}}
+        {{~#eq paramType "map"}}
         <property name="mapValueType{{@index}}" value="{{mapValueType this}}"/>
         {{~#if (isMapOfRecord this)}}
         <property name="mapRecordFields{{@index}}" value="{{mapRecordFieldNames this}}"/>
         {{~/if}}
-        {{/eq ~}}
-        {{#eq paramType "record" ~}}
+        {{~/eq}}
+        {{~#eq paramType "record"}}
         <property name="param{{@index}}_recordName" value="{{recordName}}" />{{{writeFunctionRecordXmlProperties this @index}}}
-        {{/eq ~}}
-        {{#eq paramType "union" ~}}
-        {{#each unionMemberParams ~}}
-        <property name="param{{@../index}}Union{{capitalize displayTypeName}}" value="{{sanitizeParamName value}}"/>
+        {{~/eq}}
+        {{~#eq paramType "union"}}
+        {{~#each unionMemberParams}}
+        <property name="param{{@../index}}Union{{capitalize displayTypeName}}" value="{{#if ../typeDescriptor}}{{sanitizeParamName ../value}}DataType{{else}}{{sanitizeParamName value}}{{/if}}"/>
+        {{~/each}}
+        {{~/eq}}
         {{/each ~}}
-        {{/eq ~}}
-        {{/each ~}}
-        {{#each params ~}}
+        {{~#each params ~}}
         <property name="{{key}}" value="{{value}}"/>
         {{/each ~}}
         {{{writeComponentXmlProperties this}}}        <property name="functionType" value="{{functionType}}"/>

@@ -443,7 +443,10 @@ public class BalConnectorAnalyzer implements Analyzer {
                     String paramName = parameterSymbol.getName().orElse("");
                     if (functionParamDefaults.containsKey(paramName)) {
                         String defaultValue = functionParamDefaults.get(paramName);
-                        if (defaultValue.startsWith("\"") && defaultValue.endsWith("\"")) {
+                        if ("<>".equals(defaultValue)) {
+                            // typedesc default value `<>` should not override the type name we already set
+                            defaultValue = param.getDefaultValue();
+                        } else if (defaultValue.startsWith("\"") && defaultValue.endsWith("\"")) {
                             defaultValue = defaultValue.substring(1, defaultValue.length() - 1);
                         } else if ("()".equals(defaultValue)) {
                             // Convert Ballerina nil to empty string for UI schema

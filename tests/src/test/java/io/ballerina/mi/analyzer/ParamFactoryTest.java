@@ -21,6 +21,7 @@ package io.ballerina.mi.analyzer;
 import io.ballerina.compiler.api.impl.symbols.BallerinaUnionTypeSymbol;
 import io.ballerina.compiler.api.symbols.*;
 import io.ballerina.mi.model.param.*;
+import io.ballerina.mi.util.Constants;
 import org.testng.Assert;
 import org.testng.annotations.Test;
 
@@ -544,8 +545,8 @@ public class ParamFactoryTest {
 
         Optional<FunctionParam> result = ParamFactory.createFunctionParam(paramSymbol, 0);
 
-        // ANYDATA is not a supported simple type
-        Assert.assertFalse(result.isPresent());
+        Assert.assertTrue(result.isPresent());
+        Assert.assertEquals(result.get().getParamType(), Constants.ANYDATA);
     }
 
     @Test
@@ -1543,4 +1544,228 @@ public class ParamFactoryTest {
         // Empty union field should be skipped
         Assert.assertEquals(recordParam.getRecordFieldParams().size(), 0);
     }
+
+
+    /** typedesc<string> → plain FunctionParam with type "string" */
+    @Test
+    public void testCreateFunctionParam_TypedescString() {
+        ParameterSymbol paramSymbol = mock(ParameterSymbol.class);
+        TypeDescTypeSymbol typedescSymbol = mock(TypeDescTypeSymbol.class);
+        TypeSymbol constraintSymbol = mock(TypeSymbol.class);
+
+        when(paramSymbol.typeDescriptor()).thenReturn(typedescSymbol);
+        when(paramSymbol.getName()).thenReturn(Optional.of("T"));
+        when(paramSymbol.paramKind()).thenReturn(ParameterKind.DEFAULTABLE);
+        when(typedescSymbol.typeKind()).thenReturn(TypeDescKind.TYPEDESC);
+        when(typedescSymbol.typeParameter()).thenReturn(Optional.of(constraintSymbol));
+        when(constraintSymbol.typeKind()).thenReturn(TypeDescKind.STRING);
+
+        Optional<FunctionParam> result = ParamFactory.createFunctionParam(paramSymbol, 0);
+
+        Assert.assertTrue(result.isPresent());
+        Assert.assertFalse(result.get() instanceof UnionFunctionParam);
+        Assert.assertEquals(result.get().getParamType(), "string");
+        Assert.assertFalse(result.get().isRequired());
+    }
+
+    /** typedesc<int> → plain FunctionParam with type "int" */
+    @Test
+    public void testCreateFunctionParam_TypedescInt() {
+        ParameterSymbol paramSymbol = mock(ParameterSymbol.class);
+        TypeDescTypeSymbol typedescSymbol = mock(TypeDescTypeSymbol.class);
+        TypeSymbol constraintSymbol = mock(TypeSymbol.class);
+
+        when(paramSymbol.typeDescriptor()).thenReturn(typedescSymbol);
+        when(paramSymbol.getName()).thenReturn(Optional.of("T"));
+        when(paramSymbol.paramKind()).thenReturn(ParameterKind.REQUIRED);
+        when(typedescSymbol.typeKind()).thenReturn(TypeDescKind.TYPEDESC);
+        when(typedescSymbol.typeParameter()).thenReturn(Optional.of(constraintSymbol));
+        when(constraintSymbol.typeKind()).thenReturn(TypeDescKind.INT);
+
+        Optional<FunctionParam> result = ParamFactory.createFunctionParam(paramSymbol, 0);
+
+        Assert.assertTrue(result.isPresent());
+        Assert.assertEquals(result.get().getParamType(), "int");
+        Assert.assertTrue(result.get().isRequired());
+    }
+
+    /**
+     * typedesc<Message> T = <> (ASB-style)
+     * → plain FunctionParam with type "string", defaultValue "Message", required false
+     */
+    @Test
+    public void testCreateFunctionParam_TypedescRecord() {
+        ParameterSymbol paramSymbol = mock(ParameterSymbol.class);
+        TypeDescTypeSymbol typedescSymbol = mock(TypeDescTypeSymbol.class);
+        RecordTypeSymbol recordConstraint = mock(RecordTypeSymbol.class);
+
+        when(paramSymbol.typeDescriptor()).thenReturn(typedescSymbol);
+        when(paramSymbol.getName()).thenReturn(Optional.of("T"));
+        when(paramSymbol.paramKind()).thenReturn(ParameterKind.DEFAULTABLE);
+        when(typedescSymbol.typeKind()).thenReturn(TypeDescKind.TYPEDESC);
+        when(typedescSymbol.typeParameter()).thenReturn(Optional.of(recordConstraint));
+        when(recordConstraint.typeKind()).thenReturn(TypeDescKind.RECORD);
+        when(recordConstraint.getName()).thenReturn(Optional.of("Message"));
+
+        Optional<FunctionParam> result = ParamFactory.createFunctionParam(paramSymbol, 0);
+
+        Assert.assertTrue(result.isPresent());
+        Assert.assertFalse(result.get() instanceof UnionFunctionParam);
+        Assert.assertEquals(result.get().getParamType(), "string");
+        Assert.assertFalse(result.get().isRequired());
+        Assert.assertEquals(result.get().getDefaultValue(), "Message");
+    }
+
+    /** typedesc<RecordA|RecordB> → UnionFunctionParam combobox with 2 record-name options */
+    @Test
+    public void testCreateFunctionParam_TypedescMultipleRecords() {
+        ParameterSymbol paramSymbol = mock(ParameterSymbol.class);
+        TypeDescTypeSymbol typedescSymbol = mock(TypeDescTypeSymbol.class);
+        UnionTypeSymbol unionConstraint = mock(UnionTypeSymbol.class);
+        RecordTypeSymbol recordA = mock(RecordTypeSymbol.class);
+        RecordTypeSymbol recordB = mock(RecordTypeSymbol.class);
+
+        when(paramSymbol.typeDescriptor()).thenReturn(typedescSymbol);
+        when(paramSymbol.getName()).thenReturn(Optional.of("T"));
+        when(paramSymbol.paramKind()).thenReturn(ParameterKind.REQUIRED);
+        when(typedescSymbol.typeKind()).thenReturn(TypeDescKind.TYPEDESC);
+        when(typedescSymbol.typeParameter()).thenReturn(Optional.of(unionConstraint));
+        when(unionConstraint.typeKind()).thenReturn(TypeDescKind.UNION);
+        when(unionConstraint.memberTypeDescriptors()).thenReturn(List.of(recordA, recordB));
+        when(recordA.typeKind()).thenReturn(TypeDescKind.RECORD);
+        when(recordA.getName()).thenReturn(Optional.of("RecordA"));
+        when(recordB.typeKind()).thenReturn(TypeDescKind.RECORD);
+        when(recordB.getName()).thenReturn(Optional.of("RecordB"));
+
+        Optional<FunctionParam> result = ParamFactory.createFunctionParam(paramSymbol, 0);
+
+        Assert.assertTrue(result.isPresent());
+        Assert.assertTrue(result.get() instanceof UnionFunctionParam);
+        UnionFunctionParam union = (UnionFunctionParam) result.get();
+        Assert.assertEquals(union.getUnionMemberParams().size(), 2);
+        Assert.assertEquals(union.getUnionMemberParams().get(0).getDisplayTypeName(), "RecordA");
+        Assert.assertEquals(union.getUnionMemberParams().get(1).getDisplayTypeName(), "RecordB");
+    }
+
+    /** typedesc<string|int> → UnionFunctionParam combobox with 2 primitive options */
+    @Test
+    public void testCreateFunctionParam_TypedescUnionPrimitives() {
+        ParameterSymbol paramSymbol = mock(ParameterSymbol.class);
+        TypeDescTypeSymbol typedescSymbol = mock(TypeDescTypeSymbol.class);
+        UnionTypeSymbol unionConstraint = mock(UnionTypeSymbol.class);
+        TypeSymbol stringMember = mock(TypeSymbol.class);
+        TypeSymbol intMember = mock(TypeSymbol.class);
+
+        when(paramSymbol.typeDescriptor()).thenReturn(typedescSymbol);
+        when(paramSymbol.getName()).thenReturn(Optional.of("T"));
+        when(paramSymbol.paramKind()).thenReturn(ParameterKind.REQUIRED);
+        when(typedescSymbol.typeKind()).thenReturn(TypeDescKind.TYPEDESC);
+        when(typedescSymbol.typeParameter()).thenReturn(Optional.of(unionConstraint));
+        when(unionConstraint.typeKind()).thenReturn(TypeDescKind.UNION);
+        when(unionConstraint.memberTypeDescriptors()).thenReturn(List.of(stringMember, intMember));
+        when(stringMember.typeKind()).thenReturn(TypeDescKind.STRING);
+        when(intMember.typeKind()).thenReturn(TypeDescKind.INT);
+
+        Optional<FunctionParam> result = ParamFactory.createFunctionParam(paramSymbol, 0);
+
+        Assert.assertTrue(result.isPresent());
+        Assert.assertTrue(result.get() instanceof UnionFunctionParam);
+        Assert.assertEquals(((UnionFunctionParam) result.get()).getUnionMemberParams().size(), 2);
+    }
+
+    /** typedesc<string|MyRecord> → UnionFunctionParam combobox with "string" and "MyRecord" */
+    @Test
+    public void testCreateFunctionParam_TypedescUnionWithRecord() {
+        ParameterSymbol paramSymbol = mock(ParameterSymbol.class);
+        TypeDescTypeSymbol typedescSymbol = mock(TypeDescTypeSymbol.class);
+        UnionTypeSymbol unionConstraint = mock(UnionTypeSymbol.class);
+        TypeSymbol stringMember = mock(TypeSymbol.class);
+        RecordTypeSymbol recordMember = mock(RecordTypeSymbol.class);
+
+        when(paramSymbol.typeDescriptor()).thenReturn(typedescSymbol);
+        when(paramSymbol.getName()).thenReturn(Optional.of("T"));
+        when(paramSymbol.paramKind()).thenReturn(ParameterKind.REQUIRED);
+        when(typedescSymbol.typeKind()).thenReturn(TypeDescKind.TYPEDESC);
+        when(typedescSymbol.typeParameter()).thenReturn(Optional.of(unionConstraint));
+        when(unionConstraint.typeKind()).thenReturn(TypeDescKind.UNION);
+        when(unionConstraint.memberTypeDescriptors()).thenReturn(List.of(stringMember, recordMember));
+        when(stringMember.typeKind()).thenReturn(TypeDescKind.STRING);
+        when(recordMember.typeKind()).thenReturn(TypeDescKind.RECORD);
+        when(recordMember.getName()).thenReturn(Optional.of("MyRecord"));
+
+        Optional<FunctionParam> result = ParamFactory.createFunctionParam(paramSymbol, 0);
+
+        Assert.assertTrue(result.isPresent());
+        Assert.assertTrue(result.get() instanceof UnionFunctionParam);
+        UnionFunctionParam union = (UnionFunctionParam) result.get();
+        Assert.assertEquals(union.getUnionMemberParams().size(), 2);
+        Assert.assertEquals(union.getUnionMemberParams().get(0).getDisplayTypeName(), "string");
+        Assert.assertEquals(union.getUnionMemberParams().get(1).getDisplayTypeName(), "MyRecord");
+    }
+
+    /** typedesc<string|()> → single member after nil removal → plain FunctionParam "string", required=false */
+    @Test
+    public void testCreateFunctionParam_TypedescUnionSingleMember() {
+        ParameterSymbol paramSymbol = mock(ParameterSymbol.class);
+        TypeDescTypeSymbol typedescSymbol = mock(TypeDescTypeSymbol.class);
+        UnionTypeSymbol unionConstraint = mock(UnionTypeSymbol.class);
+        TypeSymbol stringMember = mock(TypeSymbol.class);
+        TypeSymbol nilMember = mock(TypeSymbol.class);
+
+        when(paramSymbol.typeDescriptor()).thenReturn(typedescSymbol);
+        when(paramSymbol.getName()).thenReturn(Optional.of("T"));
+        when(paramSymbol.paramKind()).thenReturn(ParameterKind.REQUIRED);
+        when(typedescSymbol.typeKind()).thenReturn(TypeDescKind.TYPEDESC);
+        when(typedescSymbol.typeParameter()).thenReturn(Optional.of(unionConstraint));
+        when(unionConstraint.typeKind()).thenReturn(TypeDescKind.UNION);
+        when(unionConstraint.memberTypeDescriptors()).thenReturn(List.of(stringMember, nilMember));
+        when(stringMember.typeKind()).thenReturn(TypeDescKind.STRING);
+        when(nilMember.typeKind()).thenReturn(TypeDescKind.NIL);
+
+        Optional<FunctionParam> result = ParamFactory.createFunctionParam(paramSymbol, 0);
+
+        Assert.assertTrue(result.isPresent());
+        Assert.assertFalse(result.get() instanceof UnionFunctionParam);
+        Assert.assertEquals(result.get().getParamType(), "string");
+        Assert.assertFalse(result.get().isRequired()); // nil made it optional
+    }
+
+    /** typedesc<anydata> → Optional.empty() (operation skipped) */
+    @Test
+    public void testCreateFunctionParam_TypedescAnydata() {
+        ParameterSymbol paramSymbol = mock(ParameterSymbol.class);
+        TypeDescTypeSymbol typedescSymbol = mock(TypeDescTypeSymbol.class);
+        TypeSymbol anydataSymbol = mock(TypeSymbol.class);
+
+        when(paramSymbol.typeDescriptor()).thenReturn(typedescSymbol);
+        when(paramSymbol.getName()).thenReturn(Optional.of("T"));
+        when(paramSymbol.paramKind()).thenReturn(ParameterKind.DEFAULTABLE);
+        when(typedescSymbol.typeKind()).thenReturn(TypeDescKind.TYPEDESC);
+        when(typedescSymbol.typeParameter()).thenReturn(Optional.of(anydataSymbol));
+        when(anydataSymbol.typeKind()).thenReturn(TypeDescKind.ANYDATA);
+
+        Optional<FunctionParam> result = ParamFactory.createFunctionParam(paramSymbol, 0);
+
+        Assert.assertTrue(result.isPresent());
+        Assert.assertEquals(result.get().getParamType(), Constants.ANYDATA);
+        Assert.assertTrue(result.get().isTypeDescriptor());
+    }
+
+    /** typedesc<> (erased / no type parameter) → Optional.empty() (operation skipped) */
+    @Test
+    public void testCreateFunctionParam_TypedescErased() {
+        ParameterSymbol paramSymbol = mock(ParameterSymbol.class);
+        TypeDescTypeSymbol typedescSymbol = mock(TypeDescTypeSymbol.class);
+
+        when(paramSymbol.typeDescriptor()).thenReturn(typedescSymbol);
+        when(paramSymbol.getName()).thenReturn(Optional.of("T"));
+        when(paramSymbol.paramKind()).thenReturn(ParameterKind.DEFAULTABLE);
+        when(typedescSymbol.typeKind()).thenReturn(TypeDescKind.TYPEDESC);
+        when(typedescSymbol.typeParameter()).thenReturn(Optional.empty()); // no constraint
+
+        Optional<FunctionParam> result = ParamFactory.createFunctionParam(paramSymbol, 0);
+
+        Assert.assertFalse(result.isPresent());
+    }
 }
+

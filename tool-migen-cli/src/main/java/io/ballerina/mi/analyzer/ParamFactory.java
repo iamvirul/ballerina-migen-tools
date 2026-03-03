@@ -21,6 +21,7 @@ package io.ballerina.mi.analyzer;
 import io.ballerina.compiler.api.impl.symbols.BallerinaUnionTypeSymbol;
 import io.ballerina.compiler.api.symbols.*;
 import io.ballerina.mi.model.param.*;
+import io.ballerina.mi.util.Constants;
 import io.ballerina.mi.util.Utils;
 import org.apache.commons.lang3.StringUtils;
 
@@ -69,12 +70,206 @@ public class ParamFactory {
             if (actualTypeKind == TypeDescKind.ARRAY) {
                 return createArrayFunctionParam(parameterSymbol, index);
             }
+            if (actualTypeKind == TypeDescKind.TYPEDESC) {
+                return createTypedescFunctionParam(parameterSymbol, index);
+            }
             FunctionParam functionParam = new FunctionParam(Integer.toString(index), parameterSymbol.getName().orElseThrow(), paramType);
             functionParam.setParamKind(parameterSymbol.paramKind());
             functionParam.setTypeSymbol(typeSymbol);
             return Optional.of(functionParam);
         }
         return Optional.empty();
+    }
+
+    // ─── Types skipped inside typedesc<T>
+    // These open/erased kinds cannot be represented in the MI UI schema:
+    //   - ANY        →  too open, no concrete type to show
+    // ANYDATA is handled separately as a json input field.
+    // If the typedesc has no type parameter at all, we also skip.
+    private static final java.util.Set<TypeDescKind> TYPEDESC_SKIP_KINDS = java.util.Set.of(
+            TypeDescKind.ANY
+    );
+
+    /**
+     * Handles {@code typedesc<T>} parameters.
+     *
+     * <ul>
+     *   <li>{@code typedesc<string>} / {@code typedesc<int>} etc. — plain FunctionParam with the primitive type</li>
+     *   <li>{@code typedesc<MyRecord>} — plain FunctionParam with type "string", value = record name</li>
+     *   <li>{@code typedesc<RecordA|RecordB>} or {@code typedesc<string|MyRecord>} — UnionFunctionParam combobox</li>
+     *   <li>Anydata / erased / unsupported — Optional.empty() (whole operation is skipped)</li>
+     * </ul>
+     */
+    private static Optional<FunctionParam> createTypedescFunctionParam(ParameterSymbol parameterSymbol, int index) {
+        String paramName = parameterSymbol.getName().orElseThrow();
+        TypeSymbol rawTypeSymbol = parameterSymbol.typeDescriptor();
+        TypeSymbol actualTypeSymbol = Utils.getActualTypeSymbol(rawTypeSymbol);
+
+        // Resolve the type parameter inside typedesc<T>
+        if (!(actualTypeSymbol instanceof TypeDescTypeSymbol typedescTypeSymbol)) {
+            // Not a TypeDescTypeSymbol — cannot extract constraint, skip
+            return Optional.empty();
+        }
+
+        Optional<TypeSymbol> constraintOpt = typedescTypeSymbol.typeParameter();
+        if (constraintOpt.isEmpty()) {
+            // Erased typedesc<> — skip
+            return Optional.empty();
+        }
+
+        TypeSymbol constraint = constraintOpt.get();
+        TypeDescKind constraintKind = Utils.getActualTypeKind(constraint);
+
+        // Skip open/generic kinds we cannot represent
+        if (TYPEDESC_SKIP_KINDS.contains(constraintKind)) {
+            return Optional.empty();
+        }
+
+        boolean isDefaultable = parameterSymbol.paramKind() == ParameterKind.DEFAULTABLE;
+
+        // ── ANYDATA constraint: plain JSON field — accept any Ballerina plain-data ─
+        if (constraintKind == TypeDescKind.ANYDATA) {
+            FunctionParam param = new FunctionParam(Integer.toString(index), paramName, Constants.ANYDATA);
+            param.setParamKind(parameterSymbol.paramKind());
+            param.setTypeSymbol(rawTypeSymbol);
+            param.setRequired(!isDefaultable);
+            param.setTypeDescriptor(true);
+            return Optional.of(param);
+        }
+
+        // ── UNION constraint: build a combobox ───────────────────────────────────
+        if (constraintKind == TypeDescKind.UNION) {
+            TypeSymbol actualConstraint = Utils.getActualTypeSymbol(constraint);
+            if (!(actualConstraint instanceof UnionTypeSymbol unionTypeSymbol)) {
+                return Optional.empty();
+            }
+            return buildTypedescUnionParam(paramName, index, unionTypeSymbol, rawTypeSymbol, isDefaultable, parameterSymbol.paramKind());
+        }
+
+        // ── RECORD constraint: fixed string field with the record type name ──────
+        if (constraintKind == TypeDescKind.RECORD) {
+            TypeSymbol actualConstraint = Utils.getActualTypeSymbol(constraint);
+            String recordName = actualConstraint.getName().orElse(paramName);
+            FunctionParam param = new FunctionParam(Integer.toString(index), paramName, Constants.STRING);
+            param.setParamKind(parameterSymbol.paramKind());
+            param.setTypeSymbol(rawTypeSymbol);
+            param.setRequired(!isDefaultable);
+            param.setTypeDescriptor(true);
+            // Default value = the record type name so it is pre-filled in the UI
+            if (isDefaultable) {
+                param.setDefaultValue(recordName);
+            }
+            return Optional.of(param);
+        }
+
+        // ── Single primitive constraint ───────────────────────────────────────────
+        String primitiveType = Utils.getParamTypeName(constraintKind);
+        if (primitiveType == null || Constants.TYPEDESC.equals(primitiveType)) {
+            // Unsupported or nested typedesc — skip
+            return Optional.empty();
+        }
+        FunctionParam param = new FunctionParam(Integer.toString(index), paramName, primitiveType);
+        param.setParamKind(parameterSymbol.paramKind());
+        param.setTypeSymbol(rawTypeSymbol);
+        param.setRequired(!isDefaultable);
+        param.setTypeDescriptor(true);
+        return Optional.of(param);
+    }
+
+    /**
+     * Builds a {@link UnionFunctionParam} combobox from the members of a union inside
+     * {@code typedesc<A|B|...>}. Each member becomes one selectable option.
+     * <ul>
+     *   <li>Primitive members: option label = primitive type name (e.g. "string")</li>
+     *   <li>Record members: option label = record type name (e.g. "Message")</li>
+     *   <li>Nil / unsupported / skip-kind members are excluded</li>
+     * </ul>
+     * If only 1 non-nil member survives, the result is simplified to a plain FunctionParam.
+     */
+    private static Optional<FunctionParam> buildTypedescUnionParam(
+            String paramName, int index, UnionTypeSymbol unionTypeSymbol,
+            TypeSymbol rawTypeSymbol, boolean isDefaultable, ParameterKind paramKind) {
+
+        UnionFunctionParam unionParam = new UnionFunctionParam(Integer.toString(index), paramName, "union");
+        unionParam.setTypeSymbol(rawTypeSymbol);
+        unionParam.setRequired(!isDefaultable);
+        unionParam.setTypeDescriptor(true);
+
+        java.util.Set<String> seen = new java.util.HashSet<>();
+        int memberIndex = 0;
+
+        for (TypeSymbol member : unionTypeSymbol.memberTypeDescriptors()) {
+            TypeDescKind memberKind = Utils.getActualTypeKind(member);
+
+            // Skip nil (makes the union optional, but don't show as a selectable type)
+            if (memberKind == TypeDescKind.NIL) {
+                unionParam.setRequired(false);
+                continue;
+            }
+
+            // Skip open/erased/unsupported kinds inside the union
+            if (TYPEDESC_SKIP_KINDS.contains(memberKind)) {
+                continue;
+            }
+
+            String optionLabel;
+            String optionType;
+            if (memberKind == TypeDescKind.RECORD) {
+                TypeSymbol actualMember = Utils.getActualTypeSymbol(member);
+                optionLabel = member.getName().orElse(actualMember.getName().orElse("Record" + memberIndex));
+                optionType = Constants.STRING;
+            } else {
+                optionType = Utils.getParamTypeName(memberKind);
+                if (optionType == null || Constants.TYPEDESC.equals(optionType) || "nil".equals(optionType)) {
+                    continue;
+                }
+                optionLabel = optionType;
+            }
+
+            if (seen.contains(optionLabel)) {
+                continue;
+            }
+            seen.add(optionLabel);
+
+            String memberParamName = paramName + org.apache.commons.lang3.StringUtils.capitalize(optionLabel);
+            FunctionParam memberParam = new FunctionParam(Integer.toString(memberIndex), memberParamName, optionType);
+            memberParam.setTypeSymbol(member);
+            memberParam.setDisplayTypeName(optionLabel);
+            memberParam.setRequired(!isDefaultable);
+
+            String sanitized = Utils.sanitizeParamName(paramName);
+            memberParam.setEnableCondition("[{\"" + sanitized + "DataType\": \"" + optionLabel + "\"}]");
+
+            // Pre-fill the default value for typedesc options so the field carries the type name
+            if (unionParam.isTypeDescriptor() || (memberKind == TypeDescKind.RECORD && isDefaultable)) {
+                memberParam.setDefaultValue(optionLabel);
+            }
+
+            unionParam.addUnionMemberParam(memberParam);
+            memberIndex++;
+        }
+
+        // Nothing useful survived — skip
+        if (unionParam.getUnionMemberParams().isEmpty()) {
+            return Optional.empty();
+        }
+
+        // Simplify single-member union to a plain FunctionParam
+        if (unionParam.getUnionMemberParams().size() == 1
+                && !(unionParam.getUnionMemberParams().getFirst() instanceof UnionFunctionParam)) {
+            FunctionParam single = unionParam.getUnionMemberParams().getFirst();
+            FunctionParam simplified = new FunctionParam(Integer.toString(index), paramName, single.getParamType());
+            simplified.setParamKind(paramKind);
+            simplified.setTypeSymbol(rawTypeSymbol);
+            simplified.setRequired(unionParam.isRequired());
+            simplified.setTypeDescriptor(true);
+            if (isDefaultable && single.getDefaultValue() != null) {
+                simplified.setDefaultValue(single.getDefaultValue());
+            }
+            return Optional.of(simplified);
+        }
+
+        return Optional.of(unionParam);
     }
 
     private static Optional<FunctionParam> createRecordFunctionParam(ParameterSymbol parameterSymbol, int index) {

@@ -22,6 +22,9 @@ import io.ballerina.runtime.api.creators.ValueCreator;
 import io.ballerina.runtime.api.utils.JsonUtils;
 import io.ballerina.runtime.api.utils.StringUtils;
 import io.ballerina.runtime.api.values.*;
+import io.ballerina.runtime.api.types.PredefinedTypes;
+import io.ballerina.runtime.api.types.Type;
+import io.ballerina.stdlib.mi.BalConnectorConfig;
 import io.ballerina.stdlib.mi.Constants;
 import io.ballerina.stdlib.mi.OMElementConverter;
 import io.ballerina.stdlib.mi.utils.SynapseUtils;
@@ -123,6 +126,9 @@ public class ParamHandler {
                 return getUnionParameter(paramName, context, index);
             } else if (RECORD.equals(paramType)) {
                 return DataTransformer.createRecordValue(null, paramName, context, index);
+            } else if (ANYDATA.equals(paramType)) {
+                // typedesc<anydata> with no UI input — return default TypedescValue<anydata>
+                return ValueCreator.createTypedescValue(PredefinedTypes.TYPE_ANYDATA);
             }
             return null;
         }
@@ -135,11 +141,13 @@ public class ParamHandler {
                 case FLOAT -> Double.parseDouble((String) param);
                 case DECIMAL -> ValueCreator.createDecimalValue((String) param);
                 case JSON -> DataTransformer.getJsonParameter(param);
+                case ANYDATA -> DataTransformer.getJsonParameter(param);  // anydata accepts any JSON-serializable value
                 case XML -> getBXmlParameter(context, value);
                 case RECORD -> DataTransformer.createRecordValue((String) param, paramName, context, index);
                 case ARRAY -> getArrayParameter((String) param, context, value);
                 case MAP -> DataTransformer.getMapParameter(param, context, value);
                 case UNION -> getUnionParameter(paramName, context, index);
+                case TYPEDESC -> getTypedescValue((String) param);
                 default -> null;
             };
             return result;
@@ -147,6 +155,35 @@ public class ParamHandler {
             log.error("Error in getParameter for " + paramName + " (type: " + paramType + "): " + e.getMessage(), e);
             throw new SynapseException("Failed to process parameter " + paramName, e);
         }
+    }
+
+    private Object getTypedescValue(String typeName) {
+        Type type;
+        switch (typeName) {
+            case Constants.STRING -> type = PredefinedTypes.TYPE_STRING;
+            case Constants.INT -> type = PredefinedTypes.TYPE_INT;
+            case Constants.FLOAT -> type = PredefinedTypes.TYPE_FLOAT;
+            case Constants.BOOLEAN -> type = PredefinedTypes.TYPE_BOOLEAN;
+            case Constants.DECIMAL -> type = PredefinedTypes.TYPE_DECIMAL;
+            case Constants.JSON -> type = PredefinedTypes.TYPE_JSON;
+            case Constants.XML -> type = PredefinedTypes.TYPE_XML;
+            case Constants.ANYDATA -> type = PredefinedTypes.TYPE_ANYDATA;
+            default -> {
+                io.ballerina.runtime.api.Module module = BalConnectorConfig.getModule();
+                if (module == null) {
+                    log.warn("Module not available, cannot resolve type '" + typeName + "' to TypedescValue, falling back to string.");
+                    return StringUtils.fromString(typeName);
+                }
+                try {
+                    BMap<BString, Object> recordValue = ValueCreator.createRecordValue(module, typeName);
+                    type = recordValue.getType();
+                } catch (Exception e) {
+                    log.warn("Could not resolve type '" + typeName + "' to TypedescValue, falling back to string.");
+                    return StringUtils.fromString(typeName);
+                }
+            }
+        }
+        return ValueCreator.createTypedescValue(type);
     }
 
     private Object getUnionParameter(String paramName, MessageContext context, int index) {
