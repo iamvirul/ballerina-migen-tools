@@ -39,6 +39,28 @@
                     "validateType": "",
                     "matchPattern": ""
                   }
+                }
+              ]
+            }
+          },
+          {
+            "type": "attributeGroup",
+            "value": {
+              "groupName": "Advanced",
+              "collapsed": true,
+              "elements": [
+                {
+                  "type": "attribute",
+                  "value": {
+                    "name": "enable_config",
+                    "displayName": "Configure config",
+                    "inputType": "boolean",
+                    "defaultValue": "false",
+                    "required": false,
+                    "helpTip": "Enable to configure config settings",
+                    "validateType": "",
+                    "matchPattern": ""
+                  }
                 },
                 {
                   "type": "attribute",
@@ -50,7 +72,12 @@
                     "required": false,
                     "helpTip": "Enable to configure authConfig settings",
                     "validateType": "",
-                    "matchPattern": ""
+                    "matchPattern": "",
+                    "enableCondition": [
+                      {
+                        "enable_config": "true"
+                      }
+                    ]
                   }
                 },
                 {
@@ -59,6 +86,10 @@
                     "groupName": "Auth Config",
                     "collapsed": false,
                     "enableCondition": [
+                      "AND",
+                      {
+                        "enable_config": "true"
+                      },
                       {
                         "enable_authConfig": "true"
                       }
@@ -76,6 +107,10 @@
                           "validateType": "",
                           "matchPattern": "",
                           "enableCondition": [
+                            "AND",
+                            {
+                              "enable_config": "true"
+                            },
                             {
                               "enable_authConfig": "true"
                             }
@@ -95,7 +130,12 @@
                     "required": false,
                     "helpTip": "Enable to configure credentialsConfig settings",
                     "validateType": "",
-                    "matchPattern": ""
+                    "matchPattern": "",
+                    "enableCondition": [
+                      {
+                        "enable_config": "true"
+                      }
+                    ]
                   }
                 },
                 {
@@ -104,6 +144,10 @@
                     "groupName": "Credentials Config",
                     "collapsed": false,
                     "enableCondition": [
+                      "AND",
+                      {
+                        "enable_config": "true"
+                      },
                       {
                         "enable_credentialsConfig": "true"
                       }
@@ -121,6 +165,10 @@
                           "validateType": "",
                           "matchPattern": "",
                           "enableCondition": [
+                            "AND",
+                            {
+                              "enable_config": "true"
+                            },
                             {
                               "enable_credentialsConfig": "true"
                             }
@@ -139,6 +187,10 @@
                           "validateType": "",
                           "matchPattern": "",
                           "enableCondition": [
+                            "AND",
+                            {
+                              "enable_config": "true"
+                            },
                             {
                               "enable_credentialsConfig": "true"
                             }
@@ -158,7 +210,12 @@
                     "required": false,
                     "helpTip": "The idle timeout for a connection",
                     "validateType": "regex",
-                    "matchPattern": "^$|^(-?\\d+|\\$\\{.+\\})$"
+                    "matchPattern": "^$|^(-?\\d+|\\$\\{.+\\})$",
+                    "enableCondition": [
+                      {
+                        "enable_config": "true"
+                      }
+                    ]
                   }
                 },
                 {
@@ -171,7 +228,12 @@
                     "required": false,
                     "helpTip": "The time between keep-alive probes sent by the client to the server. (Default: 55 seconds)",
                     "validateType": "regex",
-                    "matchPattern": "^$|^(-?\\d+|\\$\\{.+\\})$"
+                    "matchPattern": "^$|^(-?\\d+|\\$\\{.+\\})$",
+                    "enableCondition": [
+                      {
+                        "enable_config": "true"
+                      }
+                    ]
                   }
                 },
                 {
@@ -184,7 +246,12 @@
                     "required": false,
                     "helpTip": "The timeout duration for the server to respond to a keep-alive probe sent by the client. (Default: 20 seconds)",
                     "validateType": "regex",
-                    "matchPattern": "^$|^(-?\\d+|\\$\\{.+\\})$"
+                    "matchPattern": "^$|^(-?\\d+|\\$\\{.+\\})$",
+                    "enableCondition": [
+                      {
+                        "enable_config": "true"
+                      }
+                    ]
                   }
                 },
                 {
@@ -197,7 +264,12 @@
                     "required": false,
                     "helpTip": "Whether to send keep-alive probes without making requests. (Default: false)",
                     "validateType": "",
-                    "matchPattern": ""
+                    "matchPattern": "",
+                    "enableCondition": [
+                      {
+                        "enable_config": "true"
+                      }
+                    ]
                   }
                 },
                 {
@@ -210,7 +282,12 @@
                     "required": false,
                     "helpTip": "The deadline for the rpc operation to be completed. The value defaults to 0, which indicates the deadline is disabled",
                     "validateType": "regex",
-                    "matchPattern": "^$|^(-?\\d+|\\$\\{.+\\})$"
+                    "matchPattern": "^$|^(-?\\d+|\\$\\{.+\\})$",
+                    "enableCondition": [
+                      {
+                        "enable_config": "true"
+                      }
+                    ]
                   }
                 },
                 {
@@ -223,7 +300,12 @@
                     "required": false,
                     "helpTip": "The timeout duration for this operation. (Default: 10 seconds)",
                     "validateType": "regex",
-                    "matchPattern": "^$|^(-?\\d+|\\$\\{.+\\})$"
+                    "matchPattern": "^$|^(-?\\d+|\\$\\{.+\\})$",
+                    "enableCondition": [
+                      {
+                        "enable_config": "true"
+                      }
+                    ]
                   }
                 },
                 {
@@ -236,7 +318,12 @@
                     "required": false,
                     "helpTip": "The name of the database to which the target Milvus instance belongs",
                     "validateType": "",
-                    "matchPattern": ""
+                    "matchPattern": "",
+                    "enableCondition": [
+                      {
+                        "enable_config": "true"
+                      }
+                    ]
                   }
                 },
                 {
@@ -249,7 +336,12 @@
                     "required": false,
                     "helpTip": "The expected name of the server",
                     "validateType": "",
-                    "matchPattern": ""
+                    "matchPattern": "",
+                    "enableCondition": [
+                      {
+                        "enable_config": "true"
+                      }
+                    ]
                   }
                 },
                 {
@@ -262,7 +354,12 @@
                     "required": false,
                     "helpTip": "The proxy server’s address through which the connection is to be established",
                     "validateType": "",
-                    "matchPattern": ""
+                    "matchPattern": "",
+                    "enableCondition": [
+                      {
+                        "enable_config": "true"
+                      }
+                    ]
                   }
                 },
                 {
@@ -275,7 +372,12 @@
                     "required": false,
                     "helpTip": "Enable to configure secureConfig settings",
                     "validateType": "",
-                    "matchPattern": ""
+                    "matchPattern": "",
+                    "enableCondition": [
+                      {
+                        "enable_config": "true"
+                      }
+                    ]
                   }
                 },
                 {
@@ -284,6 +386,10 @@
                     "groupName": "Secure Config",
                     "collapsed": false,
                     "enableCondition": [
+                      "AND",
+                      {
+                        "enable_config": "true"
+                      },
                       {
                         "enable_secureConfig": "true"
                       }
@@ -301,6 +407,10 @@
                           "validateType": "",
                           "matchPattern": "",
                           "enableCondition": [
+                            "AND",
+                            {
+                              "enable_config": "true"
+                            },
                             {
                               "enable_secureConfig": "true"
                             }
@@ -319,6 +429,10 @@
                           "validateType": "",
                           "matchPattern": "",
                           "enableCondition": [
+                            "AND",
+                            {
+                              "enable_config": "true"
+                            },
                             {
                               "enable_secureConfig": "true"
                             }
@@ -337,6 +451,10 @@
                           "validateType": "",
                           "matchPattern": "",
                           "enableCondition": [
+                            "AND",
+                            {
+                              "enable_config": "true"
+                            },
                             {
                               "enable_secureConfig": "true"
                             }
@@ -355,6 +473,10 @@
                           "validateType": "",
                           "matchPattern": "",
                           "enableCondition": [
+                            "AND",
+                            {
+                              "enable_config": "true"
+                            },
                             {
                               "enable_secureConfig": "true"
                             }

@@ -121,6 +121,7 @@ public class JsonGenerator {
                 }
                 break;
             case JSON:
+            case io.ballerina.mi.util.Constants.ANYDATA:
                 String jsonHelpTip = functionParam.getDescription();
                 if (jsonHelpTip == null || jsonHelpTip.isEmpty()) {
                     jsonHelpTip = "Expecting JSON object";
@@ -134,7 +135,12 @@ public class JsonGenerator {
                 builder.addFromTemplate(ATTRIBUTE_TEMPLATE_PATH, jsonAttr);
                 break;
             case RECORD:
-                if (expandRecords) {
+                // Handle open included records (e.g., *record {|anydata...;|}) as tables
+                if (functionParam instanceof IncludedRecordFunctionParam includedParam
+                        && includedParam.isOpenRecord()
+                        && includedParam.getRecordFieldParams().isEmpty()) {
+                    writeOpenIncludedRecordAsTable(includedParam, builder, isCombo);
+                } else if (expandRecords) {
                     if (isConfigContext && !functionParam.isRequired()) {
                         addCheckboxForOptional(functionParam, functionParam, sanitizedParamName, displayName, builder);
                     }
@@ -551,6 +557,101 @@ public class JsonGenerator {
             tableColumns,
             mapParam.getEnableCondition(),
             mapParam.isRequired()
+        );
+
+        builder.addFromTemplate(TABLE_TEMPLATE_PATH, table);
+    }
+
+    /**
+     * Renders an open included record parameter (e.g., *record {|anydata...;|}) as a table.
+     * This allows users to dynamically add key-value pairs where the key is a string
+     * and the value type is determined by the rest type descriptor.
+     */
+    private static void writeOpenIncludedRecordAsTable(IncludedRecordFunctionParam includedParam,
+                                                        JsonTemplateBuilder builder, boolean isCombo)
+            throws IOException {
+
+        String paramName = Utils.sanitizeParamName(includedParam.getValue());
+        String displayName = includedParam.getValue();
+        if (displayName.contains(".")) {
+            displayName = displayName.substring(displayName.lastIndexOf('.') + 1);
+        }
+        displayName = Utils.sanitizeParamName(displayName);
+
+        List<Element> tableColumns = new ArrayList<>();
+
+        // Key column - always string for record field names
+        Attribute keyColumn = new Attribute(
+            "key",
+            "Key",
+            INPUT_TYPE_STRING_OR_EXPRESSION,
+            "",
+            true,
+            "Property name",
+            "",
+            "",
+            false
+        );
+        tableColumns.add(keyColumn);
+
+        // Value column - type based on rest type descriptor
+        String valueType = includedParam.getRestTypeName();
+        String valueInputType = INPUT_TYPE_STRING_OR_EXPRESSION;
+        String valueValidation = "";
+        String valueHelpTip = "Property value";
+
+        if (valueType != null) {
+            switch (valueType) {
+                case io.ballerina.mi.util.Constants.INT:
+                    valueValidation = INTEGER_REGEX_OPTIONAL;
+                    valueHelpTip = "Integer value";
+                    break;
+                case io.ballerina.mi.util.Constants.FLOAT:
+                case io.ballerina.mi.util.Constants.DECIMAL:
+                    valueValidation = DECIMAL_REGEX_OPTIONAL;
+                    valueHelpTip = "Decimal value";
+                    break;
+                case io.ballerina.mi.util.Constants.BOOLEAN:
+                    valueInputType = INPUT_TYPE_BOOLEAN;
+                    valueHelpTip = "Boolean value";
+                    break;
+                case JSON:
+                case io.ballerina.mi.util.Constants.ANYDATA:
+                    valueValidation = JSON;
+                    valueHelpTip = "JSON value (string, number, boolean, object, or array)";
+                    break;
+                default:
+                    valueHelpTip = "Value of type " + valueType;
+            }
+        }
+
+        Attribute valueColumn = new Attribute(
+            "value",
+            "Value",
+            valueInputType,
+            "",
+            true,
+            valueHelpTip,
+            valueValidation.isEmpty() ? "" : VALIDATE_TYPE_REGEX,
+            valueValidation,
+            false
+        );
+        tableColumns.add(valueColumn);
+
+        String description = includedParam.getDescription() != null ?
+            includedParam.getDescription() :
+            "Configure " + displayName + " properties";
+
+        Table table = new Table(
+            paramName,
+            displayName,
+            displayName,
+            description,
+            "key",
+            "value",
+            tableColumns,
+            includedParam.getEnableCondition(),
+            includedParam.isRequired()
         );
 
         builder.addFromTemplate(TABLE_TEMPLATE_PATH, table);
