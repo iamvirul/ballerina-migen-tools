@@ -121,6 +121,7 @@ public class JsonGenerator {
                 }
                 break;
             case JSON:
+            case io.ballerina.mi.util.Constants.ANYDATA:
                 String jsonHelpTip = functionParam.getDescription();
                 if (jsonHelpTip == null || jsonHelpTip.isEmpty()) {
                     jsonHelpTip = "Expecting JSON object";
@@ -134,7 +135,15 @@ public class JsonGenerator {
                 builder.addFromTemplate(ATTRIBUTE_TEMPLATE_PATH, jsonAttr);
                 break;
             case RECORD:
-                if (expandRecords) {
+                // Handle open included records (e.g., *record {|anydata...;|}) as tables
+                if (functionParam instanceof IncludedRecordFunctionParam includedParam
+                        && includedParam.isOpenRecord()
+                        && includedParam.getRecordFieldParams().isEmpty()) {
+                    if (isConfigContext && !functionParam.isRequired()) {
+                        addCheckboxForOptional(functionParam, includedParam, sanitizedParamName, displayName, builder);
+                    }
+                    writeOpenIncludedRecordAsTable(includedParam, builder, isCombo);
+                } else if (expandRecords) {
                     if (isConfigContext && !functionParam.isRequired()) {
                         addCheckboxForOptional(functionParam, functionParam, sanitizedParamName, displayName, builder);
                     }
@@ -551,6 +560,114 @@ public class JsonGenerator {
             tableColumns,
             mapParam.getEnableCondition(),
             mapParam.isRequired()
+        );
+
+        builder.addFromTemplate(TABLE_TEMPLATE_PATH, table);
+    }
+
+    /**
+     * Renders an open included record parameter (e.g., *record {|anydata...;|}) as a table.
+     * This allows users to dynamically add key-value pairs where the key is a string
+     * and the value type is determined by the rest type descriptor.
+     */
+    private static void writeOpenIncludedRecordAsTable(IncludedRecordFunctionParam includedParam,
+                                                        JsonTemplateBuilder builder, boolean isCombo)
+            throws IOException {
+
+        String paramName = Utils.sanitizeParamName(includedParam.getValue());
+        String displayName = includedParam.getValue();
+        if (displayName.contains(".")) {
+            displayName = displayName.substring(displayName.lastIndexOf('.') + 1);
+        }
+        displayName = Utils.sanitizeParamName(displayName);
+
+        List<Element> tableColumns = new ArrayList<>();
+
+        // Key column - always string for record field names
+        Attribute keyColumn = new Attribute(
+            "key",
+            "Key",
+            INPUT_TYPE_STRING_OR_EXPRESSION,
+            "",
+            true,
+            "Property name",
+            "",
+            "",
+            false
+        );
+        tableColumns.add(keyColumn);
+
+        // Value column - type based on rest type descriptor
+        String valueType = includedParam.getRestTypeName();
+        String valueInputType = INPUT_TYPE_STRING_OR_EXPRESSION;
+        String valueValidation = "";
+        String valueHelpTip = "Property value";
+
+        boolean isJsonValidation = false;
+        if (valueType != null) {
+            switch (valueType) {
+                case io.ballerina.mi.util.Constants.INT:
+                    valueValidation = INTEGER_REGEX_OPTIONAL;
+                    valueHelpTip = "Integer value";
+                    break;
+                case io.ballerina.mi.util.Constants.FLOAT:
+                case io.ballerina.mi.util.Constants.DECIMAL:
+                    valueValidation = DECIMAL_REGEX_OPTIONAL;
+                    valueHelpTip = "Decimal value";
+                    break;
+                case io.ballerina.mi.util.Constants.BOOLEAN:
+                    valueInputType = INPUT_TYPE_BOOLEAN;
+                    valueHelpTip = "Boolean value";
+                    break;
+                case JSON:
+                case io.ballerina.mi.util.Constants.ANYDATA:
+                    isJsonValidation = true;
+                    valueHelpTip = "JSON value (string, number, boolean, object, or array)";
+                    break;
+                default:
+                    valueHelpTip = "Value of type " + valueType;
+            }
+        }
+
+        // For JSON/ANYDATA: use JSON validation type directly
+        // For regex patterns (INT, FLOAT, DECIMAL): use VALIDATE_TYPE_REGEX with pattern
+        String validationType = "";
+        String matchPattern = "";
+        if (isJsonValidation) {
+            validationType = JSON;
+            matchPattern = "";
+        } else if (!valueValidation.isEmpty()) {
+            validationType = VALIDATE_TYPE_REGEX;
+            matchPattern = valueValidation;
+        }
+
+        Attribute valueColumn = new Attribute(
+            "value",
+            "Value",
+            valueInputType,
+            "",
+            true,
+            valueHelpTip,
+            validationType,
+            matchPattern,
+            false
+        );
+        tableColumns.add(valueColumn);
+
+        String description = includedParam.getDescription() != null ?
+            includedParam.getDescription() :
+            "Configure " + displayName + " properties";
+
+        Table table = new Table(
+            paramName,
+            displayName,
+            displayName,
+            description,
+            "key",
+            "value",
+            tableColumns,
+            includedParam.getEnableCondition(),
+            includedParam.isRequired()
         );
 
         builder.addFromTemplate(TABLE_TEMPLATE_PATH, table);
@@ -1021,21 +1138,37 @@ public class JsonGenerator {
         return null;
     }
 
+    /**
+     * Checks if a function parameter will be rendered in the JSON output.
+     * Type descriptor parameters (except UnionFunctionParam) are skipped during rendering.
+     *
+     * @param param the function parameter to check
+     * @return true if the parameter will be rendered, false if it will be skipped
+     */
+    public static boolean isRenderable(FunctionParam param) {
+        return !(param.isTypeDescriptor() && !(param instanceof UnionFunctionParam));
+    }
+
     public static void writeAttributeGroup(String groupName, List<FunctionParam> params, boolean isLastGroup, JsonTemplateBuilder builder, boolean isConfigContext) {
         writeAttributeGroup(groupName, params, isLastGroup, builder, false, isConfigContext);
     }
 
     public static void writeAttributeGroup(String groupName, List<FunctionParam> params, boolean isLastGroup, JsonTemplateBuilder builder, boolean collapsed, boolean isConfigContext) {
         try {
+            // Filter to only renderable params to avoid dangling separators
+            List<FunctionParam> renderableParams = params.stream()
+                    .filter(JsonGenerator::isRenderable)
+                    .toList();
+
             AttributeGroup attributeGroup = new AttributeGroup(groupName, collapsed);
             builder.addFromTemplate(ATTRIBUTE_GROUP_TEMPLATE_PATH, attributeGroup);
 
-            for (int i = 0; i < params.size(); i++) {
+            for (int i = 0; i < renderableParams.size(); i++) {
                 if (i == 0) {
                     builder.addSeparator("                  "); // Indentation alignment
                 }
                 // Write param - expand records
-                writeJsonAttributeForFunctionParam(params.get(i), i, params.size(), builder, false, true, groupName, isConfigContext);
+                writeJsonAttributeForFunctionParam(renderableParams.get(i), i, renderableParams.size(), builder, false, true, groupName, isConfigContext);
             }
 
             // Close the attributeGroup

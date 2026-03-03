@@ -19,8 +19,22 @@
 package io.ballerina.mi.analyzer;
 
 import io.ballerina.compiler.api.impl.symbols.BallerinaUnionTypeSymbol;
-import io.ballerina.compiler.api.symbols.*;
-import io.ballerina.mi.model.param.*;
+import io.ballerina.compiler.api.symbols.ArrayTypeSymbol;
+import io.ballerina.compiler.api.symbols.MapTypeSymbol;
+import io.ballerina.compiler.api.symbols.ParameterKind;
+import io.ballerina.compiler.api.symbols.ParameterSymbol;
+import io.ballerina.compiler.api.symbols.RecordFieldSymbol;
+import io.ballerina.compiler.api.symbols.RecordTypeSymbol;
+import io.ballerina.compiler.api.symbols.TypeDescKind;
+import io.ballerina.compiler.api.symbols.TypeDescTypeSymbol;
+import io.ballerina.compiler.api.symbols.TypeSymbol;
+import io.ballerina.compiler.api.symbols.UnionTypeSymbol;
+import io.ballerina.mi.model.param.ArrayFunctionParam;
+import io.ballerina.mi.model.param.FunctionParam;
+import io.ballerina.mi.model.param.IncludedRecordFunctionParam;
+import io.ballerina.mi.model.param.MapFunctionParam;
+import io.ballerina.mi.model.param.RecordFunctionParam;
+import io.ballerina.mi.model.param.UnionFunctionParam;
 import io.ballerina.mi.util.Constants;
 import io.ballerina.mi.util.Utils;
 import org.apache.commons.lang3.StringUtils;
@@ -62,6 +76,10 @@ public class ParamFactory {
                 return createUnionFunctionParam(parameterSymbol, index);
             }
             if (actualTypeKind == TypeDescKind.RECORD) {
+                // Handle included record parameters (*RecordType syntax)
+                if (parameterSymbol.paramKind() == ParameterKind.INCLUDED_RECORD) {
+                    return createIncludedRecordFunctionParam(parameterSymbol, index);
+                }
                 return createRecordFunctionParam(parameterSymbol, index);
             }
             if (actualTypeKind == TypeDescKind.MAP) {
@@ -302,6 +320,56 @@ public class ParamFactory {
         }
 
         return Optional.of(recordParam);
+    }
+
+    /**
+     * Creates an {@link IncludedRecordFunctionParam} for included record parameters (*RecordType syntax).
+     * <p>
+     * Included record parameters allow callers to pass record fields as individual named arguments.
+     * From the UI perspective, these are treated similarly to regular record parameters with their
+     * fields expanded as individual input fields.
+     * </p>
+     *
+     * @param parameterSymbol the Ballerina parameter symbol with INCLUDED_RECORD kind
+     * @param index the parameter index
+     * @return Optional containing the IncludedRecordFunctionParam, or empty if the type cannot be processed
+     */
+    private static Optional<FunctionParam> createIncludedRecordFunctionParam(ParameterSymbol parameterSymbol, int index) {
+        String paramName = parameterSymbol.getName().orElseThrow();
+        TypeSymbol typeSymbol = parameterSymbol.typeDescriptor();
+        TypeSymbol actualTypeSymbol = Utils.getActualTypeSymbol(typeSymbol);
+
+        IncludedRecordFunctionParam includedRecordParam = new IncludedRecordFunctionParam(
+                Integer.toString(index), paramName, TypeDescKind.RECORD.getName());
+        includedRecordParam.setParamKind(parameterSymbol.paramKind());
+        includedRecordParam.setTypeSymbol(typeSymbol);
+
+        // Get record name from type symbol
+        String recordName = typeSymbol.getName()
+                .or(actualTypeSymbol::getName)
+                .orElse(paramName);
+        includedRecordParam.setRecordName(recordName);
+
+        // Set required based on parameter kind (same logic as regular record params)
+        if (parameterSymbol.paramKind() == ParameterKind.DEFAULTABLE) {
+            includedRecordParam.setRequired(false);
+        }
+
+        // Extract record fields if the actual type is a RecordTypeSymbol
+        if (actualTypeSymbol instanceof RecordTypeSymbol recordTypeSymbol) {
+            // Check for open record (has rest type descriptor like anydata...)
+            Optional<TypeSymbol> restTypeOpt = recordTypeSymbol.restTypeDescriptor();
+            if (restTypeOpt.isPresent()) {
+                includedRecordParam.setOpenRecord(true);
+                includedRecordParam.setRestTypeSymbol(restTypeOpt.get());
+            }
+
+            String parentPath = "";  // Top-level - no parent path prefix
+            includedRecordParam.setParentParamPath("");
+            populateRecordFieldParams(includedRecordParam, recordTypeSymbol, parentPath, new int[]{MAX_FIELD_BUDGET});
+        }
+
+        return Optional.of(includedRecordParam);
     }
 
     // Maximum total field count per record tree to prevent OOM from exponential expansion.
