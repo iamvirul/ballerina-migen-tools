@@ -600,6 +600,7 @@ public class JsonGenerator {
         String valueValidation = "";
         String valueHelpTip = "Property value";
 
+        boolean isJsonValidation = false;
         if (valueType != null) {
             switch (valueType) {
                 case io.ballerina.mi.util.Constants.INT:
@@ -617,12 +618,24 @@ public class JsonGenerator {
                     break;
                 case JSON:
                 case io.ballerina.mi.util.Constants.ANYDATA:
-                    valueValidation = JSON;
+                    isJsonValidation = true;
                     valueHelpTip = "JSON value (string, number, boolean, object, or array)";
                     break;
                 default:
                     valueHelpTip = "Value of type " + valueType;
             }
+        }
+
+        // For JSON/ANYDATA: use JSON validation type directly
+        // For regex patterns (INT, FLOAT, DECIMAL): use VALIDATE_TYPE_REGEX with pattern
+        String validationType = "";
+        String matchPattern = "";
+        if (isJsonValidation) {
+            validationType = JSON;
+            matchPattern = "";
+        } else if (!valueValidation.isEmpty()) {
+            validationType = VALIDATE_TYPE_REGEX;
+            matchPattern = valueValidation;
         }
 
         Attribute valueColumn = new Attribute(
@@ -632,8 +645,8 @@ public class JsonGenerator {
             "",
             true,
             valueHelpTip,
-            valueValidation.isEmpty() ? "" : VALIDATE_TYPE_REGEX,
-            valueValidation,
+            validationType,
+            matchPattern,
             false
         );
         tableColumns.add(valueColumn);
