@@ -300,6 +300,10 @@ public final class HandlebarsHelperRegistry {
             List<FunctionParam> advancedParams = new ArrayList<>();
 
             for (FunctionParam param : functionParams) {
+                // Skip non-renderable params (type descriptors except unions)
+                if (!JsonGenerator.isRenderable(param)) {
+                    continue;
+                }
                 boolean isAdvanced = false;
                 if (!param.isRequired() || (param.getDefaultValue() != null && !param.getDefaultValue().isEmpty())) {
                     isAdvanced = true;
@@ -348,24 +352,32 @@ public final class HandlebarsHelperRegistry {
                 }
             }
 
+            // Filter to only renderable params to avoid dangling separators
+            List<FunctionParam> renderableRequired = requiredParams.stream()
+                    .filter(JsonGenerator::isRenderable)
+                    .toList();
+            List<FunctionParam> renderableAdvanced = advancedParams.stream()
+                    .filter(JsonGenerator::isRenderable)
+                    .toList();
+
             boolean hasPathParams = totalPathParams > 0;
-            boolean hasRequiredParams = !requiredParams.isEmpty();
-            boolean hasAdvancedParams = !advancedParams.isEmpty();
+            boolean hasRequiredParams = !renderableRequired.isEmpty();
+            boolean hasAdvancedParams = !renderableAdvanced.isEmpty();
 
             if (hasPathParams && (hasRequiredParams || hasAdvancedParams)) {
                 builder.addSeparator(ATTRIBUTE_SEPARATOR);
             }
 
-            int totalRequired = requiredParams.size();
+            int totalRequired = renderableRequired.size();
             for (int i = 0; i < totalRequired; i++) {
-                JsonGenerator.writeJsonAttributeForFunctionParam(requiredParams.get(i), i, totalRequired, builder, false, true, null, false);
+                JsonGenerator.writeJsonAttributeForFunctionParam(renderableRequired.get(i), i, totalRequired, builder, false, true, null, false);
             }
 
             if (hasAdvancedParams) {
                 if (hasRequiredParams) {
                     builder.addSeparator(ATTRIBUTE_SEPARATOR);
                 }
-                JsonGenerator.writeAttributeGroup("Advanced", advancedParams, true, builder, true, false);
+                JsonGenerator.writeAttributeGroup("Advanced", renderableAdvanced, true, builder, true, false);
             }
 
             return new Handlebars.SafeString(builder.build());

@@ -1138,21 +1138,37 @@ public class JsonGenerator {
         return null;
     }
 
+    /**
+     * Checks if a function parameter will be rendered in the JSON output.
+     * Type descriptor parameters (except UnionFunctionParam) are skipped during rendering.
+     *
+     * @param param the function parameter to check
+     * @return true if the parameter will be rendered, false if it will be skipped
+     */
+    public static boolean isRenderable(FunctionParam param) {
+        return !(param.isTypeDescriptor() && !(param instanceof UnionFunctionParam));
+    }
+
     public static void writeAttributeGroup(String groupName, List<FunctionParam> params, boolean isLastGroup, JsonTemplateBuilder builder, boolean isConfigContext) {
         writeAttributeGroup(groupName, params, isLastGroup, builder, false, isConfigContext);
     }
 
     public static void writeAttributeGroup(String groupName, List<FunctionParam> params, boolean isLastGroup, JsonTemplateBuilder builder, boolean collapsed, boolean isConfigContext) {
         try {
+            // Filter to only renderable params to avoid dangling separators
+            List<FunctionParam> renderableParams = params.stream()
+                    .filter(JsonGenerator::isRenderable)
+                    .toList();
+
             AttributeGroup attributeGroup = new AttributeGroup(groupName, collapsed);
             builder.addFromTemplate(ATTRIBUTE_GROUP_TEMPLATE_PATH, attributeGroup);
 
-            for (int i = 0; i < params.size(); i++) {
+            for (int i = 0; i < renderableParams.size(); i++) {
                 if (i == 0) {
                     builder.addSeparator("                  "); // Indentation alignment
                 }
                 // Write param - expand records
-                writeJsonAttributeForFunctionParam(params.get(i), i, params.size(), builder, false, true, groupName, isConfigContext);
+                writeJsonAttributeForFunctionParam(renderableParams.get(i), i, renderableParams.size(), builder, false, true, groupName, isConfigContext);
             }
 
             // Close the attributeGroup
