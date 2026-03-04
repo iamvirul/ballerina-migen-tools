@@ -382,6 +382,22 @@ public final class HandlebarsHelperRegistry {
 
             return new Handlebars.SafeString(builder.build());
         });
+        handlebar.registerHelper("hasInputParams", (context, options) -> {
+            if (!(context instanceof Component component)) {
+                return false;
+            }
+            // Check for path params
+            List<PathParamType> pathParams = component.getPathParams();
+            if (pathParams != null && !pathParams.isEmpty()) {
+                return true;
+            }
+            // Check for renderable function params
+            List<FunctionParam> functionParams = component.getFunctionParams();
+            if (functionParams == null || functionParams.isEmpty()) {
+                return false;
+            }
+            return functionParams.stream().anyMatch(JsonGenerator::isRenderable);
+        });
     }
 
     // ─── Type Introspection Helpers ───────────────────────────────────────────
