@@ -1767,5 +1767,190 @@ public class ParamFactoryTest {
 
         Assert.assertFalse(result.isPresent());
     }
+
+    @Test
+    public void testCreateFunctionParam_EnumType() {
+        ParameterSymbol paramSymbol = mock(ParameterSymbol.class);
+        UnionTypeSymbol unionTypeSymbol = mock(UnionTypeSymbol.class);
+
+        TypeSymbol member1 = mock(TypeSymbol.class);
+        TypeSymbol member2 = mock(TypeSymbol.class);
+        TypeSymbol member3 = mock(TypeSymbol.class);
+
+        when(member1.typeKind()).thenReturn(TypeDescKind.SINGLETON);
+        when(member1.signature()).thenReturn("\"queue\"");
+        when(member2.typeKind()).thenReturn(TypeDescKind.SINGLETON);
+        when(member2.signature()).thenReturn("\"topic\"");
+        when(member3.typeKind()).thenReturn(TypeDescKind.SINGLETON);
+        when(member3.signature()).thenReturn("\"subscription\"");
+
+        when(paramSymbol.typeDescriptor()).thenReturn(unionTypeSymbol);
+        when(paramSymbol.getName()).thenReturn(Optional.of("entityType"));
+        when(paramSymbol.paramKind()).thenReturn(ParameterKind.REQUIRED);
+        when(unionTypeSymbol.typeKind()).thenReturn(TypeDescKind.UNION);
+        when(unionTypeSymbol.memberTypeDescriptors()).thenReturn(List.of(member1, member2, member3));
+
+        Optional<FunctionParam> result = ParamFactory.createFunctionParam(paramSymbol, 0);
+
+        Assert.assertTrue(result.isPresent());
+        Assert.assertTrue(result.get() instanceof EnumFunctionParam);
+        EnumFunctionParam enumParam = (EnumFunctionParam) result.get();
+        Assert.assertEquals(enumParam.getParamType(), Constants.ENUM);
+        Assert.assertEquals(enumParam.getEnumValues(), List.of("queue", "topic", "subscription"));
+        Assert.assertTrue(enumParam.isRequired());
+    }
+
+    @Test
+    public void testCreateFunctionParam_EnumType_WithNil() {
+        ParameterSymbol paramSymbol = mock(ParameterSymbol.class);
+        UnionTypeSymbol unionTypeSymbol = mock(UnionTypeSymbol.class);
+
+        TypeSymbol member1 = mock(TypeSymbol.class);
+        TypeSymbol member2 = mock(TypeSymbol.class);
+        TypeSymbol nilMember = mock(TypeSymbol.class);
+
+        when(member1.typeKind()).thenReturn(TypeDescKind.SINGLETON);
+        when(member1.signature()).thenReturn("\"auto\"");
+        when(member2.typeKind()).thenReturn(TypeDescKind.SINGLETON);
+        when(member2.signature()).thenReturn("\"manual\"");
+        when(nilMember.typeKind()).thenReturn(TypeDescKind.NIL);
+
+        when(paramSymbol.typeDescriptor()).thenReturn(unionTypeSymbol);
+        when(paramSymbol.getName()).thenReturn(Optional.of("mode"));
+        when(paramSymbol.paramKind()).thenReturn(ParameterKind.DEFAULTABLE);
+        when(unionTypeSymbol.typeKind()).thenReturn(TypeDescKind.UNION);
+        when(unionTypeSymbol.memberTypeDescriptors()).thenReturn(List.of(member1, member2, nilMember));
+
+        Optional<FunctionParam> result = ParamFactory.createFunctionParam(paramSymbol, 0);
+
+        Assert.assertTrue(result.isPresent());
+        Assert.assertTrue(result.get() instanceof EnumFunctionParam);
+        EnumFunctionParam enumParam = (EnumFunctionParam) result.get();
+        Assert.assertEquals(enumParam.getEnumValues(), List.of("auto", "manual"));
+        // Nil members are excluded from enum values; DEFAULTABLE paramKind makes it optional
+        Assert.assertFalse(enumParam.isRequired());
+    }
+
+    @Test
+    public void testCreateFunctionParam_EnumType_NotEnumUnion() {
+        ParameterSymbol paramSymbol = mock(ParameterSymbol.class);
+        UnionTypeSymbol unionTypeSymbol = mock(UnionTypeSymbol.class);
+
+        TypeSymbol singletonMember = mock(TypeSymbol.class);
+        TypeSymbol stringMember = mock(TypeSymbol.class);
+
+        when(singletonMember.typeKind()).thenReturn(TypeDescKind.SINGLETON);
+        when(singletonMember.signature()).thenReturn("\"fixed\"");
+        when(singletonMember.getName()).thenReturn(Optional.empty());
+        when(stringMember.typeKind()).thenReturn(TypeDescKind.STRING);
+        when(stringMember.getName()).thenReturn(Optional.empty());
+
+        when(paramSymbol.typeDescriptor()).thenReturn(unionTypeSymbol);
+        when(paramSymbol.getName()).thenReturn(Optional.of("mixed"));
+        when(paramSymbol.paramKind()).thenReturn(ParameterKind.REQUIRED);
+        when(unionTypeSymbol.typeKind()).thenReturn(TypeDescKind.UNION);
+        when(unionTypeSymbol.memberTypeDescriptors()).thenReturn(List.of(singletonMember, stringMember));
+
+        Optional<FunctionParam> result = ParamFactory.createFunctionParam(paramSymbol, 0);
+
+        // Mixed union (singleton + string) is NOT detected as enum;
+        // SINGLETON is unsupported as a union member, so only STRING survives → simplified to FunctionParam
+        Assert.assertTrue(result.isPresent());
+        Assert.assertFalse(result.get() instanceof EnumFunctionParam);
+    }
+
+    @Test
+    public void testRecordWithEnumField() {
+        ParameterSymbol paramSymbol = mock(ParameterSymbol.class);
+        RecordTypeSymbol recordTypeSymbol = mock(RecordTypeSymbol.class);
+        RecordFieldSymbol enumFieldSymbol = mock(RecordFieldSymbol.class);
+        UnionTypeSymbol enumUnionType = mock(UnionTypeSymbol.class);
+
+        TypeSymbol val1 = mock(TypeSymbol.class);
+        TypeSymbol val2 = mock(TypeSymbol.class);
+
+        when(val1.typeKind()).thenReturn(TypeDescKind.SINGLETON);
+        when(val1.signature()).thenReturn("\"HTTP_1_1\"");
+        when(val2.typeKind()).thenReturn(TypeDescKind.SINGLETON);
+        when(val2.signature()).thenReturn("\"HTTP_2\"");
+
+        when(enumUnionType.typeKind()).thenReturn(TypeDescKind.UNION);
+        when(enumUnionType.memberTypeDescriptors()).thenReturn(List.of(val1, val2));
+
+        when(enumFieldSymbol.typeDescriptor()).thenReturn(enumUnionType);
+        when(enumFieldSymbol.isOptional()).thenReturn(false);
+        when(enumFieldSymbol.hasDefaultValue()).thenReturn(false);
+        when(enumFieldSymbol.documentation()).thenReturn(Optional.empty());
+
+        when(paramSymbol.typeDescriptor()).thenReturn(recordTypeSymbol);
+        when(paramSymbol.getName()).thenReturn(Optional.of("settings"));
+        when(paramSymbol.paramKind()).thenReturn(ParameterKind.REQUIRED);
+        when(recordTypeSymbol.typeKind()).thenReturn(TypeDescKind.RECORD);
+        when(recordTypeSymbol.getName()).thenReturn(Optional.of("Settings"));
+
+        Map<String, RecordFieldSymbol> fields = new HashMap<>();
+        fields.put("httpVersion", enumFieldSymbol);
+        when(recordTypeSymbol.fieldDescriptors()).thenReturn(fields);
+
+        Optional<FunctionParam> result = ParamFactory.createFunctionParam(paramSymbol, 0);
+
+        Assert.assertTrue(result.isPresent());
+        Assert.assertTrue(result.get() instanceof RecordFunctionParam);
+        RecordFunctionParam recordParam = (RecordFunctionParam) result.get();
+        Assert.assertEquals(recordParam.getRecordFieldParams().size(), 1);
+        FunctionParam fieldParam = recordParam.getRecordFieldParams().get(0);
+        Assert.assertTrue(fieldParam instanceof EnumFunctionParam);
+        EnumFunctionParam enumField = (EnumFunctionParam) fieldParam;
+        Assert.assertEquals(enumField.getEnumValues(), List.of("HTTP_1_1", "HTTP_2"));
+    }
+
+    @Test
+    public void testIsEnumUnion() {
+        UnionTypeSymbol allSingletons = mock(UnionTypeSymbol.class);
+        TypeSymbol s1 = mock(TypeSymbol.class);
+        TypeSymbol s2 = mock(TypeSymbol.class);
+        when(s1.typeKind()).thenReturn(TypeDescKind.SINGLETON);
+        when(s2.typeKind()).thenReturn(TypeDescKind.SINGLETON);
+        when(allSingletons.memberTypeDescriptors()).thenReturn(List.of(s1, s2));
+        Assert.assertTrue(ParamFactory.isEnumUnion(allSingletons));
+
+        // Singletons + nil → still enum
+        UnionTypeSymbol withNil = mock(UnionTypeSymbol.class);
+        TypeSymbol nilMember = mock(TypeSymbol.class);
+        when(nilMember.typeKind()).thenReturn(TypeDescKind.NIL);
+        when(withNil.memberTypeDescriptors()).thenReturn(List.of(s1, nilMember));
+        Assert.assertTrue(ParamFactory.isEnumUnion(withNil));
+
+        // Mixed (singleton + string) → not enum
+        UnionTypeSymbol mixed = mock(UnionTypeSymbol.class);
+        TypeSymbol strMember = mock(TypeSymbol.class);
+        when(strMember.typeKind()).thenReturn(TypeDescKind.STRING);
+        when(mixed.memberTypeDescriptors()).thenReturn(List.of(s1, strMember));
+        Assert.assertFalse(ParamFactory.isEnumUnion(mixed));
+
+        // Only nil members → not enum
+        UnionTypeSymbol onlyNil = mock(UnionTypeSymbol.class);
+        when(onlyNil.memberTypeDescriptors()).thenReturn(List.of(nilMember));
+        Assert.assertFalse(ParamFactory.isEnumUnion(onlyNil));
+    }
+
+    @Test
+    public void testExtractEnumValues() {
+        UnionTypeSymbol unionType = mock(UnionTypeSymbol.class);
+        TypeSymbol s1 = mock(TypeSymbol.class);
+        TypeSymbol s2 = mock(TypeSymbol.class);
+        TypeSymbol nilMember = mock(TypeSymbol.class);
+
+        when(s1.typeKind()).thenReturn(TypeDescKind.SINGLETON);
+        when(s1.signature()).thenReturn("\"alpha\"");
+        when(s2.typeKind()).thenReturn(TypeDescKind.SINGLETON);
+        when(s2.signature()).thenReturn("\"beta\"");
+        when(nilMember.typeKind()).thenReturn(TypeDescKind.NIL);
+
+        when(unionType.memberTypeDescriptors()).thenReturn(List.of(s1, nilMember, s2));
+
+        List<String> values = ParamFactory.extractEnumValues(unionType);
+        Assert.assertEquals(values, List.of("alpha", "beta"));
+    }
 }
 

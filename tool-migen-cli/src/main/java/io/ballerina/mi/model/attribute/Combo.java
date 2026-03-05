@@ -81,4 +81,8 @@ public class Combo extends Element {
     public String getDefaultValue() {
         return defaultValue;
     }
+
+    public String getEnableCondition() {
+        return enableCondition;
+    }
 }

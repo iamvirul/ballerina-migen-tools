@@ -45,12 +45,15 @@
                   "value": {
                     "name": "httpVersion",
                     "displayName": "httpVersion",
-                    "inputType": "stringOrExpression",
-                    "defaultValue": "",
-                    "required": false,
+                    "inputType": "combo",
+                    "comboValues": [
+                      "2.0",
+                      "1.1",
+                      "1.0"
+                    ],
+                    "defaultValue": "2.0",
+                    "required": "false",
                     "helpTip": "The HTTP version understood by the client",
-                    "validateType": "",
-                    "matchPattern": "",
                     "enableCondition": [
                       {
                         "enable_config": "true"
@@ -96,12 +99,15 @@
                         "value": {
                           "name": "http1Settings_keepAlive",
                           "displayName": "keepAlive",
-                          "inputType": "stringOrExpression",
-                          "defaultValue": "",
-                          "required": false,
+                          "inputType": "combo",
+                          "comboValues": [
+                            "AUTO",
+                            "ALWAYS",
+                            "NEVER"
+                          ],
+                          "defaultValue": "AUTO",
+                          "required": "false",
                           "helpTip": "Specifies whether to reuse a connection for multiple requests",
-                          "validateType": "",
-                          "matchPattern": "",
                           "enableCondition": [
                             "AND",
                             {
@@ -118,12 +124,15 @@
                         "value": {
                           "name": "http1Settings_chunking",
                           "displayName": "chunking",
-                          "inputType": "stringOrExpression",
-                          "defaultValue": "",
-                          "required": false,
+                          "inputType": "combo",
+                          "comboValues": [
+                            "AUTO",
+                            "ALWAYS",
+                            "NEVER"
+                          ],
+                          "defaultValue": "AUTO",
+                          "required": "false",
                           "helpTip": "The chunking behaviour of the request",
-                          "validateType": "",
-                          "matchPattern": "",
                           "enableCondition": [
                             "AND",
                             {
@@ -735,12 +744,14 @@
                         "value": {
                           "name": "cache_policy",
                           "displayName": "policy",
-                          "inputType": "stringOrExpression",
-                          "defaultValue": "",
-                          "required": false,
+                          "inputType": "combo",
+                          "comboValues": [
+                            "CACHE_CONTROL_AND_VALIDATORS",
+                            "RFC_7234"
+                          ],
+                          "defaultValue": "CACHE_CONTROL_AND_VALIDATORS",
+                          "required": "false",
                           "helpTip": "",
-                          "validateType": "",
-                          "matchPattern": "",
                           "enableCondition": [
                             "AND",
                             {
@@ -760,12 +771,15 @@
                   "value": {
                     "name": "compression",
                     "displayName": "compression",
-                    "inputType": "stringOrExpression",
-                    "defaultValue": "",
-                    "required": false,
+                    "inputType": "combo",
+                    "comboValues": [
+                      "AUTO",
+                      "ALWAYS",
+                      "NEVER"
+                    ],
+                    "defaultValue": "AUTO",
+                    "required": "false",
                     "helpTip": "Specifies the way of handling compression (`accept-encoding`) header",
-                    "validateType": "",
-                    "matchPattern": "",
                     "enableCondition": [
                       {
                         "enable_config": "true"
@@ -1382,7 +1396,16 @@
                           ],
                           "defaultValue": "TrustStore",
                           "required": "false",
-                          "helpTip": ""
+                          "helpTip": "",
+                          "enableCondition": [
+                            "AND",
+                            {
+                              "enable_config": "true"
+                            },
+                            {
+                              "enable_secureSocket": "true"
+                            }
+                          ]
                         }
                       },
                       {
@@ -1483,7 +1506,16 @@
                           ],
                           "defaultValue": "KeyStore",
                           "required": "false",
-                          "helpTip": ""
+                          "helpTip": "",
+                          "enableCondition": [
+                            "AND",
+                            {
+                              "enable_config": "true"
+                            },
+                            {
+                              "enable_secureSocket": "true"
+                            }
+                          ]
                         }
                       },
                       {
@@ -1674,12 +1706,15 @@
                               "value": {
                                 "name": "secureSocket_protocol_name",
                                 "displayName": "name",
-                                "inputType": "stringOrExpression",
-                                "defaultValue": "",
-                                "required": false,
+                                "inputType": "combo",
+                                "comboValues": [
+                                  "DTLS",
+                                  "TLS",
+                                  "SSL"
+                                ],
+                                "defaultValue": "DTLS",
+                                "required": "false",
                                 "helpTip": "",
-                                "validateType": "",
-                                "matchPattern": "",
                                 "enableCondition": [
                                   "AND",
                                   {
@@ -1805,12 +1840,14 @@
                               "value": {
                                 "name": "secureSocket_certValidation_type",
                                 "displayName": "type",
-                                "inputType": "stringOrExpression",
-                                "defaultValue": "",
-                                "required": false,
+                                "inputType": "combo",
+                                "comboValues": [
+                                  "OCSP_STAPLING",
+                                  "OCSP_CRL"
+                                ],
+                                "defaultValue": "OCSP_STAPLING",
+                                "required": "false",
                                 "helpTip": "",
-                                "validateType": "",
-                                "matchPattern": "",
                                 "enableCondition": [
                                   "AND",
                                   {
