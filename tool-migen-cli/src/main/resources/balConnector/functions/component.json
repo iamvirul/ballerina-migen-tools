@@ -24,6 +24,7 @@
               "helpTip": "Connection to be used"
             }
           },{{/if}}
+{{#if (hasInputParams this)}}
           {
             "type": "attributeGroup",
             "value": {
@@ -33,6 +34,7 @@
               ]
             }
           },
+{{/if}}
           {
             "type": "attributeGroup",
             "value": {

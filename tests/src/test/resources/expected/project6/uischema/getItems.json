@@ -27,13 +27,6 @@
           {
             "type": "attributeGroup",
             "value": {
-              "groupName": "Input Variables",
-              "elements": []
-            }
-          },
-          {
-            "type": "attributeGroup",
-            "value": {
               "groupName": "Output",
               "elements": [
                 {
