@@ -111,6 +111,8 @@ public final class HandlebarsHelperRegistry {
             if (value.equals("()")) {
                 return "";
             }
+            // Strip markdown code blocks (```language ... ```) as they don't render in MI UI
+            value = value.replaceAll("(?s)```[a-zA-Z]*\\n.*?```\\n?", "");
             return value.replace("\\", "\\\\")
                     .replace("\"", "\\\"")
                     .replace("\b", "\\b")
