@@ -326,7 +326,7 @@ tasks.register("generateExpectedArtifacts", JavaExec) {
 
     doFirst {
         if (!project.hasProperty("artifactTarget")) {
-            throw new GradleException("Provide -PartifactTarget=project1|project2|project3|project4|project5|project6|unionProject|nestedRecordConflictProject|tableProject|multiClientProject|central")
+            throw new GradleException("Provide -PartifactTarget=project1|project2|project3|project4|project5|project6|project7|unionProject|nestedRecordConflictProject|tableProject|typedescProject|multiClientProject|unsupportedProject|central")
         }
         args project.property("artifactTarget")
         if (project.hasProperty("centralPackage")) {
@@ -334,6 +334,39 @@ tasks.register("generateExpectedArtifacts", JavaExec) {
         }
         systemProperty "bal.command", balCommand.toString()
         systemProperty "project.root", project.rootDir.toString()
+    }
+}
+
+def allArtifactTargets = [
+    'project1', 'project2', 'project3', 'project4', 'project5', 'project6', 'project7',
+    'unionProject', 'nestedRecordConflictProject', 'tableProject', 'typedescProject',
+    'multiClientProject', 'unsupportedProject', 'central'
+]
+
+tasks.register("regenerateAllArtifacts") {
+    group = "verification"
+    description = "Regenerates ALL expected connector artifacts used by tests."
+    dependsOn copyStdlibs
+    dependsOn copyMiToolToCentral
+    dependsOn(":tool-migen-cli:build")
+    dependsOn testClasses
+
+    doLast {
+        allArtifactTargets.each { target ->
+            println "\n========================================="
+            println "Regenerating artifacts for: ${target}"
+            println "=========================================\n"
+            javaexec {
+                classpath = sourceSets.test.runtimeClasspath
+                mainClass = "io.ballerina.mi.test.util.TestArtifactGenerationUtil"
+                args target
+                systemProperty "bal.command", balCommand.toString()
+                systemProperty "project.root", project.rootDir.toString()
+            }
+        }
+        println "\n========================================="
+        println "All artifacts regenerated successfully!"
+        println "=========================================\n"
     }
 }
 
