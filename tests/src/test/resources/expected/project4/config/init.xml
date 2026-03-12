@@ -176,7 +176,7 @@ value between 0 and 1"/>
         <property name="PROJECT4_CLIENT_config_paramType39" value="boolean"/>
         <property name="PROJECT4_CLIENT_config_param40" value="secureSocket.cert"/>
         <property name="PROJECT4_CLIENT_config_paramType40" value="union"/>
-        <property name="PROJECT4_CLIENT_config_dataType40" value="secureSocket_cert_DataType"/>
+        <property name="PROJECT4_CLIENT_config_dataType40" value="secureSocket_certDataType"/>
         <property name="PROJECT4_CLIENT_config_param41" value="secureSocket.cert.path"/>
         <property name="PROJECT4_CLIENT_config_paramType41" value="string"/>
         <property name="PROJECT4_CLIENT_config_unionMember41" value="TrustStore"/>
@@ -185,7 +185,7 @@ value between 0 and 1"/>
         <property name="PROJECT4_CLIENT_config_unionMember42" value="TrustStore"/>
         <property name="PROJECT4_CLIENT_config_param43" value="secureSocket.key"/>
         <property name="PROJECT4_CLIENT_config_paramType43" value="union"/>
-        <property name="PROJECT4_CLIENT_config_dataType43" value="secureSocket_key_DataType"/>
+        <property name="PROJECT4_CLIENT_config_dataType43" value="secureSocket_keyDataType"/>
         <property name="PROJECT4_CLIENT_config_param44" value="secureSocket.key.path"/>
         <property name="PROJECT4_CLIENT_config_paramType44" value="string"/>
         <property name="PROJECT4_CLIENT_config_unionMember44" value="KeyStore"/>

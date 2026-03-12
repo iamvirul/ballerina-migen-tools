@@ -212,7 +212,7 @@ public final class XmlPropertyWriter {
             if (!unionFieldParam.isTypeDescriptor()) {
                 result.append(String.format("\n        <property name=\"%s_%s_dataType%d\" value=\"%s\"/>",
                         connectionType, recordParamName, fieldIndexHolder[0],
-                        String.format("%s_%s", sanitizedParamName, "DataType")));
+                        sanitizedParamName + "DataType"));
             }
 
             if (unionMemberType != null) {
@@ -275,7 +275,7 @@ public final class XmlPropertyWriter {
             String sanitizedParamName = Utils.sanitizeParamName(fieldValue);
             result.append(String.format("\n        <property name=\"%s_dataType%d\" value=\"%s\"/>",
                     recordParamName, fieldIndexHolder[0],
-                    String.format("%s_%s", sanitizedParamName, "DataType")));
+                    sanitizedParamName + "DataType"));
             fieldIndexHolder[0]++;
 
             for (FunctionParam memberParam : unionFieldParam.getUnionMemberParams()) {
@@ -322,7 +322,7 @@ public final class XmlPropertyWriter {
             if (!unionFieldParam.isTypeDescriptor()) {
                 result.append(String.format("\n        <property name=\"%s_dataType%d\" value=\"%s\"/>",
                         recordParamName, fieldIndexHolder[0],
-                        String.format("%s_%s", sanitizedParamName, "DataType")));
+                        sanitizedParamName + "DataType"));
             }
             if (unionMemberType != null) {
                 result.append(String.format("\n        <property name=\"%s_unionMember%d\" value=\"%s\"/>",
