@@ -19,7 +19,6 @@
 <template name="init" onError="fault" xmlns="http://ws.apache.org/ns/synapse">
     <parameter name="name" description="Unique name the connection is identified by"/>
     <parameter name="connectionType" description="Connection type"/>
-    <!-- TODO: if union, the selected member type becomes a parameter-->
     <parameter name="httpVersion" description="The HTTP version understood by the client"/>
     <parameter name="http1Settings_keepAlive" description="Specifies whether to reuse a connection for multiple requests"/>
     <parameter name="http1Settings_chunking" description="The chunking behaviour of the request"/>
@@ -61,11 +60,11 @@ value between 0 and 1"/>
     <parameter name="responseLimits_maxHeaderSize" description=""/>
     <parameter name="responseLimits_maxEntityBodySize" description=""/>
     <parameter name="secureSocket_enable" description=""/>
-    <parameter name="secureSocket_cert_DataType" description=""/>
+    <parameter name="secureSocket_certDataType" description=""/>
     <parameter name="secureSocket_cert_path" description=""/>
     <parameter name="secureSocket_cert_password" description=""/>
     <parameter name="secureSocket_certString" description=""/>
-    <parameter name="secureSocket_key_DataType" description=""/>
+    <parameter name="secureSocket_keyDataType" description=""/>
     <parameter name="secureSocket_key_path" description=""/>
     <parameter name="secureSocket_key_password" description=""/>
     <parameter name="secureSocket_key_certFile" description=""/>
@@ -96,11 +95,11 @@ value between 0 and 1"/>
         <property name="PROJECT4_CLIENT_paramType0" value="record"/>
         <property name="PROJECT4_CLIENT_param0_recordName" value="ConnectionConfig"/>
         <property name="PROJECT4_CLIENT_config_param0" value="httpVersion"/>
-        <property name="PROJECT4_CLIENT_config_paramType0" value="string"/>
+        <property name="PROJECT4_CLIENT_config_paramType0" value="enum"/>
         <property name="PROJECT4_CLIENT_config_param1" value="http1Settings.keepAlive"/>
-        <property name="PROJECT4_CLIENT_config_paramType1" value="string"/>
+        <property name="PROJECT4_CLIENT_config_paramType1" value="enum"/>
         <property name="PROJECT4_CLIENT_config_param2" value="http1Settings.chunking"/>
-        <property name="PROJECT4_CLIENT_config_paramType2" value="string"/>
+        <property name="PROJECT4_CLIENT_config_paramType2" value="enum"/>
         <property name="PROJECT4_CLIENT_config_param3" value="http1Settings.proxy.host"/>
         <property name="PROJECT4_CLIENT_config_paramType3" value="string"/>
         <property name="PROJECT4_CLIENT_config_param4" value="http1Settings.proxy.port"/>
@@ -142,9 +141,9 @@ value between 0 and 1"/>
         <property name="PROJECT4_CLIENT_config_param22" value="cache.evictionFactor"/>
         <property name="PROJECT4_CLIENT_config_paramType22" value="float"/>
         <property name="PROJECT4_CLIENT_config_param23" value="cache.policy"/>
-        <property name="PROJECT4_CLIENT_config_paramType23" value="string"/>
+        <property name="PROJECT4_CLIENT_config_paramType23" value="enum"/>
         <property name="PROJECT4_CLIENT_config_param24" value="compression"/>
-        <property name="PROJECT4_CLIENT_config_paramType24" value="string"/>
+        <property name="PROJECT4_CLIENT_config_paramType24" value="enum"/>
         <property name="PROJECT4_CLIENT_config_param25" value="circuitBreaker.rollingWindow.requestVolumeThreshold"/>
         <property name="PROJECT4_CLIENT_config_paramType25" value="int"/>
         <property name="PROJECT4_CLIENT_config_param26" value="circuitBreaker.rollingWindow.timeWindow"/>
@@ -177,7 +176,7 @@ value between 0 and 1"/>
         <property name="PROJECT4_CLIENT_config_paramType39" value="boolean"/>
         <property name="PROJECT4_CLIENT_config_param40" value="secureSocket.cert"/>
         <property name="PROJECT4_CLIENT_config_paramType40" value="union"/>
-        <property name="PROJECT4_CLIENT_config_dataType40" value="secureSocket_cert_DataType"/>
+        <property name="PROJECT4_CLIENT_config_dataType40" value="secureSocket_certDataType"/>
         <property name="PROJECT4_CLIENT_config_param41" value="secureSocket.cert.path"/>
         <property name="PROJECT4_CLIENT_config_paramType41" value="string"/>
         <property name="PROJECT4_CLIENT_config_unionMember41" value="TrustStore"/>
@@ -186,7 +185,7 @@ value between 0 and 1"/>
         <property name="PROJECT4_CLIENT_config_unionMember42" value="TrustStore"/>
         <property name="PROJECT4_CLIENT_config_param43" value="secureSocket.key"/>
         <property name="PROJECT4_CLIENT_config_paramType43" value="union"/>
-        <property name="PROJECT4_CLIENT_config_dataType43" value="secureSocket_key_DataType"/>
+        <property name="PROJECT4_CLIENT_config_dataType43" value="secureSocket_keyDataType"/>
         <property name="PROJECT4_CLIENT_config_param44" value="secureSocket.key.path"/>
         <property name="PROJECT4_CLIENT_config_paramType44" value="string"/>
         <property name="PROJECT4_CLIENT_config_unionMember44" value="KeyStore"/>
@@ -203,11 +202,11 @@ value between 0 and 1"/>
         <property name="PROJECT4_CLIENT_config_paramType48" value="string"/>
         <property name="PROJECT4_CLIENT_config_unionMember48" value="CertKey"/>
         <property name="PROJECT4_CLIENT_config_param49" value="secureSocket.protocol.name"/>
-        <property name="PROJECT4_CLIENT_config_paramType49" value="string"/>
+        <property name="PROJECT4_CLIENT_config_paramType49" value="enum"/>
         <property name="PROJECT4_CLIENT_config_param50" value="secureSocket.protocol.versions"/>
         <property name="PROJECT4_CLIENT_config_paramType50" value="array"/>
         <property name="PROJECT4_CLIENT_config_param51" value="secureSocket.certValidation.type"/>
-        <property name="PROJECT4_CLIENT_config_paramType51" value="string"/>
+        <property name="PROJECT4_CLIENT_config_paramType51" value="enum"/>
         <property name="PROJECT4_CLIENT_config_param52" value="secureSocket.certValidation.cacheSize"/>
         <property name="PROJECT4_CLIENT_config_paramType52" value="int"/>
         <property name="PROJECT4_CLIENT_config_param53" value="secureSocket.certValidation.cacheValidityPeriod"/>

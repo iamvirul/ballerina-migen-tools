@@ -41,14 +41,6 @@
                     "validateType": "json",
                     "matchPattern": ""
                   }
-                },
-                {
-                  "type": "attributeGroup",
-                  "value": {
-                    "groupName": "Advanced",
-                    "collapsed": true,
-                    "elements": []
-                  }
                 }
               ]
             }
