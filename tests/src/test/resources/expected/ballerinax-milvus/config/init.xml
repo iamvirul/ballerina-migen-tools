@@ -19,7 +19,6 @@
 <template name="init" onError="fault" xmlns="http://ws.apache.org/ns/synapse">
     <parameter name="name" description="Unique name the connection is identified by"/>
     <parameter name="connectionType" description="Connection type"/>
-    <!-- TODO: if union, the selected member type becomes a parameter-->
     <parameter name="serviceUrl" description=""/>
     <parameter name="authConfig_token" description="A valid access token to access the specified Milvus instance"/>
     <parameter name="credentialsConfig_username" description="The username used to connect to the specified Milvus instance"/>

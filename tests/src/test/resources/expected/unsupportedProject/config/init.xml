@@ -19,7 +19,6 @@
 <template name="init" onError="fault" xmlns="http://ws.apache.org/ns/synapse">
     <parameter name="name" description="Unique name the connection is identified by"/>
     <parameter name="connectionType" description="Connection type"/>
-    <!-- TODO: if union, the selected member type becomes a parameter-->
     
     <sequence>
         <property name="UNSUPPORTEDPROJECT_CLIENT_objectTypeName" value="Client"/>

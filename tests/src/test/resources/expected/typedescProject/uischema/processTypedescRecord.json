@@ -27,27 +27,6 @@
           {
             "type": "attributeGroup",
             "value": {
-              "groupName": "Input Variables",
-              "elements": [
-                {
-                  "type": "attribute",
-                  "value": {
-                    "name": "expectedType",
-                    "displayName": "expectedType",
-                    "inputType": "stringOrExpression",
-                    "defaultValue": "",
-                    "required": true,
-                    "helpTip": "",
-                    "validateType": "",
-                    "matchPattern": ""
-                  }
-                }
-              ]
-            }
-          },
-          {
-            "type": "attributeGroup",
-            "value": {
               "groupName": "Output",
               "elements": [
                 {
