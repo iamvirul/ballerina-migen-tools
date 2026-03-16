@@ -21,7 +21,6 @@ package io.ballerina.stdlib.mi.executor;
 import com.google.gson.JsonParser;
 import io.ballerina.runtime.api.Module;
 import io.ballerina.runtime.api.Runtime;
-import io.ballerina.runtime.api.types.Type;
 import io.ballerina.runtime.api.values.*;
 import io.ballerina.runtime.internal.values.MapValueImpl;
 import io.ballerina.stdlib.mi.*;
@@ -41,6 +40,114 @@ public class BalExecutor {
     protected Log log = LogFactory.getLog(BalExecutor.class);
     private final ParamHandler paramHandler = new ParamHandler();
 
+    /**
+     * Invokes a Ballerina function using reflection (compatible with 2201.8.x).
+     * Creates a Strand from the Runtime's scheduler and invokes the function.
+     */
+    private Object invokeFunction(Runtime rt, Object callable, String methodName, Object[] args)
+            throws BallerinaExecutionException {
+        try {
+            java.lang.reflect.Field schedulerField = rt.getClass().getDeclaredField("scheduler");
+            schedulerField.setAccessible(true);
+            Object scheduler = schedulerField.get(rt);
+
+            Class<?> strandClass = Class.forName("io.ballerina.runtime.internal.scheduling.Strand");
+            Class<?> schedulerClass = Class.forName("io.ballerina.runtime.internal.scheduling.Scheduler");
+
+            Object strand = createStrand(strandClass, schedulerClass, scheduler);
+
+            java.lang.reflect.Method callMethod = callable.getClass().getMethod("call", strandClass, String.class, Object[].class);
+            Object result = callMethod.invoke(callable, strand, methodName, args);
+
+            return waitForResult(strand, strandClass, result);
+        } catch (Exception e) {
+            if (e.getCause() instanceof BError) throw (BError) e.getCause();
+            log.error("Failed to invoke function: " + e.getMessage(), e);
+            throw new BallerinaExecutionException("Function invocation failed: " + e.getMessage(), e);
+        }
+    }
+
+    /**
+     * Creates a Strand instance using reflection.
+     */
+    private Object createStrand(Class<?> strandClass, Class<?> schedulerClass, Object scheduler)
+            throws Exception {
+        java.lang.reflect.Constructor<?> strandCtor = null;
+        Object[] ctorArgs = null;
+
+        try {
+            strandCtor = strandClass.getDeclaredConstructor(schedulerClass);
+            ctorArgs = new Object[]{scheduler};
+        } catch (NoSuchMethodException e) {
+            for (java.lang.reflect.Constructor<?> c : strandClass.getDeclaredConstructors()) {
+                if (c.getParameterCount() > 0 && c.getParameterTypes()[0].equals(schedulerClass)) {
+                    strandCtor = c;
+                    Class<?>[] paramTypes = c.getParameterTypes();
+                    ctorArgs = new Object[paramTypes.length];
+                    ctorArgs[0] = scheduler;
+                    for (int i = 1; i < paramTypes.length; i++) {
+                        if (paramTypes[i] == boolean.class) ctorArgs[i] = false;
+                        else if (paramTypes[i] == int.class) ctorArgs[i] = 0;
+                        else if (paramTypes[i] == long.class) ctorArgs[i] = 0L;
+                        else if (paramTypes[i] == double.class) ctorArgs[i] = 0.0;
+                        else if (paramTypes[i] == float.class) ctorArgs[i] = 0.0f;
+                        else if (paramTypes[i] == String.class) ctorArgs[i] = "mi-strand";
+                        else ctorArgs[i] = null;
+                    }
+                    break;
+                }
+            }
+        }
+
+        if (strandCtor == null) {
+            throw new BallerinaExecutionException("Could not find Strand constructor accepting Scheduler",
+                    new Exception("Strand constructor missing"));
+        }
+        strandCtor.setAccessible(true);
+        return strandCtor.newInstance(ctorArgs);
+    }
+
+    /**
+     * Waits for async execution to complete and retrieves the result.
+     */
+    private Object waitForResult(Object strand, Class<?> strandClass, Object immediateResult)
+            throws Exception {
+        if (immediateResult != null) {
+            return immediateResult;
+        }
+
+        java.lang.reflect.Method isDoneMethod = strandClass.getMethod("isDone");
+        while (!(boolean) isDoneMethod.invoke(strand)) {
+            Thread.sleep(10);
+        }
+
+        java.lang.reflect.Field futureField = strandClass.getDeclaredField("future");
+        futureField.setAccessible(true);
+        Object futureValue = futureField.get(strand);
+
+        if (futureValue != null) {
+            Class<?> futureClass = futureValue.getClass();
+            java.lang.reflect.Field resultField = futureClass.getDeclaredField("result");
+            resultField.setAccessible(true);
+            Object result = resultField.get(futureValue);
+
+            java.lang.reflect.Field panicField = futureClass.getDeclaredField("panic");
+            panicField.setAccessible(true);
+            Object panic = panicField.get(futureValue);
+            if (panic != null) {
+                if (panic instanceof BError) throw (BError) panic;
+                if (panic instanceof Throwable) {
+                    throw new BallerinaExecutionException("Panic in Ballerina function: " +
+                            ((Throwable) panic).getMessage(), (Throwable) panic);
+                }
+                throw new BallerinaExecutionException("Panic in Ballerina function: " + panic,
+                        new Exception(String.valueOf(panic)));
+            }
+            return result;
+        }
+        return null;
+    }
+
     public boolean execute(Runtime rt, Object callable, MessageContext context) throws AxisFault, BallerinaExecutionException {
         String paramSize = SynapseUtils.getPropertyAsString(context, Constants.SIZE);
         int size = 0;
@@ -58,7 +165,7 @@ public class BalExecutor {
             Object result;
             if (callable instanceof Module) {
                 String functionName = SynapseUtils.getPropertyAsString(context, Constants.FUNCTION_NAME);
-                result = rt.callFunction((Module) callable, functionName, null, args);
+                result = invokeFunction(rt, callable, functionName, args);
             } else if (callable instanceof BObject) {
                 String functionType = SynapseUtils.getPropertyAsString(context, Constants.FUNCTION_TYPE);
                 if (Constants.FUNCTION_TYPE_RESOURCE.equals(functionType)) {
@@ -73,87 +180,10 @@ public class BalExecutor {
                         throw new SynapseException("Neither jvmMethodName nor paramFunctionName is available for resource function invocation");
                     }
                     Object[] argsWithPathParams = paramHandler.prependPathParams(args, context);
-
-                    Type callableType = ((BObject) callable).getType();
-
-                    try {
-                        java.lang.reflect.Field schedulerField = rt.getClass().getDeclaredField("scheduler");
-                        schedulerField.setAccessible(true);
-                        Object scheduler = schedulerField.get(rt);
-
-                        Class<?> strandClass = Class.forName("io.ballerina.runtime.internal.scheduling.Strand");
-                        Class<?> schedulerClass = Class.forName("io.ballerina.runtime.internal.scheduling.Scheduler");
-                        
-                        java.lang.reflect.Constructor<?> strandCtor = null;
-                        Object[] ctorArgs = null;
-
-                        try {
-                            strandCtor = strandClass.getDeclaredConstructor(schedulerClass);
-                            ctorArgs = new Object[]{scheduler};
-                        } catch (NoSuchMethodException e) {
-                            for (java.lang.reflect.Constructor<?> c : strandClass.getDeclaredConstructors()) {
-                                if (c.getParameterCount() > 0 && c.getParameterTypes()[0].equals(schedulerClass)) {
-                                    strandCtor = c;
-                                    Class<?>[] paramTypes = c.getParameterTypes();
-                                    ctorArgs = new Object[paramTypes.length];
-                                    ctorArgs[0] = scheduler;
-                                    for (int i = 1; i < paramTypes.length; i++) {
-                                        if (paramTypes[i] == boolean.class) ctorArgs[i] = false;
-                                        else if (paramTypes[i] == int.class) ctorArgs[i] = 0;
-                                        else if (paramTypes[i] == long.class) ctorArgs[i] = 0L;
-                                        else if (paramTypes[i] == double.class) ctorArgs[i] = 0.0;
-                                        else if (paramTypes[i] == float.class) ctorArgs[i] = 0.0f;
-                                        else if (paramTypes[i] == String.class) ctorArgs[i] = "mi-strand";
-                                        else ctorArgs[i] = null;
-                                    }
-                                    break;
-                                }
-                            }
-                        }
-
-                        if (strandCtor == null) {
-                            throw new BallerinaExecutionException("Could not find Strand constructor accepting Scheduler", new Exception("Strand constructor missing"));
-                        }
-                        strandCtor.setAccessible(true);
-                        Object strand = strandCtor.newInstance(ctorArgs);
-
-                        java.lang.reflect.Method callMethod = callable.getClass().getMethod("call", strandClass, String.class, Object[].class);
-                        result = callMethod.invoke(callable, strand, jvmMethodName, argsWithPathParams);
-
-                        if (result == null) {
-                            java.lang.reflect.Method isDoneMsg = strandClass.getMethod("isDone");
-                            while (!(boolean) isDoneMsg.invoke(strand)) {
-                                Thread.sleep(10); 
-                            }
-
-                            java.lang.reflect.Field futureField = strandClass.getDeclaredField("future");
-                            futureField.setAccessible(true);
-                            Object futureValue = futureField.get(strand);
-
-                            if (futureValue != null) {
-                                Class<?> futureClass = futureValue.getClass();
-                                java.lang.reflect.Field resultField = futureClass.getDeclaredField("result");
-                                resultField.setAccessible(true);
-                                result = resultField.get(futureValue);
-
-                                java.lang.reflect.Field panicField = futureClass.getDeclaredField("panic");
-                                panicField.setAccessible(true);
-                                Object panic = panicField.get(futureValue);
-                                if (panic != null) {
-                                    if (panic instanceof BError) throw (BError) panic;
-                                    if (panic instanceof Throwable) throw new BallerinaExecutionException("Panic in Ballerina function: " + ((Throwable) panic).getMessage(), (Throwable) panic);
-                                    throw new BallerinaExecutionException("Panic in Ballerina function: " + panic, new Exception(String.valueOf(panic)));
-                                }
-                            }
-                        }
-                    } catch (Exception e) {
-                        if (e.getCause() instanceof BError) throw (BError) e.getCause();
-                        log.error("Failed to invoke resource manually: " + e.getMessage(), e);
-                        throw new BallerinaExecutionException("Resource invocation failed: " + e.getMessage(), e);
-                    }
+                    result = invokeFunction(rt, callable, jvmMethodName, argsWithPathParams);
                 } else {
                     String functionName = SynapseUtils.getPropertyAsString(context, Constants.FUNCTION_NAME);
-                    result = rt.callMethod((BObject) callable, functionName, null, args);
+                    result = invokeFunction(rt, callable, functionName, args);
                 }
             } else {
                 throw new SynapseException("Unsupported callable type: " + callable.getClass().getName());
