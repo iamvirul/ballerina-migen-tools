@@ -22,7 +22,7 @@ import io.ballerina.runtime.api.creators.ValueCreator;
 import io.ballerina.runtime.api.utils.JsonUtils;
 import io.ballerina.runtime.api.utils.StringUtils;
 import io.ballerina.runtime.api.values.*;
-import io.ballerina.runtime.api.types.PredefinedTypes;
+import io.ballerina.runtime.api.PredefinedTypes;
 import io.ballerina.runtime.api.types.Type;
 import io.ballerina.stdlib.mi.BalConnectorConfig;
 import io.ballerina.stdlib.mi.Constants;

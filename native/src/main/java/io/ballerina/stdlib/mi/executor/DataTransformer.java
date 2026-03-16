@@ -23,6 +23,7 @@ import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.google.gson.JsonSyntaxException;
 import io.ballerina.runtime.api.creators.ValueCreator;
+import io.ballerina.runtime.api.TypeTags;
 import io.ballerina.runtime.api.types.*;
 import io.ballerina.runtime.api.utils.JsonUtils;
 import io.ballerina.runtime.api.utils.StringUtils;
