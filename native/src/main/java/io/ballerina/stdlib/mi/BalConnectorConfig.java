@@ -125,9 +125,7 @@ public class BalConnectorConfig extends AbstractConnector {
 
     private void init() {
         module = new Module(orgName, moduleName, version);
-        rt = Runtime.from(module);
-        rt.init();
-        rt.start();
+        rt = RuntimeFactory.createRuntime(module);
     }
 
     public static Runtime getRuntime() {
