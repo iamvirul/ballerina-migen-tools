@@ -4,7 +4,7 @@ name = "recordProject"
 distribution = "2201.13.1"
 version = "1.0.0"
 
-[[platform.java21.dependency]]
+[[platform.java17.dependency]]
 groupId = "org.apache.ws.commons.axiom"
 artifactId = "axiom-api"
 version = "1.2.11-wso2v30"
