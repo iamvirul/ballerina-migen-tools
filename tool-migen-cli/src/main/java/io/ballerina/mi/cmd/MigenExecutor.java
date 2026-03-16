@@ -33,8 +33,6 @@ import io.ballerina.projects.JvmTarget;
 import io.ballerina.projects.Package;
 import io.ballerina.projects.PackageCompilation;
 import io.ballerina.projects.Project;
-import io.ballerina.projects.ProjectLoadResult;
-import io.ballerina.projects.directory.BalaProject;
 import io.ballerina.projects.directory.BuildProject;
 import io.ballerina.projects.directory.ProjectLoader;
 import io.ballerina.projects.EmitResult;
@@ -123,24 +121,23 @@ public class MigenExecutor {
 
     static Boolean compileAnalyzeAndEmit(Path projectPath, Path miArtifactsPath, PrintStream printStream, Path[] executablePathRef, boolean isConnector) throws IOException {
         BuildOptions buildOptions = BuildOptions.builder().setOffline(false).build();
-        ProjectLoadResult projectLoadResult;
+        Project project;
         try {
-            projectLoadResult = ProjectLoader.load(projectPath.toAbsolutePath(), buildOptions);
+            project = ProjectLoader.loadProject(projectPath.toAbsolutePath(), buildOptions);
         } catch (io.ballerina.projects.ProjectException e) {
             printStream.println("ERROR: Valid Ballerina package or bala file not found at " + projectPath.toAbsolutePath() + ". " + e.getMessage());
             return null;
         }
-        Project project = projectLoadResult.project();
         Package compilePkg = project.currentPackage();
         boolean isBuildProject = project instanceof BuildProject;
 
-        if (!(project instanceof BuildProject || project instanceof BalaProject)) {
+        if (!isBuildProject && !isBalaProject(project)) {
             printStream.println("ERROR: Invalid project path provided");
             return null;
         }
 
         Analyzer balAnalyzer;
-        if (project instanceof BalaProject) {
+        if (!isBuildProject) {
             balAnalyzer = new BalConnectorAnalyzer();
             Path miConnectorCache = miArtifactsPath.resolve("BalConnectors");
             executablePathRef[0] = miConnectorCache.resolve(compilePkg.descriptor().org().value() +
@@ -155,7 +152,7 @@ public class MigenExecutor {
 
         PackageCompilation packageCompilation = compilePkg.getCompilation();
         for (Diagnostic diagnostic : packageCompilation.diagnosticResult().diagnostics()) {
-            if (!(project instanceof BalaProject) || diagnostic.diagnosticInfo().severity() == DiagnosticSeverity.ERROR) {
+            if (isBuildProject || diagnostic.diagnosticInfo().severity() == DiagnosticSeverity.ERROR) {
                 printStream.println(diagnostic.toString());
             }
         }
@@ -166,7 +163,7 @@ public class MigenExecutor {
 
         balAnalyzer.analyze(compilePkg);
 
-        JBallerinaBackend jBallerinaBackend = JBallerinaBackend.from(packageCompilation, JvmTarget.JAVA_21);
+        JBallerinaBackend jBallerinaBackend = JBallerinaBackend.from(packageCompilation, JvmTarget.JAVA_17);
 
         if (isBuildProject) {
             Path bin = miArtifactsPath.resolve("bin");
@@ -223,5 +220,13 @@ public class MigenExecutor {
             Utils.deleteDirectory(bin);
         }
         Files.createDirectories(bin);
+    }
+
+    /**
+     * Check if a project is a BalaProject by checking its class name.
+     * This avoids direct dependency on BalaProject class which may not exist in all versions.
+     */
+    private static boolean isBalaProject(Project project) {
+        return project.getClass().getSimpleName().equals("BalaProject");
     }
 }

@@ -196,12 +196,8 @@ public class BalConnectorAnalyzer implements Analyzer {
         GenerationReport.ClientReport clientReport = new GenerationReport.ClientReport(clientClassName, connectionType);
 
         // Get the connector description
-        Optional<PackageReadmeMd> connectorReadMe = compilePackage.readmeMd();
-        if (connectorReadMe.isPresent() && !connectorReadMe.get().content().isEmpty()) {
-            connector.setDescription(connectorReadMe.get().content());
-        } else {
-            connector.setDescription(String.format("Ballerina %s connector", connector.getModuleName()));
-        }
+        // Note: PackageReadmeMd API not available in 2201.8.x, using default description
+        connector.setDescription(String.format("Ballerina %s connector", connector.getModuleName()));
 
         // Get the connection description
         Optional<Documentation> optionalMetadataNode = classSymbol.documentation();
