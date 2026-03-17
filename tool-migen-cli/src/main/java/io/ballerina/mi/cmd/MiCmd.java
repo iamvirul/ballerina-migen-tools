@@ -40,7 +40,7 @@ public class MiCmd implements BLauncherCmd {
 
     @Override
     public void execute() {
-        String commandUsageInfo = BLauncherCmd.getCommandUsageInfo(CMD_NAME, MiCmd.class.getClassLoader());
+        String commandUsageInfo = BLauncherCmd.getCommandUsageInfo(CMD_NAME);
         printStream.println(commandUsageInfo);
     }
 

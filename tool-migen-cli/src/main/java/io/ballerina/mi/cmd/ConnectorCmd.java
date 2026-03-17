@@ -53,8 +53,7 @@ public class ConnectorCmd implements BLauncherCmd {
     @Override
     public void execute() {
         if (helpFlag) {
-            String commandUsageInfo = BLauncherCmd.getCommandUsageInfo("migen-connector",
-                    ConnectorCmd.class.getClassLoader());
+            String commandUsageInfo = BLauncherCmd.getCommandUsageInfo("migen-connector");
             printStream.println(commandUsageInfo);
             return;
         }

@@ -47,8 +47,7 @@ public class ModuleCmd implements BLauncherCmd {
     @Override
     public void execute() {
         if (helpFlag) {
-            String commandUsageInfo = BLauncherCmd.getCommandUsageInfo("migen-module",
-                    ModuleCmd.class.getClassLoader());
+            String commandUsageInfo = BLauncherCmd.getCommandUsageInfo("migen-module");
             printStream.println(commandUsageInfo);
             return;
         }
