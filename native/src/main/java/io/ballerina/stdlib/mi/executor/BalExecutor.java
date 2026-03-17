@@ -86,6 +86,19 @@ public class BalExecutor {
     }
 
     /**
+     * Converts args to interleaved format required by Ballerina runtime.
+     * Format: [arg0, true, arg1, true, ...] where true indicates argument is provided.
+     */
+    private Object[] toInterleavedArgs(Object[] args) {
+        Object[] interleaved = new Object[args.length * 2];
+        for (int i = 0; i < args.length; i++) {
+            interleaved[i * 2] = args[i];
+            interleaved[i * 2 + 1] = true;
+        }
+        return interleaved;
+    }
+
+    /**
      * Invokes a method on a BObject using the async API and waits for completion.
      */
     private Object invokeMethodSync(Runtime rt, BObject bObject, String methodName, Object[] args)
@@ -98,12 +111,14 @@ public class BalExecutor {
                 methodName
         );
 
-        rt.invokeMethodAsync(bObject, methodName, null, metadata, callback, args);
+        Object[] interleavedArgs = toInterleavedArgs(args);
+        rt.invokeMethodAsync(bObject, methodName, null, metadata, callback, interleavedArgs);
         return callback.waitForResult(TIMEOUT_SECONDS);
     }
 
     /**
      * Invokes a module-level function using the async API and waits for completion.
+     * Note: Module-level functions don't need interleaved args, only object methods do.
      */
     private Object invokeFunctionSync(Runtime rt, String functionName, Object[] args)
             throws BallerinaExecutionException {
