@@ -21,9 +21,14 @@ package io.ballerina.mi.cmd;
 import io.ballerina.cli.BLauncherCmd;
 import picocli.CommandLine;
 
+import java.io.BufferedReader;
+import java.io.InputStream;
+import java.io.InputStreamReader;
 import java.io.PrintStream;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Path;
 import java.nio.file.Paths;
+import java.util.stream.Collectors;
 
 @CommandLine.Command(name = "connector", description = "Generate MI connector artifacts from Ballerina connectors")
 public class ConnectorCmd implements BLauncherCmd {
@@ -53,7 +58,7 @@ public class ConnectorCmd implements BLauncherCmd {
     @Override
     public void execute() {
         if (helpFlag) {
-            String commandUsageInfo = BLauncherCmd.getCommandUsageInfo("migen-connector");
+            String commandUsageInfo = getHelpContent("cli-help/ballerina-migen-connector.help");
             printStream.println(commandUsageInfo);
             return;
         }
@@ -148,5 +153,18 @@ public class ConnectorCmd implements BLauncherCmd {
     @Override
     public void setParentCmdParser(CommandLine commandLine) {
         // No-op
+    }
+
+    private String getHelpContent(String resourcePath) {
+        try (InputStream is = getClass().getClassLoader().getResourceAsStream(resourcePath)) {
+            if (is == null) {
+                return "Help content not available.";
+            }
+            try (BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
+                return reader.lines().collect(Collectors.joining(System.lineSeparator()));
+            }
+        } catch (Exception e) {
+            return "Error loading help: " + e.getMessage();
+        }
     }
 }
