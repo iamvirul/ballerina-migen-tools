@@ -153,7 +153,7 @@ public class JsonGenerator {
                     if (recordHelpTip == null || recordHelpTip.isEmpty()) {
                         recordHelpTip = "Expecting JSON object";
                     }
-                    Attribute recordAttr = new Attribute(functionParam.getValue(), displayName,
+                    Attribute recordAttr = new Attribute(sanitizedParamName, displayName,
                             INPUT_TYPE_STRING_OR_EXPRESSION, defaultValue, functionParam.isRequired(),
                             recordHelpTip, JSON, "", isCombo);
                     recordAttr.setEnableCondition(functionParam.getEnableCondition());
@@ -162,7 +162,7 @@ public class JsonGenerator {
                 break;
             case io.ballerina.mi.util.Constants.INT:
                 String intMatchPattern = functionParam.isRequired() ? INTEGER_REGEX : INTEGER_REGEX_OPTIONAL;
-                Attribute intAttr = new Attribute(functionParam.getValue(), displayName, INPUT_TYPE_STRING_OR_EXPRESSION,
+                Attribute intAttr = new Attribute(sanitizedParamName, displayName, INPUT_TYPE_STRING_OR_EXPRESSION,
                         defaultValue, functionParam.isRequired(), functionParam.getDescription(), VALIDATE_TYPE_REGEX,
                         intMatchPattern, isCombo);
                 intAttr.setEnableCondition(functionParam.getEnableCondition());
@@ -171,14 +171,14 @@ public class JsonGenerator {
             case io.ballerina.mi.util.Constants.DECIMAL:
             case io.ballerina.mi.util.Constants.FLOAT:
                 String decMatchPattern = functionParam.isRequired() ? DECIMAL_REGEX : DECIMAL_REGEX_OPTIONAL;
-                Attribute decAttr = new Attribute(functionParam.getValue(), displayName,
+                Attribute decAttr = new Attribute(sanitizedParamName, displayName,
                         INPUT_TYPE_STRING_OR_EXPRESSION, defaultValue, functionParam.isRequired(),
                         functionParam.getDescription(), VALIDATE_TYPE_REGEX, decMatchPattern, isCombo);
                 decAttr.setEnableCondition(functionParam.getEnableCondition());
                 builder.addFromTemplate(ATTRIBUTE_TEMPLATE_PATH, decAttr);
                 break;
             case io.ballerina.mi.util.Constants.BOOLEAN:
-                Attribute boolAttr = new Attribute(functionParam.getValue(), displayName, INPUT_TYPE_BOOLEAN,
+                Attribute boolAttr = new Attribute(sanitizedParamName, displayName, INPUT_TYPE_BOOLEAN,
                         defaultValue, functionParam.isRequired(), functionParam.getDescription(), "",
                         "", isCombo);
                 boolAttr.setEnableCondition(functionParam.getEnableCondition());
@@ -516,7 +516,13 @@ public class JsonGenerator {
                 groupIndex++;
             }
         } else {
-            Attribute recordAttr = new Attribute(functionParam.getValue(), functionParam.getValue(),
+            String sanitizedName = Utils.sanitizeParamName(functionParam.getValue());
+            String displayName = functionParam.getValue();
+            if (displayName.contains(".")) {
+                displayName = displayName.substring(displayName.lastIndexOf('.') + 1);
+            }
+            displayName = Utils.sanitizeParamName(displayName);
+            Attribute recordAttr = new Attribute(sanitizedName, displayName,
                     INPUT_TYPE_STRING_OR_EXPRESSION, "", functionParam.isRequired(),
                     functionParam.getDescription(), "", "", false);
             recordAttr.setEnableCondition(functionParam.getEnableCondition());
