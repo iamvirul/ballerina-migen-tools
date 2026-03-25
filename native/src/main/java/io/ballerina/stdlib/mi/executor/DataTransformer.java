@@ -31,7 +31,6 @@ import io.ballerina.runtime.api.values.BArray;
 import io.ballerina.runtime.api.values.BError;
 import io.ballerina.runtime.api.values.BMap;
 import io.ballerina.runtime.api.values.BString;
-import io.ballerina.runtime.internal.values.MapValueImpl;
 import io.ballerina.stdlib.mi.BalConnectorConfig;
 import io.ballerina.stdlib.mi.utils.SynapseUtils;
 import org.apache.commons.logging.Log;
@@ -121,13 +120,20 @@ public class DataTransformer {
             BMap<BString, Object> recValue = ValueCreator.createRecordValue(BalConnectorConfig.getModule(), recordName);
             Type recType = recValue.getType();
 
+            if (reconstructedBMap instanceof BError bError) {
+                throw new SynapseException("Failed to reconstruct record: " + bError.getMessage());
+            }
             if (reconstructedBMap instanceof BMap) {
-                String jsonStr = ((MapValueImpl<?, ?>) reconstructedBMap).getJSONString();
+                BMap<?, ?> bMap = (BMap<?, ?>) reconstructedBMap;
+                String jsonStr = bMap.stringValue(null);
+                if (jsonStr == null || jsonStr.isEmpty()) {
+                    jsonStr = reconstructedBMap.toString();
+                }
                 BString jsonBString = StringUtils.fromString(jsonStr);
-                try{
-                     return FromJsonStringWithType.fromJsonStringWithType(jsonBString, ValueCreator.createTypedescValue(recType));
-                } catch(Exception e) {
-                     return convertValueToType(reconstructedBMap, recType);
+                try {
+                    return FromJsonStringWithType.fromJsonStringWithType(jsonBString, ValueCreator.createTypedescValue(recType));
+                } catch (Exception e) {
+                    return convertValueToType(reconstructedBMap, recType);
                 }
             }
             throw new SynapseException("Failed to reconstruct record from flattened fields for parameter '" + paramName + "'");
@@ -255,7 +261,11 @@ public class DataTransformer {
             fieldIndex++;
         }
 
-        return JsonUtils.parse(recordJson.toString());
+        Object parseResult = JsonUtils.parse(recordJson.toString());
+        if (parseResult instanceof BError bError) {
+            throw new SynapseException("Failed to parse reconstructed record JSON: " + bError.getMessage());
+        }
+        return parseResult;
     }
 
     private static void setNestedField(JsonObject jsonObject, String fieldPath, Object value, String fieldType, MessageContext context) {
