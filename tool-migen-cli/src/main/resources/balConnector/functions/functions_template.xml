@@ -43,7 +43,10 @@
         {{~/if}}
         {{~/eq}}
         {{~#eq paramType "record"}}
-        <property name="param{{@index}}_recordName" value="{{recordName}}" />{{{writeFunctionRecordXmlProperties this @index}}}
+        <property name="param{{@index}}_recordName" value="{{recordName}}" />
+        {{~#if recordOrg}}<property name="param{{@index}}_recordOrg" value="{{recordOrg}}" />{{/if}}
+        {{~#if recordModule}}<property name="param{{@index}}_recordModule" value="{{recordModule}}" />{{/if}}
+        {{~#if recordVersion}}<property name="param{{@index}}_recordVersion" value="{{recordVersion}}" />{{/if}}{{{writeFunctionRecordXmlProperties this @index}}}
         {{~/eq}}
         {{~#eq paramType "union"}}
         {{~#each unionMemberParams}}

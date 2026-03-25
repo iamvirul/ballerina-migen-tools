@@ -34,6 +34,7 @@ public class RecordFunctionParam extends FunctionParam {
     private String recordName;
     private String recordOrg;
     private String recordModule;
+    private String recordVersion;
     private String parentParamPath;
 
     public RecordFunctionParam(String index, String name, String paramType) {
@@ -75,6 +76,10 @@ public class RecordFunctionParam extends FunctionParam {
 
     public void setRecordModule(String recordModule) {
         this.recordModule = recordModule;
+    }
+
+    public void setRecordVersion(String recordVersion) {
+        this.recordVersion = recordVersion;
     }
 
     public String getParentParamPath() {

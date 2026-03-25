@@ -21,12 +21,14 @@ package io.ballerina.mi.analyzer;
 import io.ballerina.compiler.api.impl.symbols.BallerinaUnionTypeSymbol;
 import io.ballerina.compiler.api.symbols.ArrayTypeSymbol;
 import io.ballerina.compiler.api.symbols.MapTypeSymbol;
+import io.ballerina.compiler.api.symbols.ModuleSymbol;
 import io.ballerina.compiler.api.symbols.ParameterKind;
 import io.ballerina.compiler.api.symbols.ParameterSymbol;
 import io.ballerina.compiler.api.symbols.RecordFieldSymbol;
 import io.ballerina.compiler.api.symbols.RecordTypeSymbol;
 import io.ballerina.compiler.api.symbols.TypeDescKind;
 import io.ballerina.compiler.api.symbols.TypeDescTypeSymbol;
+import io.ballerina.compiler.api.symbols.TypeReferenceTypeSymbol;
 import io.ballerina.compiler.api.symbols.TypeSymbol;
 import io.ballerina.compiler.api.symbols.UnionTypeSymbol;
 import io.ballerina.mi.model.param.ArrayFunctionParam;
@@ -313,9 +315,19 @@ public class ParamFactory {
         recordParam.setRecordName(recordName);
 
         // Set module info for the record type
-        actualTypeSymbol.getModule().ifPresent(moduleSymbol -> {
+        // For external types like time:Civil, the TypeReferenceTypeSymbol has the module info
+        // whereas the unwrapped actualTypeSymbol may not
+        Optional<ModuleSymbol> moduleOpt = Optional.empty();
+        if (typeSymbol instanceof TypeReferenceTypeSymbol typeRef) {
+            moduleOpt = typeRef.getModule();
+        }
+        if (moduleOpt.isEmpty()) {
+            moduleOpt = actualTypeSymbol.getModule();
+        }
+        moduleOpt.ifPresent(moduleSymbol -> {
             recordParam.setRecordOrg(moduleSymbol.id().orgName());
             recordParam.setRecordModule(moduleSymbol.id().moduleName());
+            recordParam.setRecordVersion(moduleSymbol.id().version());
         });
 
         // Set required based on parameter kind

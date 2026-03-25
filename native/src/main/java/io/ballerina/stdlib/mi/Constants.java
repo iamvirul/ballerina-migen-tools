@@ -38,6 +38,7 @@ public class Constants {
     public static final String MAP = "map";
     public static final String TYPEDESC = "typedesc";
     public static final String ANYDATA = "anydata";
+    public static final String ENUM = "enum";
     public static final String SYNAPSE_FUNCTION_STACK = "_SYNAPSE_FUNCTION_STACK";
 
     // Resource function constants
