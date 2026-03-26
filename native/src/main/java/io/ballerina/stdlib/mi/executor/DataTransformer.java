@@ -356,7 +356,7 @@ public class DataTransformer {
                 String sanitizedFieldPath = fieldPath.replace(".", "_");
                 Object unionValue = SynapseUtils.lookupTemplateParameter(context, sanitizedFieldPath);
                 if (unionValue != null) {
-                     setNestedField(recordJson, fieldPath, unionValue, fieldType, context);
+                     setNestedField(recordJson, fieldPath, unionValue, fieldType, context, propertyPrefix, fieldIndex);
                      fieldIndex++;
                      continue;
                 }
@@ -378,6 +378,30 @@ public class DataTransformer {
             String sanitizedFieldPath = fieldPath.replace(".", "_");
             Object fieldValue = SynapseUtils.lookupTemplateParameter(context, sanitizedFieldPath);
 
+            // For arrays with dual mode, check if JSON mode is selected and use JSON field value
+            if (ARRAY.equals(fieldType)) {
+                String dualModeKey = propertyPrefix + "_param" + fieldIndex + "_dualMode";
+                Object dualModeObj = context.getProperty(dualModeKey);
+                if ("true".equals(dualModeObj != null ? dualModeObj.toString() : null)) {
+                    String inputModeFieldKey = propertyPrefix + "_param" + fieldIndex + "_inputModeField";
+                    Object inputModeFieldObj = context.getProperty(inputModeFieldKey);
+                    if (inputModeFieldObj != null) {
+                        Object inputModeValue = SynapseUtils.lookupTemplateParameter(context, inputModeFieldObj.toString());
+                        if ("JSON".equals(inputModeValue)) {
+                            // In JSON mode, use the JSON field value instead of table value
+                            String jsonFieldKey = propertyPrefix + "_param" + fieldIndex + "_jsonField";
+                            Object jsonFieldObj = context.getProperty(jsonFieldKey);
+                            if (jsonFieldObj != null) {
+                                Object jsonFieldValue = SynapseUtils.lookupTemplateParameter(context, jsonFieldObj.toString());
+                                if (jsonFieldValue != null && !jsonFieldValue.toString().isEmpty()) {
+                                    fieldValue = jsonFieldValue;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             if (fieldValue != null) {
                 String valueStr = fieldValue.toString();
                 if ((MAP.equals(fieldType) || ARRAY.equals(fieldType)) && "[]".equals(valueStr)) {
@@ -390,11 +414,11 @@ public class DataTransformer {
                     fieldIndex++;
                     continue;
                 }
-                setNestedField(recordJson, fieldPath, fieldValue, fieldType, context);
+                setNestedField(recordJson, fieldPath, fieldValue, fieldType, context, propertyPrefix, fieldIndex);
             } else if (setDefaultsForMissingFields && (DECIMAL.equals(fieldType) || INT.equals(fieldType))) {
                 // Set default value of 0 for numeric fields that aren't provided
                 // This prevents null pointer exceptions when Ballerina code accesses these fields in generic BMaps
-                setNestedField(recordJson, fieldPath, "0", fieldType, context);
+                setNestedField(recordJson, fieldPath, "0", fieldType, context, propertyPrefix, fieldIndex);
             }
             fieldIndex++;
         }
@@ -489,7 +513,8 @@ public class DataTransformer {
         }
     }
 
-    private static void setNestedField(JsonObject jsonObject, String fieldPath, Object value, String fieldType, MessageContext context) {
+    private static void setNestedField(JsonObject jsonObject, String fieldPath, Object value, String fieldType,
+                                        MessageContext context, String propertyPrefix, int fieldIndex) {
         String[] parts = fieldPath.split("\\.");
         for (int i = 0; i < parts.length - 1; i++) {
             String part = parts[i];
@@ -540,29 +565,76 @@ public class DataTransformer {
                 }
                 break;
             case ARRAY:
-            case MAP: 
+                try {
+                    String cleanedJson = SynapseUtils.cleanupJsonString(valueStr);
+
+                    // Check if this is an array of records with dual input mode (Table/JSON selector)
+                    String dualModeKey = propertyPrefix + "_param" + fieldIndex + "_dualMode";
+                    String inputModeFieldKey = propertyPrefix + "_param" + fieldIndex + "_inputModeField";
+                    String jsonFieldKey = propertyPrefix + "_param" + fieldIndex + "_jsonField";
+                    String elementTypeKey = propertyPrefix + "_arrayElementType" + fieldIndex;
+                    String recordFieldsKey = propertyPrefix + "_arrayRecordFields" + fieldIndex;
+
+                    Object dualModeObj = context.getProperty(dualModeKey);
+                    Object elementTypeObj = context.getProperty(elementTypeKey);
+                    Object recordFieldsObj = context.getProperty(recordFieldsKey);
+
+                    // Check if user selected JSON mode for this nested array
+                    if ("true".equals(dualModeObj != null ? dualModeObj.toString() : null)) {
+                        Object inputModeFieldObj = context.getProperty(inputModeFieldKey);
+                        if (inputModeFieldObj != null) {
+                            Object inputModeValue = SynapseUtils.lookupTemplateParameter(context, inputModeFieldObj.toString());
+                            if ("JSON".equals(inputModeValue)) {
+                                // User selected JSON mode - read from JSON field instead of table
+                                Object jsonFieldObj = context.getProperty(jsonFieldKey);
+                                if (jsonFieldObj != null) {
+                                    Object jsonFieldValue = SynapseUtils.lookupTemplateParameter(context, jsonFieldObj.toString());
+                                    if (jsonFieldValue != null && !jsonFieldValue.toString().isEmpty()) {
+                                        cleanedJson = SynapseUtils.cleanupJsonString(jsonFieldValue.toString());
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Convert table data to JSON objects if needed (for Table mode)
+                    if ("record".equals(elementTypeObj != null ? elementTypeObj.toString() : null)
+                            && recordFieldsObj != null && cleanedJson.startsWith("[[")) {
+                        // Table data is 2D array format: [["val1","val2",...],...]
+                        // Convert to JSON objects: [{"field1":"val1","field2":"val2",...},...]
+                        cleanedJson = convertNestedTableToJsonObjects(cleanedJson, recordFieldsObj.toString());
+                    }
+
+                    JsonElement jsonElement = JsonParser.parseString(cleanedJson);
+                    if (jsonElement.isJsonArray() && jsonElement.getAsJsonArray().size() > 0 && jsonElement.getAsJsonArray().get(0).isJsonArray()) {
+                        // Generic 2D array flattening (for non-record arrays)
+                        com.google.gson.JsonArray flatArr = new com.google.gson.JsonArray();
+                        for(JsonElement e : jsonElement.getAsJsonArray()) {
+                            if(e.isJsonArray()) {
+                                for(JsonElement inner : e.getAsJsonArray()) if(!inner.isJsonNull()) flatArr.add(inner);
+                            }
+                        }
+                        jsonObject.add(finalField, flatArr);
+                    } else {
+                        jsonObject.add(finalField, jsonElement);
+                    }
+                } catch (JsonSyntaxException e) {
+                    jsonObject.addProperty(finalField, valueStr);
+                }
+                break;
+            case MAP:
                  try {
                     String cleanedJson = SynapseUtils.cleanupJsonString(valueStr);
                     JsonElement jsonElement = JsonParser.parseString(cleanedJson);
                     if (jsonElement.isJsonArray() && jsonElement.getAsJsonArray().size() > 0 && jsonElement.getAsJsonArray().get(0).isJsonArray()) {
-                         if (MAP.equals(fieldType)) {
-                             JsonObject mapObj = new JsonObject();
-                             for(JsonElement e : jsonElement.getAsJsonArray()) {
-                                 if(e.isJsonArray()) {
-                                     com.google.gson.JsonArray pair = e.getAsJsonArray();
-                                     if(pair.size() >= 2) mapObj.add(pair.get(0).getAsString(), pair.get(1));
-                                 }
-                             }
-                             jsonObject.add(finalField, mapObj);
-                         } else {
-                             com.google.gson.JsonArray flatArr = new com.google.gson.JsonArray();
-                             for(JsonElement e : jsonElement.getAsJsonArray()) {
-                                 if(e.isJsonArray()) {
-                                     for(JsonElement inner : e.getAsJsonArray()) if(!inner.isJsonNull()) flatArr.add(inner);
-                                 }
-                             }
-                             jsonObject.add(finalField, flatArr);
-                         }
+                        JsonObject mapObj = new JsonObject();
+                        for(JsonElement e : jsonElement.getAsJsonArray()) {
+                            if(e.isJsonArray()) {
+                                com.google.gson.JsonArray pair = e.getAsJsonArray();
+                                if(pair.size() >= 2) mapObj.add(pair.get(0).getAsString(), pair.get(1));
+                            }
+                        }
+                        jsonObject.add(finalField, mapObj);
                     } else {
                         jsonObject.add(finalField, jsonElement);
                     }
@@ -573,6 +645,52 @@ public class DataTransformer {
             default:
                 jsonObject.addProperty(finalField, valueStr);
                 break;
+        }
+    }
+
+    /**
+     * Converts MI table 2D array format to JSON objects format for nested arrays in records.
+     * Input: [["val1","val2",...],["val3","val4",...],...] (2D array from table)
+     * Output: [{"field1":"val1","field2":"val2",...},{"field1":"val3","field2":"val4",...},...] (JSON objects)
+     *
+     * Empty string values are skipped to allow optional fields to use their defaults.
+     */
+    private static String convertNestedTableToJsonObjects(String tableJson, String fieldNamesStr) {
+        String[] fieldNames = fieldNamesStr.split(",");
+        try {
+            JsonElement parsed = JsonParser.parseString(tableJson);
+            if (!parsed.isJsonArray()) {
+                return tableJson;
+            }
+            com.google.gson.JsonArray outerArray = parsed.getAsJsonArray();
+            com.google.gson.JsonArray result = new com.google.gson.JsonArray();
+
+            for (int i = 0; i < outerArray.size(); i++) {
+                JsonElement row = outerArray.get(i);
+                if (row.isJsonArray()) {
+                    com.google.gson.JsonArray rowArray = row.getAsJsonArray();
+                    JsonObject obj = new JsonObject();
+                    for (int j = 0; j < Math.min(fieldNames.length, rowArray.size()); j++) {
+                        String fieldName = fieldNames[j].trim();
+                        JsonElement value = rowArray.get(j);
+                        if (value.isJsonNull()) {
+                            // Skip null values - let Ballerina use default
+                            continue;
+                        }
+                        // Skip empty string values - they represent unset optional fields
+                        if (value.isJsonPrimitive() && value.getAsJsonPrimitive().isString()
+                                && value.getAsString().isEmpty()) {
+                            continue;
+                        }
+                        obj.add(fieldName, value);
+                    }
+                    result.add(obj);
+                }
+            }
+            return result.toString();
+        } catch (Exception e) {
+            log.error("Failed to convert nested table to JSON objects: " + e.getMessage(), e);
+            return tableJson;
         }
     }
     

@@ -26,6 +26,7 @@
         <property name="param0" value="records"/>
         <property name="paramType0" value="array"/>
         <property name="arrayElementType0" value="record"/>
+        <property name="arrayRecordFields0" value="field1,field2,field3,field4,field5,field6,field7,field8,field9,field10,field11"/>
         <property name="param0_dualMode" value="true"/>
         <property name="param0_inputModeField" value="recordsInputMode"/>
         <property name="param0_jsonField" value="recordsJson"/>

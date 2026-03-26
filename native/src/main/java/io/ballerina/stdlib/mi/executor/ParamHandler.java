@@ -235,6 +235,13 @@ public class ParamHandler {
 
         if ("record".equals(elementType)) {
             try {
+                // Check if data is in 2D array format (from table) and needs conversion to JSON objects
+                String recordFieldsStr = SynapseUtils.getPropertyAsString(context, "arrayRecordFields" + paramIndex);
+                if (recordFieldsStr != null && !recordFieldsStr.isEmpty() && cleanedJson.startsWith("[[")) {
+                    // Table data is 2D array format: [["val1","val2",...],...]
+                    // Convert to JSON objects: [{"field1":"val1","field2":"val2",...},...]
+                    cleanedJson = convertTableToJsonObjects(cleanedJson, recordFieldsStr);
+                }
                 return JsonUtils.parse(cleanedJson);
             } catch (Exception e) {
                 log.error("Failed to parse record array JSON: " + e.getMessage(), e);
@@ -404,5 +411,47 @@ public class ParamHandler {
         }
         log.error("Error in getting the OMElement");
         return null;
+    }
+
+    /**
+     * Converts MI table 2D array format to JSON objects format.
+     * Input: [["val1","val2",...],["val3","val4",...],...] (2D array from table)
+     * Output: [{"field1":"val1","field2":"val2",...},{"field1":"val3","field2":"val4",...},...] (JSON objects)
+     */
+    private String convertTableToJsonObjects(String tableJson, String fieldNamesStr) {
+        String[] fieldNames = fieldNamesStr.split(",");
+        try {
+            Object parsed = JsonUtils.parse(tableJson);
+            if (!(parsed instanceof BArray outerArray)) {
+                return tableJson;
+            }
+            StringBuilder result = new StringBuilder("[");
+            for (int i = 0; i < outerArray.size(); i++) {
+                if (i > 0) result.append(",");
+                Object row = outerArray.get(i);
+                if (row instanceof BArray rowArray) {
+                    result.append("{");
+                    for (int j = 0; j < Math.min(fieldNames.length, rowArray.size()); j++) {
+                        if (j > 0) result.append(",");
+                        String fieldName = fieldNames[j].trim();
+                        Object value = rowArray.get(j);
+                        result.append("\"").append(fieldName).append("\":");
+                        if (value == null || (value instanceof BString && value.toString().isEmpty())) {
+                            result.append("null");
+                        } else if (value instanceof BString) {
+                            result.append("\"").append(escapeJsonString(value.toString())).append("\"");
+                        } else {
+                            result.append(value.toString());
+                        }
+                    }
+                    result.append("}");
+                }
+            }
+            result.append("]");
+            return result.toString();
+        } catch (Exception e) {
+            log.error("Failed to convert table to JSON objects: " + e.getMessage(), e);
+            return tableJson;
+        }
     }
 }

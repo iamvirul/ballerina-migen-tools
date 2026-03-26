@@ -43,11 +43,22 @@ public class PayloadWriter {
     private static final String CONTENT_TYPE = "contentType";
 
     public static void overwriteBody(MessageContext messageContext, Object payload) throws AxisFault {
+        org.apache.axis2.context.MessageContext axis2MessageContext = ((Axis2MessageContext) messageContext).getAxis2MessageContext();
 
         if (payload == null) {
+            // Clear the body when result is null (void function)
+            JsonUtil.removeJsonPayload(axis2MessageContext);
+            SOAPEnvelope envelope = axis2MessageContext.getEnvelope();
+            if (envelope != null && envelope.getBody() != null) {
+                // Remove all children from the body
+                OMElement body = envelope.getBody();
+                while (body.getFirstElement() != null) {
+                    body.getFirstElement().detach();
+                }
+            }
+            axis2MessageContext.setProperty("NO_ENTITY_BODY", Boolean.TRUE);
             return;
         }
-        org.apache.axis2.context.MessageContext axis2MessageContext = ((Axis2MessageContext) messageContext).getAxis2MessageContext();
         if (payload instanceof OMElement) {
             OMElement omElement = (OMElement) payload;
             JsonUtil.removeJsonPayload(axis2MessageContext);

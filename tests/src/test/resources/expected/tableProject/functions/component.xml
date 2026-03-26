@@ -33,6 +33,11 @@
             <file>processComplexData.xml</file>
             <description>Process complex data</description>
         </component>
+        <component name="sendBatch">
+            <displayName>send batch</displayName>
+            <file>sendBatch.xml</file>
+            <description>Send batch of messages</description>
+        </component>
         <component name="processLargeMapRecords">
             <displayName>process large map records</displayName>
             <file>processLargeMapRecords.xml</file>

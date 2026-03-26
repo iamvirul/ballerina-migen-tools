@@ -38,6 +38,9 @@
         <property name="paramType{{@index}}" value="{{paramType}}"/>
         {{~#eq paramType "array"}}
         <property name="arrayElementType{{@index}}" value="{{arrayElementType this}}"/>
+        {{~#if (arrayRecordFieldNames this)}}
+        <property name="arrayRecordFields{{@index}}" value="{{arrayRecordFieldNames this}}"/>
+        {{~/if}}
         {{~#if (isDualModeArray this)}}
         <property name="param{{@index}}_dualMode" value="true"/>
         <property name="param{{@index}}_inputModeField" value="{{sanitizeParamName value}}InputMode"/>
