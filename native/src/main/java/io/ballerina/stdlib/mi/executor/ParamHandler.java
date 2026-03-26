@@ -129,6 +129,15 @@ public class ParamHandler {
             } else if (ANYDATA.equals(paramType)) {
                 // typedesc<anydata> with no UI input — return default TypedescValue<anydata>
                 return ValueCreator.createTypedescValue(PredefinedTypes.TYPE_ANYDATA);
+            } else if (TYPEDESC.equals(paramType)) {
+                // typedesc with no UI input — look for default type name in context
+                String defaultTypeKey = "param" + index + "_typedescDefault";
+                Object defaultTypeObj = context.getProperty(defaultTypeKey);
+                if (defaultTypeObj != null) {
+                    return getTypedescValue(defaultTypeObj.toString());
+                }
+                // Fall back to anydata if no default specified
+                return ValueCreator.createTypedescValue(PredefinedTypes.TYPE_ANYDATA);
             }
             return null;
         }
@@ -147,7 +156,7 @@ public class ParamHandler {
                 case ARRAY -> getArrayParameter((String) param, context, value);
                 case MAP -> DataTransformer.getMapParameter(param, context, value);
                 case UNION -> getUnionParameter(paramName, context, index);
-                case TYPEDESC -> getTypedescValue((String) param);
+                case TYPEDESC -> getTypedescValueWithFallback((String) param, paramName, context, index);
                 default -> null;
             };
             return result;
@@ -155,6 +164,21 @@ public class ParamHandler {
             log.error("Error in getParameter for " + paramName + " (type: " + paramType + "): " + e.getMessage(), e);
             throw new SynapseException("Failed to process parameter " + paramName, e);
         }
+    }
+
+    private Object getTypedescValueWithFallback(String typeName, String paramName, MessageContext context, int index) {
+        // If the value equals the parameter name, it means no real value was provided - use default
+        if (typeName.equals(paramName)) {
+            String defaultTypeKey = "param" + index + "_typedescDefault";
+            Object defaultTypeObj = context.getProperty(defaultTypeKey);
+            if (defaultTypeObj != null && !defaultTypeObj.toString().equals(paramName)) {
+                typeName = defaultTypeObj.toString();
+            } else {
+                // No valid default - fall back to anydata
+                return ValueCreator.createTypedescValue(PredefinedTypes.TYPE_ANYDATA);
+            }
+        }
+        return getTypedescValue(typeName);
     }
 
     private Object getTypedescValue(String typeName) {
@@ -171,15 +195,15 @@ public class ParamHandler {
             default -> {
                 io.ballerina.runtime.api.Module module = BalConnectorConfig.getModule();
                 if (module == null) {
-                    log.warn("Module not available, cannot resolve type '" + typeName + "' to TypedescValue, falling back to string.");
-                    return StringUtils.fromString(typeName);
+                    log.warn("Module not available, cannot resolve type '" + typeName + "' to TypedescValue, falling back to anydata.");
+                    return ValueCreator.createTypedescValue(PredefinedTypes.TYPE_ANYDATA);
                 }
                 try {
                     BMap<BString, Object> recordValue = ValueCreator.createRecordValue(module, typeName);
                     type = recordValue.getType();
                 } catch (Exception e) {
-                    log.warn("Could not resolve type '" + typeName + "' to TypedescValue, falling back to string.");
-                    return StringUtils.fromString(typeName);
+                    log.warn("Could not resolve type '" + typeName + "' to TypedescValue, falling back to anydata.");
+                    return ValueCreator.createTypedescValue(PredefinedTypes.TYPE_ANYDATA);
                 }
             }
         }
