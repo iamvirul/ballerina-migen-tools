@@ -176,7 +176,11 @@ public class ParamFactory {
         // ── RECORD constraint: fixed string field with the record type name ──────
         if (constraintKind == TypeDescKind.RECORD) {
             TypeSymbol actualConstraint = Utils.getActualTypeSymbol(constraint);
-            String recordName = actualConstraint.getName().orElse(paramName);
+            // Try to get name from the original constraint first (for type references like asb:Message)
+            // Fall back to actual type symbol name, then parameter name
+            String recordName = constraint.getName()
+                    .or(() -> actualConstraint.getName())
+                    .orElse(paramName);
             FunctionParam param = new FunctionParam(Integer.toString(index), paramName, Constants.STRING);
             param.setParamKind(parameterSymbol.paramKind());
             param.setTypeSymbol(rawTypeSymbol);

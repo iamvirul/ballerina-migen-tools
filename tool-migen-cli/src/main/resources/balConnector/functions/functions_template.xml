@@ -35,7 +35,10 @@
     <sequence>
         {{#each functionParams ~}}
         <property name="param{{@index}}" value="{{sanitizeParamName value}}"/>
-        <property name="paramType{{@index}}" value="{{paramType}}"/>
+        <property name="paramType{{@index}}" value="{{#if typeDescriptor}}typedesc{{else}}{{paramType}}{{/if}}"/>
+        {{~#if typeDescriptor}}{{#if defaultValue}}
+        <property name="param{{@index}}_typedescDefault" value="{{defaultValue}}"/>
+        {{~/if}}{{/if}}
         {{~#eq paramType "array"}}
         <property name="arrayElementType{{@index}}" value="{{arrayElementType this}}"/>
         {{~#if (arrayRecordFieldNames this)}}
