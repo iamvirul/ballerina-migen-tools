@@ -309,7 +309,6 @@ public final class ResourceCopier {
                     return;
                 }
             }
-            System.out.println("Running from directory: native sources not found");
         } else {
             // Running from JAR - extract native-src resources
             try (JarFile jar = new JarFile(sourcePath.toFile())) {
@@ -321,7 +320,7 @@ public final class ResourceCopier {
                     }
                 }
             } catch (Exception e) {
-                System.out.println("Note: Native sources not available in this distribution");
+                // Native sources not available - this is fine for production distributions
             }
         }
     }
