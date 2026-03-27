@@ -109,9 +109,9 @@ tasks.register('localPublish') {
     doLast {
         exec {
             if (Os.isFamily(Os.FAMILY_WINDOWS)) {
-                commandLine 'cmd', "/c", "bal pack && bal push --repository=local && bal tool pull ${toolId}:${tomlVersion} --repository=local"
+                commandLine 'cmd', "/c", "bal pack && bal push --repository=local && (bal tool pull ${toolId}:${tomlVersion} --repository=local || echo Tool already active)"
             } else {
-                commandLine 'sh', "-c", "bal pack && bal push --repository=local && bal tool pull ${toolId}:${tomlVersion} --repository=local"
+                commandLine 'sh', "-c", "bal pack && bal push --repository=local && (bal tool pull ${toolId}:${tomlVersion} --repository=local || echo 'Tool already active')"
             }
         }
         println("Successfully pushed the MI Tool to the local.")

@@ -27,6 +27,8 @@
         <property name="param0" value="updatedUser"/>
         <property name="paramType0" value="record"/>
         <property name="param0_recordName" value="User" />
+        <property name="param0_recordOrg" value="testOrg" />
+        <property name="param0_recordModule" value="project5" />
         <property name="updatedUser_param0" value="id"/>
         <property name="updatedUser_paramType0" value="int"/>
         <property name="updatedUser_param1" value="name"/>

@@ -340,7 +340,8 @@ tasks.register("generateExpectedArtifacts", JavaExec) {
 def allArtifactTargets = [
     'project1', 'project2', 'project3', 'project4', 'project5', 'project6', 'project7',
     'unionProject', 'nestedRecordConflictProject', 'tableProject', 'typedescProject',
-    'multiClientProject', 'unsupportedProject', 'central'
+    'multiClientProject', 'unsupportedProject'
+    // 'central' excluded - ballerinax/milvus:1.1.0 not compatible with Ballerina 2201.10.5
 ]
 
 tasks.register("regenerateAllArtifacts") {

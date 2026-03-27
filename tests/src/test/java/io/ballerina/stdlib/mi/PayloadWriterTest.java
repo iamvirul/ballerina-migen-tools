@@ -28,7 +28,6 @@ import org.apache.axiom.soap.SOAP12Constants;
 import org.apache.axiom.soap.SOAPBody;
 import org.apache.axiom.soap.SOAPEnvelope;
 import org.apache.axis2.AxisFault;
-import org.apache.synapse.MessageContext;
 import org.apache.synapse.commons.json.JsonUtil;
 import org.apache.synapse.core.axis2.Axis2MessageContext;
 import org.apache.synapse.util.AXIOMUtils;
@@ -48,9 +47,23 @@ public class PayloadWriterTest {
 
     @Test
     public void testOverwriteBody_NullPayload() throws AxisFault {
-        MessageContext messageContext = mock(MessageContext.class);
-        PayloadWriter.overwriteBody(messageContext, null);
-        Mockito.verifyNoInteractions(messageContext);
+        try (MockedStatic<JsonUtil> jsonUtilMock = Mockito.mockStatic(JsonUtil.class)) {
+            Axis2MessageContext synCtx = mock(Axis2MessageContext.class);
+            org.apache.axis2.context.MessageContext axis2MsgCtx = mock(org.apache.axis2.context.MessageContext.class);
+            when(synCtx.getAxis2MessageContext()).thenReturn(axis2MsgCtx);
+
+            SOAPEnvelope envelope = mock(SOAPEnvelope.class);
+            SOAPBody body = mock(SOAPBody.class);
+            when(axis2MsgCtx.getEnvelope()).thenReturn(envelope);
+            when(envelope.getBody()).thenReturn(body);
+            when(body.getFirstElement()).thenReturn(null);
+
+            PayloadWriter.overwriteBody(synCtx, null);
+
+            // Verify body is cleared and NO_ENTITY_BODY is set when payload is null
+            jsonUtilMock.verify(() -> JsonUtil.removeJsonPayload(axis2MsgCtx));
+            verify(axis2MsgCtx).setProperty("NO_ENTITY_BODY", Boolean.TRUE);
+        }
     }
 
     @Test

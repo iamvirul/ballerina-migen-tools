@@ -42,6 +42,7 @@ public class ArrayFunctionParam extends FunctionParam {
     private boolean isUnionArray;
     private List<String> unionMemberTypeNames;
     private TypeSymbol innerElementTypeSymbol;
+    private boolean supportsDualInputMode;
 
     // Pre-computed values from TypeSymbol
     private TypeDescKind elementTypeKind;
@@ -55,6 +56,7 @@ public class ArrayFunctionParam extends FunctionParam {
         this.is2DArray = false;
         this.isUnionArray = false;
         this.unionMemberTypeNames = new ArrayList<>();
+        this.supportsDualInputMode = false;
     }
 
     public TypeSymbol getElementTypeSymbol() {
@@ -110,6 +112,19 @@ public class ArrayFunctionParam extends FunctionParam {
 
     public void setUnionMemberTypeNames(List<String> unionMemberTypeNames) {
         this.unionMemberTypeNames = unionMemberTypeNames;
+    }
+
+    /**
+     * Returns whether this array supports dual input mode (Table/JSON selector).
+     * Dual mode is supported for arrays of records, allowing users to either
+     * add rows via table UI or paste a JSON array directly.
+     */
+    public boolean supportsDualInputMode() {
+        return supportsDualInputMode;
+    }
+
+    public void setSupportsDualInputMode(boolean supportsDualInputMode) {
+        this.supportsDualInputMode = supportsDualInputMode;
     }
 
     public TypeSymbol getInnerElementTypeSymbol() {

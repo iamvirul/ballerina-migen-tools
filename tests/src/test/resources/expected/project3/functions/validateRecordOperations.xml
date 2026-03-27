@@ -30,6 +30,8 @@
         <property name="param0" value="personInput"/>
         <property name="paramType0" value="record"/>
         <property name="param0_recordName" value="Person" />
+        <property name="param0_recordOrg" value="testOrg" />
+        <property name="param0_recordModule" value="project3" />
         <property name="personInput_param0" value="name"/>
         <property name="personInput_paramType0" value="string"/>
         <property name="personInput_param1" value="age"/>
@@ -39,6 +41,8 @@
         <property name="param1" value="employeeInput"/>
         <property name="paramType1" value="record"/>
         <property name="param1_recordName" value="Employee" />
+        <property name="param1_recordOrg" value="testOrg" />
+        <property name="param1_recordModule" value="project3" />
         <property name="employeeInput_param0" value="employeeId"/>
         <property name="employeeInput_paramType0" value="string"/>
         <property name="employeeInput_param1" value="department"/>

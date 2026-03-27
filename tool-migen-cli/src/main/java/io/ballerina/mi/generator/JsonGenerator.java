@@ -153,7 +153,7 @@ public class JsonGenerator {
                     if (recordHelpTip == null || recordHelpTip.isEmpty()) {
                         recordHelpTip = "Expecting JSON object";
                     }
-                    Attribute recordAttr = new Attribute(functionParam.getValue(), displayName,
+                    Attribute recordAttr = new Attribute(sanitizedParamName, displayName,
                             INPUT_TYPE_STRING_OR_EXPRESSION, defaultValue, functionParam.isRequired(),
                             recordHelpTip, JSON, "", isCombo);
                     recordAttr.setEnableCondition(functionParam.getEnableCondition());
@@ -162,7 +162,7 @@ public class JsonGenerator {
                 break;
             case io.ballerina.mi.util.Constants.INT:
                 String intMatchPattern = functionParam.isRequired() ? INTEGER_REGEX : INTEGER_REGEX_OPTIONAL;
-                Attribute intAttr = new Attribute(functionParam.getValue(), displayName, INPUT_TYPE_STRING_OR_EXPRESSION,
+                Attribute intAttr = new Attribute(sanitizedParamName, displayName, INPUT_TYPE_STRING_OR_EXPRESSION,
                         defaultValue, functionParam.isRequired(), functionParam.getDescription(), VALIDATE_TYPE_REGEX,
                         intMatchPattern, isCombo);
                 intAttr.setEnableCondition(functionParam.getEnableCondition());
@@ -171,14 +171,14 @@ public class JsonGenerator {
             case io.ballerina.mi.util.Constants.DECIMAL:
             case io.ballerina.mi.util.Constants.FLOAT:
                 String decMatchPattern = functionParam.isRequired() ? DECIMAL_REGEX : DECIMAL_REGEX_OPTIONAL;
-                Attribute decAttr = new Attribute(functionParam.getValue(), displayName,
+                Attribute decAttr = new Attribute(sanitizedParamName, displayName,
                         INPUT_TYPE_STRING_OR_EXPRESSION, defaultValue, functionParam.isRequired(),
                         functionParam.getDescription(), VALIDATE_TYPE_REGEX, decMatchPattern, isCombo);
                 decAttr.setEnableCondition(functionParam.getEnableCondition());
                 builder.addFromTemplate(ATTRIBUTE_TEMPLATE_PATH, decAttr);
                 break;
             case io.ballerina.mi.util.Constants.BOOLEAN:
-                Attribute boolAttr = new Attribute(functionParam.getValue(), displayName, INPUT_TYPE_BOOLEAN,
+                Attribute boolAttr = new Attribute(sanitizedParamName, displayName, INPUT_TYPE_BOOLEAN,
                         defaultValue, functionParam.isRequired(), functionParam.getDescription(), "",
                         "", isCombo);
                 boolAttr.setEnableCondition(functionParam.getEnableCondition());
@@ -516,7 +516,13 @@ public class JsonGenerator {
                 groupIndex++;
             }
         } else {
-            Attribute recordAttr = new Attribute(functionParam.getValue(), functionParam.getValue(),
+            String sanitizedName = Utils.sanitizeParamName(functionParam.getValue());
+            String displayName = functionParam.getValue();
+            if (displayName.contains(".")) {
+                displayName = displayName.substring(displayName.lastIndexOf('.') + 1);
+            }
+            displayName = Utils.sanitizeParamName(displayName);
+            Attribute recordAttr = new Attribute(sanitizedName, displayName,
                     INPUT_TYPE_STRING_OR_EXPRESSION, "", functionParam.isRequired(),
                     functionParam.getDescription(), "", "", false);
             recordAttr.setEnableCondition(functionParam.getEnableCondition());
@@ -699,6 +705,12 @@ public class JsonGenerator {
         }
         displayName = Utils.sanitizeParamName(displayName);
 
+        // Check if dual input mode is supported (Table/JSON selector)
+        if (arrayParam.supportsDualInputMode()) {
+            writeArrayWithDualInputMode(arrayParam, builder, paramName, displayName);
+            return;
+        }
+
         List<Element> tableColumns = new ArrayList<>();
 
         if (arrayParam.getElementFieldParams() != null && !arrayParam.getElementFieldParams().isEmpty()) {
@@ -731,6 +743,82 @@ public class JsonGenerator {
         );
 
         builder.addFromTemplate(TABLE_TEMPLATE_PATH, table);
+    }
+
+    /**
+     * Writes array parameter with dual input mode support.
+     * Generates: 1) Mode selector combo, 2) Table with enableCondition, 3) JSON text field with enableCondition.
+     */
+    private static void writeArrayWithDualInputMode(ArrayFunctionParam arrayParam, JsonTemplateBuilder builder,
+                                                     String paramName, String displayName) throws IOException {
+        String modeFieldName = paramName + "InputMode";
+        String tableEnableCondition = "[{\"" + modeFieldName + "\": \"Table\"}]";
+        String jsonEnableCondition = "[{\"" + modeFieldName + "\": \"JSON\"}]";
+
+        // 1. Generate mode selector combo
+        Combo modeSelector = new Combo(
+            modeFieldName,
+            displayName + " Input Mode",
+            INPUT_TYPE_COMBO,
+            "[\"Table\", \"JSON\"]",
+            "Table",
+            true,
+            arrayParam.getEnableCondition(),
+            "Choose input mode: Table for interactive entry, JSON for array expression"
+        );
+        builder.addFromTemplate(COMBO_TEMPLATE_PATH, modeSelector);
+        builder.addSeparator(ATTRIBUTE_SEPARATOR);
+
+        // 2. Generate table with enableCondition for "Table" mode
+        List<Element> tableColumns = new ArrayList<>();
+        if (arrayParam.getElementFieldParams() != null && !arrayParam.getElementFieldParams().isEmpty()) {
+            for (FunctionParam elementField : arrayParam.getElementFieldParams()) {
+                Attribute column = createAttributeForElementField(elementField);
+                tableColumns.add(column);
+            }
+        } else {
+            Attribute column = createSimpleElementColumn(arrayParam);
+            tableColumns.add(column);
+        }
+
+        String description = arrayParam.getDescription() != null ?
+            arrayParam.getDescription() :
+            "Configure " + displayName + " entries";
+
+        String tableKey = tableColumns.isEmpty() ? "" : tableColumns.get(0).getName();
+        String tableValue = tableColumns.size() < 2 ? tableKey : tableColumns.get(tableColumns.size() - 1).getName();
+
+        Table table = new Table(
+            paramName,
+            displayName,
+            displayName,
+            description,
+            tableKey,
+            tableValue,
+            tableColumns,
+            tableEnableCondition,
+            arrayParam.isRequired()
+        );
+        builder.addFromTemplate(TABLE_TEMPLATE_PATH, table);
+        builder.addSeparator(ATTRIBUTE_SEPARATOR);
+
+        // 3. Generate JSON text field with enableCondition for "JSON" mode
+        String jsonFieldName = paramName + "Json";
+        String jsonHelpTip = "Enter JSON array of " + displayName + " objects. " +
+            "Example: [{\"field1\": \"value1\", ...}, ...]";
+        Attribute jsonField = new Attribute(
+            jsonFieldName,
+            displayName + " (JSON Array)",
+            INPUT_TYPE_STRING_OR_EXPRESSION,
+            "",
+            arrayParam.isRequired(),
+            jsonHelpTip,
+            JSON,
+            "",
+            false
+        );
+        jsonField.setEnableCondition(jsonEnableCondition);
+        builder.addFromTemplate(ATTRIBUTE_TEMPLATE_PATH, jsonField);
     }
 
     private static void writeNestedArrayAsTable(ArrayFunctionParam arrayParam, JsonTemplateBuilder builder,

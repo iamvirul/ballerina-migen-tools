@@ -38,6 +38,7 @@ public class Constants {
     public static final String MAP = "map";
     public static final String TYPEDESC = "typedesc";
     public static final String ANYDATA = "anydata";
+    public static final String ENUM = "enum";
     public static final String SYNAPSE_FUNCTION_STACK = "_SYNAPSE_FUNCTION_STACK";
 
     // Resource function constants
@@ -48,9 +49,4 @@ public class Constants {
     public static final String FUNCTION_TYPE_RESOURCE = "RESOURCE";
     public static final String FUNCTION_TYPE_REMOTE = "REMOTE";
     public static final String FUNCTION_TYPE_FUNCTION = "FUNCTION";
-
-    // Error handling constants
-    public static final String ERROR_EXCEPTION = "ERROR_EXCEPTION";
-    public static final String ERROR_CODE = "ERROR_CODE";
-    public static final String ERROR_MESSAGE = "ERROR_MESSAGE";
 }

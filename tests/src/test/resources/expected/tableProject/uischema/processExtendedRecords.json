@@ -30,6 +30,21 @@
               "groupName": "Input Variables",
               "elements": [
                 {
+                  "type": "attribute",
+                  "value": {
+                    "name": "recordsInputMode",
+                    "displayName": "records Input Mode",
+                    "inputType": "combo",
+                    "comboValues": [
+                      "Table",
+                      "JSON"
+                    ],
+                    "defaultValue": "Table",
+                    "required": "true",
+                    "helpTip": "Choose input mode: Table for interactive entry, JSON for array expression"
+                  }
+                },
+                {
                   "type": "table",
                   "value": {
                     "name": "records",
@@ -38,6 +53,11 @@
                     "description": "Configure records entries",
                     "tableKey": "field1",
                     "tableValue": "field11",
+                    "enableCondition": [
+                      {
+                        "recordsInputMode": "Table"
+                      }
+                    ],
                     "elements": [
                       {
                         "type": "attribute",
@@ -154,6 +174,24 @@
                           "required": true,
                           "helpTip": "Field11"
                         }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "type": "attribute",
+                  "value": {
+                    "name": "recordsJson",
+                    "displayName": "records (JSON Array)",
+                    "inputType": "stringOrExpression",
+                    "defaultValue": "",
+                    "required": true,
+                    "helpTip": "Enter JSON array of records objects. Example: [{\"field1\": \"value1\", ...}, ...]",
+                    "validateType": "json",
+                    "matchPattern": "",
+                    "enableCondition": [
+                      {
+                        "recordsInputMode": "JSON"
                       }
                     ]
                   }

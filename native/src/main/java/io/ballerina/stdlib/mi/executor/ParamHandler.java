@@ -22,7 +22,7 @@ import io.ballerina.runtime.api.creators.ValueCreator;
 import io.ballerina.runtime.api.utils.JsonUtils;
 import io.ballerina.runtime.api.utils.StringUtils;
 import io.ballerina.runtime.api.values.*;
-import io.ballerina.runtime.api.types.PredefinedTypes;
+import io.ballerina.runtime.api.PredefinedTypes;
 import io.ballerina.runtime.api.types.Type;
 import io.ballerina.stdlib.mi.BalConnectorConfig;
 import io.ballerina.stdlib.mi.Constants;
@@ -129,6 +129,15 @@ public class ParamHandler {
             } else if (ANYDATA.equals(paramType)) {
                 // typedesc<anydata> with no UI input — return default TypedescValue<anydata>
                 return ValueCreator.createTypedescValue(PredefinedTypes.TYPE_ANYDATA);
+            } else if (TYPEDESC.equals(paramType)) {
+                // typedesc with no UI input — look for default type name in context
+                String defaultTypeKey = "param" + index + "_typedescDefault";
+                Object defaultTypeObj = context.getProperty(defaultTypeKey);
+                if (defaultTypeObj != null) {
+                    return getTypedescValue(defaultTypeObj.toString());
+                }
+                // Fall back to anydata if no default specified
+                return ValueCreator.createTypedescValue(PredefinedTypes.TYPE_ANYDATA);
             }
             return null;
         }
@@ -147,7 +156,7 @@ public class ParamHandler {
                 case ARRAY -> getArrayParameter((String) param, context, value);
                 case MAP -> DataTransformer.getMapParameter(param, context, value);
                 case UNION -> getUnionParameter(paramName, context, index);
-                case TYPEDESC -> getTypedescValue((String) param);
+                case TYPEDESC -> getTypedescValueWithFallback((String) param, paramName, context, index);
                 default -> null;
             };
             return result;
@@ -155,6 +164,21 @@ public class ParamHandler {
             log.error("Error in getParameter for " + paramName + " (type: " + paramType + "): " + e.getMessage(), e);
             throw new SynapseException("Failed to process parameter " + paramName, e);
         }
+    }
+
+    private Object getTypedescValueWithFallback(String typeName, String paramName, MessageContext context, int index) {
+        // If the value equals the parameter name, it means no real value was provided - use default
+        if (typeName.equals(paramName)) {
+            String defaultTypeKey = "param" + index + "_typedescDefault";
+            Object defaultTypeObj = context.getProperty(defaultTypeKey);
+            if (defaultTypeObj != null && !defaultTypeObj.toString().equals(paramName)) {
+                typeName = defaultTypeObj.toString();
+            } else {
+                // No valid default - fall back to anydata
+                return ValueCreator.createTypedescValue(PredefinedTypes.TYPE_ANYDATA);
+            }
+        }
+        return getTypedescValue(typeName);
     }
 
     private Object getTypedescValue(String typeName) {
@@ -171,15 +195,15 @@ public class ParamHandler {
             default -> {
                 io.ballerina.runtime.api.Module module = BalConnectorConfig.getModule();
                 if (module == null) {
-                    log.warn("Module not available, cannot resolve type '" + typeName + "' to TypedescValue, falling back to string.");
-                    return StringUtils.fromString(typeName);
+                    log.warn("Module not available, cannot resolve type '" + typeName + "' to TypedescValue, falling back to anydata.");
+                    return ValueCreator.createTypedescValue(PredefinedTypes.TYPE_ANYDATA);
                 }
                 try {
                     BMap<BString, Object> recordValue = ValueCreator.createRecordValue(module, typeName);
                     type = recordValue.getType();
                 } catch (Exception e) {
-                    log.warn("Could not resolve type '" + typeName + "' to TypedescValue, falling back to string.");
-                    return StringUtils.fromString(typeName);
+                    log.warn("Could not resolve type '" + typeName + "' to TypedescValue, falling back to anydata.");
+                    return ValueCreator.createTypedescValue(PredefinedTypes.TYPE_ANYDATA);
                 }
             }
         }
@@ -210,12 +234,38 @@ public class ParamHandler {
             return null;
         }
 
+        // Check if dual input mode is enabled (Table/JSON selector)
+        String dualModeEnabled = SynapseUtils.getPropertyAsString(context, "param" + paramIndex + "_dualMode");
+        if ("true".equals(dualModeEnabled)) {
+            String inputModeFieldName = SynapseUtils.getPropertyAsString(context, "param" + paramIndex + "_inputModeField");
+            if (inputModeFieldName != null) {
+                Object inputModeValue = SynapseUtils.lookupTemplateParameter(context, inputModeFieldName);
+                if ("JSON".equals(inputModeValue)) {
+                    // User selected JSON mode - read from JSON field instead of table
+                    String jsonFieldName = SynapseUtils.getPropertyAsString(context, "param" + paramIndex + "_jsonField");
+                    if (jsonFieldName != null) {
+                        Object jsonFieldValue = SynapseUtils.lookupTemplateParameter(context, jsonFieldName);
+                        if (jsonFieldValue != null && !jsonFieldValue.toString().isEmpty()) {
+                            jsonArrayString = jsonFieldValue.toString();
+                        }
+                    }
+                }
+            }
+        }
+
         String elementType = context.getProperty("arrayElementType" + paramIndex).toString();
 
         String cleanedJson = SynapseUtils.cleanupJsonString(jsonArrayString);
 
         if ("record".equals(elementType)) {
             try {
+                // Check if data is in 2D array format (from table) and needs conversion to JSON objects
+                String recordFieldsStr = SynapseUtils.getPropertyAsString(context, "arrayRecordFields" + paramIndex);
+                if (recordFieldsStr != null && !recordFieldsStr.isEmpty() && cleanedJson.startsWith("[[")) {
+                    // Table data is 2D array format: [["val1","val2",...],...]
+                    // Convert to JSON objects: [{"field1":"val1","field2":"val2",...},...]
+                    cleanedJson = convertTableToJsonObjects(cleanedJson, recordFieldsStr);
+                }
                 return JsonUtils.parse(cleanedJson);
             } catch (Exception e) {
                 log.error("Failed to parse record array JSON: " + e.getMessage(), e);
@@ -385,5 +435,47 @@ public class ParamHandler {
         }
         log.error("Error in getting the OMElement");
         return null;
+    }
+
+    /**
+     * Converts MI table 2D array format to JSON objects format.
+     * Input: [["val1","val2",...],["val3","val4",...],...] (2D array from table)
+     * Output: [{"field1":"val1","field2":"val2",...},{"field1":"val3","field2":"val4",...},...] (JSON objects)
+     */
+    private String convertTableToJsonObjects(String tableJson, String fieldNamesStr) {
+        String[] fieldNames = fieldNamesStr.split(",");
+        try {
+            Object parsed = JsonUtils.parse(tableJson);
+            if (!(parsed instanceof BArray outerArray)) {
+                return tableJson;
+            }
+            StringBuilder result = new StringBuilder("[");
+            for (int i = 0; i < outerArray.size(); i++) {
+                if (i > 0) result.append(",");
+                Object row = outerArray.get(i);
+                if (row instanceof BArray rowArray) {
+                    result.append("{");
+                    for (int j = 0; j < Math.min(fieldNames.length, rowArray.size()); j++) {
+                        if (j > 0) result.append(",");
+                        String fieldName = fieldNames[j].trim();
+                        Object value = rowArray.get(j);
+                        result.append("\"").append(fieldName).append("\":");
+                        if (value == null || (value instanceof BString && value.toString().isEmpty())) {
+                            result.append("null");
+                        } else if (value instanceof BString) {
+                            result.append("\"").append(escapeJsonString(value.toString())).append("\"");
+                        } else {
+                            result.append(value.toString());
+                        }
+                    }
+                    result.append("}");
+                }
+            }
+            result.append("]");
+            return result.toString();
+        } catch (Exception e) {
+            log.error("Failed to convert table to JSON objects: " + e.getMessage(), e);
+            return tableJson;
+        }
     }
 }

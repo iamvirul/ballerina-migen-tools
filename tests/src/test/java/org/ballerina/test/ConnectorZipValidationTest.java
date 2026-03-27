@@ -20,7 +20,9 @@ import io.ballerina.mi.cmd.ConnectorCmd;
 import io.ballerina.mi.cmd.ModuleCmd;
 import io.ballerina.mi.model.Connector;
 import io.ballerina.mi.test.util.ArtifactGenerationUtil;
+import io.ballerina.mi.test.util.PackageNotCompatibleException;
 import org.testng.Assert;
+import org.testng.SkipException;
 import org.testng.annotations.BeforeClass;
 import org.testng.annotations.DataProvider;
 import org.testng.annotations.Test;
@@ -187,7 +189,13 @@ public class ConnectorZipValidationTest {
         
         if (centralPackage != null && !centralPackage.isBlank()) {
             // Pull package from Ballerina Central
-            tempBalaDir = ArtifactGenerationUtil.pullPackageFromCentral(centralPackage);
+            try {
+                tempBalaDir = ArtifactGenerationUtil.pullPackageFromCentral(centralPackage);
+            } catch (PackageNotCompatibleException e) {
+                // Package not available for this Ballerina version - skip test gracefully
+                System.out.println("SKIPPED: " + e.getMessage());
+                throw new SkipException("Package not compatible with current mi-module-gen tool: " + e.getMessage());
+            }
             Assert.assertTrue(Files.exists(tempBalaDir), "Bala directory not found in Central: " + tempBalaDir);
             
             // Derive connector folder name from Central package (org-package format)

@@ -28,6 +28,8 @@
         <property name="PROJECT7_GMAILMOCKCLIENT_param0" value="config"/>
         <property name="PROJECT7_GMAILMOCKCLIENT_paramType0" value="record"/>
         <property name="PROJECT7_GMAILMOCKCLIENT_param0_recordName" value="ConnectionConfig"/>
+        <property name="PROJECT7_GMAILMOCKCLIENT_param0_recordOrg" value="testOrg"/>
+        <property name="PROJECT7_GMAILMOCKCLIENT_param0_recordModule" value="project7"/>
         <property name="PROJECT7_GMAILMOCKCLIENT_config_param0" value="baseUrl"/>
         <property name="PROJECT7_GMAILMOCKCLIENT_config_paramType0" value="string"/>
         <property name="PROJECT7_GMAILMOCKCLIENT_config_param1" value="apiKey"/>

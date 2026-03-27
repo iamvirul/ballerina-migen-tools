@@ -43,31 +43,40 @@ public class PayloadWriter {
     private static final String CONTENT_TYPE = "contentType";
 
     public static void overwriteBody(MessageContext messageContext, Object payload) throws AxisFault {
+        org.apache.axis2.context.MessageContext axis2MessageContext = ((Axis2MessageContext) messageContext).getAxis2MessageContext();
 
         if (payload == null) {
+            // Clear the body when result is null (void function)
+            JsonUtil.removeJsonPayload(axis2MessageContext);
+            SOAPEnvelope envelope = axis2MessageContext.getEnvelope();
+            if (envelope != null && envelope.getBody() != null) {
+                // Remove all children from the body
+                OMElement body = envelope.getBody();
+                while (body.getFirstElement() != null) {
+                    body.getFirstElement().detach();
+                }
+            }
+            axis2MessageContext.setProperty("NO_ENTITY_BODY", Boolean.TRUE);
             return;
         }
-        org.apache.axis2.context.MessageContext axis2MessageContext = ((Axis2MessageContext) messageContext).getAxis2MessageContext();
-        switch (payload) {
-            case OMElement omElement -> {
-                JsonUtil.removeJsonPayload(axis2MessageContext);
-                if (!checkAndReplaceEnvelope(omElement, messageContext)) { // check if the target of the PF 'format' is the entire SOAP envelope, not just the body.
-                    axis2MessageContext.getEnvelope().getBody().addChild(omElement);
-                }
-                setContentType(axis2MessageContext, XML_CONTENT_TYPE);
+        if (payload instanceof OMElement) {
+            OMElement omElement = (OMElement) payload;
+            JsonUtil.removeJsonPayload(axis2MessageContext);
+            if (!checkAndReplaceEnvelope(omElement, messageContext)) {
+                axis2MessageContext.getEnvelope().getBody().addChild(omElement);
             }
-            case JsonElement jsonElement -> {
-                org.apache.synapse.commons.json.JsonUtil.getNewJsonPayload(axis2MessageContext, jsonElement.toString(), true, true);
-                setContentType(axis2MessageContext, JSON_CONTENT_TYPE);
-            }
-            case String s -> {
-                JsonUtil.removeJsonPayload(axis2MessageContext);
-                axis2MessageContext.getEnvelope().getBody().addChild(getTextElement(s));
-                setContentType(axis2MessageContext, TEXT_CONTENT_TYPE);
-            }
-            default -> {
-                throw new AxisFault("Unsupported payload type: " + payload.getClass().getName());
-            }
+            setContentType(axis2MessageContext, XML_CONTENT_TYPE);
+        } else if (payload instanceof JsonElement) {
+            JsonElement jsonElement = (JsonElement) payload;
+            org.apache.synapse.commons.json.JsonUtil.getNewJsonPayload(axis2MessageContext, jsonElement.toString(), true, true);
+            setContentType(axis2MessageContext, JSON_CONTENT_TYPE);
+        } else if (payload instanceof String) {
+            String s = (String) payload;
+            JsonUtil.removeJsonPayload(axis2MessageContext);
+            axis2MessageContext.getEnvelope().getBody().addChild(getTextElement(s));
+            setContentType(axis2MessageContext, TEXT_CONTENT_TYPE);
+        } else {
+            throw new AxisFault("Unsupported payload type: " + payload.getClass().getName());
         }
         axis2MessageContext.removeProperty("NO_ENTITY_BODY");
     }

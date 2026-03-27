@@ -311,6 +311,16 @@ public class ArtifactGenerationUtil {
             String errorOutput = output.toString();
             // "Package already exists" is not an error
             if (!errorOutput.contains("Package already exists") && !errorOutput.contains("already exists")) {
+                // Check if package not found in Central
+                if (errorOutput.contains("package not found") ||
+                    errorOutput.contains("could not find package") ||
+                    errorOutput.contains("Package not found") ||
+                    errorOutput.contains("not found in any repository")) {
+                    String ballerinaVersion = getBallerinaVersion(balCommand);
+                    throw new PackageNotCompatibleException(packageName, ballerinaVersion,
+                            "Package is not available in Ballerina Central for this distribution. " +
+                            "This package may not be compatible with migen tool version.");
+                }
                 throw new RuntimeException("'bal pull' failed for " + packageName + " with exit code " + exitCode +
                         System.lineSeparator() + errorOutput);
             }
@@ -367,5 +377,40 @@ public class ArtifactGenerationUtil {
 
         System.out.println("Found bala directory in Central: " + platformDir);
         return platformDir;
+    }
+
+    /**
+     * Gets the Ballerina version from the bal command.
+     *
+     * @param balCommand Path to the bal command
+     * @return Ballerina version string (e.g., "2201.10.0")
+     */
+    private static String getBallerinaVersion(String balCommand) {
+        try {
+            ProcessBuilder processBuilder = new ProcessBuilder(balCommand, "version");
+            processBuilder.redirectErrorStream(true);
+            Process process = processBuilder.start();
+
+            StringBuilder output = new StringBuilder();
+            try (InputStream inputStream = process.getInputStream();
+                 InputStreamReader reader = new InputStreamReader(inputStream, StandardCharsets.UTF_8);
+                 BufferedReader bufferedReader = new BufferedReader(reader)) {
+                String line;
+                while ((line = bufferedReader.readLine()) != null) {
+                    output.append(line);
+                    // Extract version from "Ballerina 2201.10.0 (Swan Lake Update 10)"
+                    if (line.contains("Ballerina")) {
+                        String[] parts = line.split("\\s+");
+                        if (parts.length >= 2) {
+                            return parts[1];
+                        }
+                    }
+                }
+            }
+            process.waitFor();
+            return output.toString().trim();
+        } catch (Exception e) {
+            return "unknown";
+        }
     }
 }

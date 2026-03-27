@@ -21,12 +21,14 @@ package io.ballerina.mi.analyzer;
 import io.ballerina.compiler.api.impl.symbols.BallerinaUnionTypeSymbol;
 import io.ballerina.compiler.api.symbols.ArrayTypeSymbol;
 import io.ballerina.compiler.api.symbols.MapTypeSymbol;
+import io.ballerina.compiler.api.symbols.ModuleSymbol;
 import io.ballerina.compiler.api.symbols.ParameterKind;
 import io.ballerina.compiler.api.symbols.ParameterSymbol;
 import io.ballerina.compiler.api.symbols.RecordFieldSymbol;
 import io.ballerina.compiler.api.symbols.RecordTypeSymbol;
 import io.ballerina.compiler.api.symbols.TypeDescKind;
 import io.ballerina.compiler.api.symbols.TypeDescTypeSymbol;
+import io.ballerina.compiler.api.symbols.TypeReferenceTypeSymbol;
 import io.ballerina.compiler.api.symbols.TypeSymbol;
 import io.ballerina.compiler.api.symbols.UnionTypeSymbol;
 import io.ballerina.mi.model.param.ArrayFunctionParam;
@@ -174,7 +176,11 @@ public class ParamFactory {
         // ── RECORD constraint: fixed string field with the record type name ──────
         if (constraintKind == TypeDescKind.RECORD) {
             TypeSymbol actualConstraint = Utils.getActualTypeSymbol(constraint);
-            String recordName = actualConstraint.getName().orElse(paramName);
+            // Try to get name from the original constraint first (for type references like asb:Message)
+            // Fall back to actual type symbol name, then parameter name
+            String recordName = constraint.getName()
+                    .or(() -> actualConstraint.getName())
+                    .orElse(paramName);
             FunctionParam param = new FunctionParam(Integer.toString(index), paramName, Constants.STRING);
             param.setParamKind(parameterSymbol.paramKind());
             param.setTypeSymbol(rawTypeSymbol);
@@ -281,8 +287,8 @@ public class ParamFactory {
 
         // Simplify single-member union to a plain FunctionParam
         if (unionParam.getUnionMemberParams().size() == 1
-                && !(unionParam.getUnionMemberParams().getFirst() instanceof UnionFunctionParam)) {
-            FunctionParam single = unionParam.getUnionMemberParams().getFirst();
+                && !(unionParam.getUnionMemberParams().get(0) instanceof UnionFunctionParam)) {
+            FunctionParam single = unionParam.getUnionMemberParams().get(0);
             FunctionParam simplified = new FunctionParam(Integer.toString(index), paramName, single.getParamType());
             simplified.setParamKind(paramKind);
             simplified.setTypeSymbol(rawTypeSymbol);
@@ -311,6 +317,22 @@ public class ParamFactory {
                 .or(() -> actualTypeSymbol.getName())
                 .orElse(paramName);
         recordParam.setRecordName(recordName);
+
+        // Set module info for the record type
+        // For external types like time:Civil, the TypeReferenceTypeSymbol has the module info
+        // whereas the unwrapped actualTypeSymbol may not
+        Optional<ModuleSymbol> moduleOpt = Optional.empty();
+        if (typeSymbol instanceof TypeReferenceTypeSymbol typeRef) {
+            moduleOpt = typeRef.getModule();
+        }
+        if (moduleOpt.isEmpty()) {
+            moduleOpt = actualTypeSymbol.getModule();
+        }
+        moduleOpt.ifPresent(moduleSymbol -> {
+            recordParam.setRecordOrg(moduleSymbol.id().orgName());
+            recordParam.setRecordModule(moduleSymbol.id().moduleName());
+            recordParam.setRecordVersion(moduleSymbol.id().version());
+        });
 
         // Set required based on parameter kind
         if (parameterSymbol.paramKind() == ParameterKind.DEFAULTABLE) {
@@ -447,8 +469,8 @@ public class ParamFactory {
                             continue;
                         }
                         // If there's only one non-nil member, convert to a regular FunctionParam instead of UnionFunctionParam
-                        if (unionFieldParam.getUnionMemberParams().size() == 1 && !(unionFieldParam.getUnionMemberParams().getFirst() instanceof UnionFunctionParam)) {
-                            FunctionParam singleMember = unionFieldParam.getUnionMemberParams().getFirst();
+                        if (unionFieldParam.getUnionMemberParams().size() == 1 && !(unionFieldParam.getUnionMemberParams().get(0) instanceof UnionFunctionParam)) {
+                            FunctionParam singleMember = unionFieldParam.getUnionMemberParams().get(0);
                             fieldParam = new FunctionParam(Integer.toString(fieldIndex), qualifiedFieldName, singleMember.getParamType());
                             fieldParam.setTypeSymbol(singleMember.getTypeSymbol());
                             fieldParam.setRequired(unionFieldParam.isRequired());
@@ -512,6 +534,8 @@ public class ParamFactory {
                             TypeSymbol actualElementType = Utils.getActualTypeSymbol(elementType);
                             if (actualElementType instanceof RecordTypeSymbol recordType) {
                                 populateArrayElementFields(arrayFieldParam, recordType);
+                                // Enable dual input mode (Table/JSON) for record arrays
+                                arrayFieldParam.setSupportsDualInputMode(true);
                             }
                         }
                         if (shouldRender && elementTypeKind == TypeDescKind.ARRAY) {
@@ -584,8 +608,8 @@ public class ParamFactory {
         // If there's only one non-nil member, return it as a regular FunctionParam instead of a UnionFunctionParam
         // This avoids generating a pointless combobox with a single selectable value (e.g., for optional types like string?)
         // However, if the single member is itself a UnionFunctionParam, we must NOT simplify it to a generic FunctionParam.
-        if (functionParam.getUnionMemberParams().size() == 1 && !(functionParam.getUnionMemberParams().getFirst() instanceof UnionFunctionParam)) {
-            FunctionParam singleMember = functionParam.getUnionMemberParams().getFirst();
+        if (functionParam.getUnionMemberParams().size() == 1 && !(functionParam.getUnionMemberParams().get(0) instanceof UnionFunctionParam)) {
+            FunctionParam singleMember = functionParam.getUnionMemberParams().get(0);
             // Create a new function param with the original parameter's properties
             FunctionParam simplifiedParam = new FunctionParam(Integer.toString(index), paramName, singleMember.getParamType());
             simplifiedParam.setParamKind(parameterSymbol.paramKind());
@@ -749,6 +773,8 @@ public class ParamFactory {
                     TypeSymbol actualElementType = Utils.getActualTypeSymbol(elementType);
                     if (actualElementType instanceof RecordTypeSymbol recordTypeSymbol) {
                         populateArrayElementFields(arrayParam, recordTypeSymbol);
+                        // Enable dual input mode (Table/JSON) for record arrays
+                        arrayParam.setSupportsDualInputMode(true);
                     }
                 } else if (elementTypeKind == TypeDescKind.ARRAY) {
                     // 2D array (e.g., string[][], int[][]) - extract inner element type

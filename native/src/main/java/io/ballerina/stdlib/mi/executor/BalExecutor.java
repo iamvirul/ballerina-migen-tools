@@ -21,9 +21,9 @@ package io.ballerina.stdlib.mi.executor;
 import com.google.gson.JsonParser;
 import io.ballerina.runtime.api.Module;
 import io.ballerina.runtime.api.Runtime;
-import io.ballerina.runtime.api.types.Type;
+import io.ballerina.runtime.api.async.Callback;
+import io.ballerina.runtime.api.async.StrandMetadata;
 import io.ballerina.runtime.api.values.*;
-import io.ballerina.runtime.internal.values.MapValueImpl;
 import io.ballerina.stdlib.mi.*;
 import io.ballerina.stdlib.mi.utils.SynapseUtils;
 import org.apache.axis2.AxisFault;
@@ -34,12 +34,97 @@ import org.apache.synapse.SynapseException;
 import org.apache.synapse.data.connector.ConnectorResponse;
 import org.apache.synapse.data.connector.DefaultConnectorResponse;
 
+import java.util.concurrent.CountDownLatch;
+import java.util.concurrent.TimeUnit;
+import java.util.concurrent.atomic.AtomicReference;
+
 import static io.ballerina.stdlib.mi.Constants.FUNCTION_NAME;
 
 public class BalExecutor {
 
     protected Log log = LogFactory.getLog(BalExecutor.class);
     private final ParamHandler paramHandler = new ParamHandler();
+    private static final long TIMEOUT_SECONDS = 300; // 5 minutes timeout
+
+    /**
+     * Synchronous callback implementation that blocks until completion.
+     */
+    private static class SyncCallback implements Callback {
+        private final CountDownLatch latch = new CountDownLatch(1);
+        private final AtomicReference<Object> result = new AtomicReference<>();
+        private final AtomicReference<BError> error = new AtomicReference<>();
+
+        @Override
+        public void notifySuccess(Object result) {
+            this.result.set(result);
+            latch.countDown();
+        }
+
+        @Override
+        public void notifyFailure(BError error) {
+            this.error.set(error);
+            latch.countDown();
+        }
+
+        public Object waitForResult(long timeoutSeconds) throws BallerinaExecutionException {
+            try {
+                if (!latch.await(timeoutSeconds, TimeUnit.SECONDS)) {
+                    throw new BallerinaExecutionException("Function invocation timed out after " + timeoutSeconds + " seconds",
+                            new Exception("Timeout"));
+                }
+                BError err = error.get();
+                if (err != null) {
+                    throw new BallerinaExecutionException(err.getMessage(), err);
+                }
+                return result.get();
+            } catch (InterruptedException e) {
+                Thread.currentThread().interrupt();
+                throw new BallerinaExecutionException("Function invocation interrupted", e);
+            }
+        }
+    }
+
+    /**
+     * Converts args to interleaved format required by Ballerina runtime.
+     * Format: [arg0, true, arg1, true, ...] where true indicates argument is provided.
+     */
+    private Object[] toInterleavedArgs(Object[] args) {
+        Object[] interleaved = new Object[args.length * 2];
+        for (int i = 0; i < args.length; i++) {
+            interleaved[i * 2] = args[i];
+            interleaved[i * 2 + 1] = true;
+        }
+        return interleaved;
+    }
+
+    /**
+     * Invokes a method on a BObject using the async API and waits for completion.
+     */
+    private Object invokeMethodSync(Runtime rt, BObject bObject, String methodName, Object[] args)
+            throws BallerinaExecutionException {
+        SyncCallback callback = new SyncCallback();
+        StrandMetadata metadata = new StrandMetadata(
+                BalConnectorConfig.getModule().getOrg(),
+                BalConnectorConfig.getModule().getName(),
+                BalConnectorConfig.getModule().getMajorVersion(),
+                methodName
+        );
+
+        Object[] interleavedArgs = toInterleavedArgs(args);
+        rt.invokeMethodAsync(bObject, methodName, null, metadata, callback, interleavedArgs);
+        return callback.waitForResult(TIMEOUT_SECONDS);
+    }
+
+    /**
+     * Invokes a module-level function using the async API and waits for completion.
+     * Note: Module-level functions don't need interleaved args, only object methods do.
+     */
+    private Object invokeFunctionSync(Runtime rt, String functionName, Object[] args)
+            throws BallerinaExecutionException {
+        SyncCallback callback = new SyncCallback();
+        rt.invokeMethodAsync(functionName, callback, args);
+        return callback.waitForResult(TIMEOUT_SECONDS);
+    }
 
     public boolean execute(Runtime rt, Object callable, MessageContext context) throws AxisFault, BallerinaExecutionException {
         String paramSize = SynapseUtils.getPropertyAsString(context, Constants.SIZE);
@@ -53,13 +138,13 @@ public class BalExecutor {
         }
         Object[] args = new Object[size];
         paramHandler.setParameters(args, context);
-        
+
         try {
             Object result;
             if (callable instanceof Module) {
                 String functionName = SynapseUtils.getPropertyAsString(context, Constants.FUNCTION_NAME);
-                result = rt.callFunction((Module) callable, functionName, null, args);
-            } else if (callable instanceof BObject) {
+                result = invokeFunctionSync(rt, functionName, args);
+            } else if (callable instanceof BObject bObject) {
                 String functionType = SynapseUtils.getPropertyAsString(context, Constants.FUNCTION_TYPE);
                 if (Constants.FUNCTION_TYPE_RESOURCE.equals(functionType)) {
                     String jvmMethodName = SynapseUtils.getPropertyAsString(context, Constants.JVM_METHOD_NAME);
@@ -73,87 +158,12 @@ public class BalExecutor {
                         throw new SynapseException("Neither jvmMethodName nor paramFunctionName is available for resource function invocation");
                     }
                     Object[] argsWithPathParams = paramHandler.prependPathParams(args, context);
-
-                    Type callableType = ((BObject) callable).getType();
-
-                    try {
-                        java.lang.reflect.Field schedulerField = rt.getClass().getDeclaredField("scheduler");
-                        schedulerField.setAccessible(true);
-                        Object scheduler = schedulerField.get(rt);
-
-                        Class<?> strandClass = Class.forName("io.ballerina.runtime.internal.scheduling.Strand");
-                        Class<?> schedulerClass = Class.forName("io.ballerina.runtime.internal.scheduling.Scheduler");
-                        
-                        java.lang.reflect.Constructor<?> strandCtor = null;
-                        Object[] ctorArgs = null;
-
-                        try {
-                            strandCtor = strandClass.getDeclaredConstructor(schedulerClass);
-                            ctorArgs = new Object[]{scheduler};
-                        } catch (NoSuchMethodException e) {
-                            for (java.lang.reflect.Constructor<?> c : strandClass.getDeclaredConstructors()) {
-                                if (c.getParameterCount() > 0 && c.getParameterTypes()[0].equals(schedulerClass)) {
-                                    strandCtor = c;
-                                    Class<?>[] paramTypes = c.getParameterTypes();
-                                    ctorArgs = new Object[paramTypes.length];
-                                    ctorArgs[0] = scheduler;
-                                    for (int i = 1; i < paramTypes.length; i++) {
-                                        if (paramTypes[i] == boolean.class) ctorArgs[i] = false;
-                                        else if (paramTypes[i] == int.class) ctorArgs[i] = 0;
-                                        else if (paramTypes[i] == long.class) ctorArgs[i] = 0L;
-                                        else if (paramTypes[i] == double.class) ctorArgs[i] = 0.0;
-                                        else if (paramTypes[i] == float.class) ctorArgs[i] = 0.0f;
-                                        else if (paramTypes[i] == String.class) ctorArgs[i] = "mi-strand";
-                                        else ctorArgs[i] = null;
-                                    }
-                                    break;
-                                }
-                            }
-                        }
-
-                        if (strandCtor == null) {
-                            throw new BallerinaExecutionException("Could not find Strand constructor accepting Scheduler", new Exception("Strand constructor missing"));
-                        }
-                        strandCtor.setAccessible(true);
-                        Object strand = strandCtor.newInstance(ctorArgs);
-
-                        java.lang.reflect.Method callMethod = callable.getClass().getMethod("call", strandClass, String.class, Object[].class);
-                        result = callMethod.invoke(callable, strand, jvmMethodName, argsWithPathParams);
-
-                        if (result == null) {
-                            java.lang.reflect.Method isDoneMsg = strandClass.getMethod("isDone");
-                            while (!(boolean) isDoneMsg.invoke(strand)) {
-                                Thread.sleep(10); 
-                            }
-
-                            java.lang.reflect.Field futureField = strandClass.getDeclaredField("future");
-                            futureField.setAccessible(true);
-                            Object futureValue = futureField.get(strand);
-
-                            if (futureValue != null) {
-                                Class<?> futureClass = futureValue.getClass();
-                                java.lang.reflect.Field resultField = futureClass.getDeclaredField("result");
-                                resultField.setAccessible(true);
-                                result = resultField.get(futureValue);
-
-                                java.lang.reflect.Field panicField = futureClass.getDeclaredField("panic");
-                                panicField.setAccessible(true);
-                                Object panic = panicField.get(futureValue);
-                                if (panic != null) {
-                                    if (panic instanceof BError) throw (BError) panic;
-                                    if (panic instanceof Throwable) throw new BallerinaExecutionException("Panic in Ballerina function: " + ((Throwable) panic).getMessage(), (Throwable) panic);
-                                    throw new BallerinaExecutionException("Panic in Ballerina function: " + panic, new Exception(String.valueOf(panic)));
-                                }
-                            }
-                        }
-                    } catch (Exception e) {
-                        if (e.getCause() instanceof BError) throw (BError) e.getCause();
-                        log.error("Failed to invoke resource manually: " + e.getMessage(), e);
-                        throw new BallerinaExecutionException("Resource invocation failed: " + e.getMessage(), e);
-                    }
+                    result = invokeMethodSync(rt, bObject, jvmMethodName, argsWithPathParams);
                 } else {
                     String functionName = SynapseUtils.getPropertyAsString(context, Constants.FUNCTION_NAME);
-                    result = rt.callMethod((BObject) callable, functionName, null, args);
+                    // Convert arguments to expected types using method signature info
+                    Object[] convertedArgs = convertArgsToExpectedTypes(bObject, functionName, args);
+                    result = invokeMethodSync(rt, bObject, functionName, convertedArgs);
                 }
             } else {
                 throw new SynapseException("Unsupported callable type: " + callable.getClass().getName());
@@ -163,7 +173,7 @@ public class BalExecutor {
                 throw new BallerinaExecutionException(bError.getMessage(), bError.fillInStackTrace());
             }
             Object processedResult = processResponse(result);
-            
+
             ConnectorResponse connectorResponse = new DefaultConnectorResponse();
             String resultProperty = getResultProperty(context);
             boolean overwriteBody = isOverwriteBody(context);
@@ -192,7 +202,16 @@ public class BalExecutor {
         if (result instanceof BDecimal) return ((BDecimal) result).value().toString();
         if (result instanceof BString) return ((BString) result).getValue();
         if (result instanceof BArray) return JsonParser.parseString(TypeConverter.arrayToJsonString((BArray) result));
-        if (result instanceof BMap) return JsonParser.parseString(((MapValueImpl<?, ?>) result).getJSONString());
+        if (result instanceof BMap) {
+            // In Ballerina 2201.10.0, generated record types implement BMap but getJSONString() may return empty
+            // Use stringValue(null) or fallback to toString() which returns valid JSON
+            BMap<?, ?> bMap = (BMap<?, ?>) result;
+            String jsonStr = bMap.stringValue(null);
+            if (jsonStr == null || jsonStr.isEmpty()) {
+                jsonStr = result.toString();
+            }
+            return JsonParser.parseString(jsonStr);
+        }
         if (result instanceof Long || result instanceof Integer || result instanceof Boolean || result instanceof Double || result instanceof Float) {
             return JsonParser.parseString(result.toString());
         }
@@ -206,5 +225,17 @@ public class BalExecutor {
 
     private static boolean isOverwriteBody(MessageContext context) {
         return Boolean.parseBoolean((String) SynapseUtils.lookupTemplateParameter(context, Constants.OVERWRITE_BODY));
+    }
+
+    /**
+     * Converts arguments to their expected types based on method signature.
+     * This is used to convert generic BMaps to typed records for external module types.
+     */
+    private Object[] convertArgsToExpectedTypes(BObject bObject, String methodName, Object[] args) {
+        Object[] converted = new Object[args.length];
+        for (int i = 0; i < args.length; i++) {
+            converted[i] = DataTransformer.convertToExpectedType(args[i], bObject, methodName, i);
+        }
+        return converted;
     }
 }

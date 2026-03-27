@@ -1,8 +1,8 @@
 {
-  "connectorName": "unionProject",
-  "operationName": "processEntity",
-  "title": "process entity",
-  "help": "",
+  "connectorName": "tableProject",
+  "operationName": "sendBatch",
+  "title": "send batch",
+  "help": "Send batch of messages",
   "elements": [
     {
       "type": "attributeGroup",
@@ -16,9 +16,9 @@
               "displayName": "Connection",
               "inputType": "connection",
               "allowedConnectionTypes": [
-                "unionProject_UnionClient"
+                "tableProject_TableClient"
               ],
-              "defaultType": "connection.unionProject_UnionClient",
+              "defaultType": "connection.tableProject_TableClient",
               "defaultValue": "",
               "required": "true",
               "helpTip": "Connection to be used"
@@ -32,95 +32,93 @@
                 {
                   "type": "attribute",
                   "value": {
-                    "name": "entityDataType",
-                    "displayName": "entityDataType",
-                    "inputType": "combo",
-                    "comboValues": [
-                      "Person",
-                      "Company"
-                    ],
-                    "defaultValue": "Person",
-                    "required": "true",
-                    "helpTip": ""
+                    "name": "messageCount",
+                    "displayName": "messageCount",
+                    "inputType": "stringOrExpression",
+                    "defaultValue": "",
+                    "required": true,
+                    "helpTip": "",
+                    "validateType": "regex",
+                    "matchPattern": "^(-?\\d+|\\$\\{.+\\})$"
                   }
                 },
                 {
-                  "type": "attributeGroup",
+                  "type": "attribute",
                   "value": {
-                    "groupName": "Entity",
-                    "collapsed": false,
+                    "name": "messagesInputMode",
+                    "displayName": "messages Input Mode",
+                    "inputType": "combo",
+                    "comboValues": [
+                      "Table",
+                      "JSON"
+                    ],
+                    "defaultValue": "Table",
+                    "required": "true",
+                    "helpTip": "Choose input mode: Table for interactive entry, JSON for array expression"
+                  }
+                },
+                {
+                  "type": "table",
+                  "value": {
+                    "name": "messages",
+                    "displayName": "messages",
+                    "title": "messages",
+                    "description": "Configure messages entries",
+                    "tableKey": "body",
+                    "tableValue": "messageId",
+                    "enableCondition": [
+                      {
+                        "messagesInputMode": "Table"
+                      }
+                    ],
                     "elements": [
                       {
                         "type": "attribute",
                         "value": {
-                          "name": "entity_name",
-                          "displayName": "name",
+                          "name": "body",
+                          "displayName": "Body",
                           "inputType": "stringOrExpression",
-                          "defaultValue": "",
                           "required": true,
-                          "helpTip": "",
-                          "validateType": "",
-                          "matchPattern": "",
-                          "enableCondition": [
-                            {
-                              "entityDataType": "Person"
-                            }
-                          ]
+                          "helpTip": "Body"
                         }
                       },
                       {
                         "type": "attribute",
                         "value": {
-                          "name": "entity_age",
-                          "displayName": "age",
+                          "name": "contentType",
+                          "displayName": "ContentType",
                           "inputType": "stringOrExpression",
-                          "defaultValue": "",
                           "required": true,
-                          "helpTip": "",
-                          "validateType": "regex",
-                          "matchPattern": "^(-?\\d+|\\$\\{.+\\})$",
-                          "enableCondition": [
-                            {
-                              "entityDataType": "Person"
-                            }
-                          ]
+                          "helpTip": "ContentType"
                         }
                       },
                       {
                         "type": "attribute",
                         "value": {
-                          "name": "entity_companyName",
-                          "displayName": "companyName",
+                          "name": "messageId",
+                          "displayName": "MessageId",
                           "inputType": "stringOrExpression",
-                          "defaultValue": "",
                           "required": true,
-                          "helpTip": "",
-                          "validateType": "",
-                          "matchPattern": "",
-                          "enableCondition": [
-                            {
-                              "entityDataType": "Company"
-                            }
-                          ]
+                          "helpTip": "MessageId"
                         }
-                      },
+                      }
+                    ]
+                  }
+                },
+                {
+                  "type": "attribute",
+                  "value": {
+                    "name": "messagesJson",
+                    "displayName": "messages (JSON Array)",
+                    "inputType": "stringOrExpression",
+                    "defaultValue": "",
+                    "required": true,
+                    "helpTip": "Enter JSON array of messages objects. Example: [{\"field1\": \"value1\", ...}, ...]",
+                    "validateType": "json",
+                    "matchPattern": "",
+                    "enableCondition": [
                       {
-                        "type": "attribute",
-                        "value": {
-                          "name": "entity_employeeCount",
-                          "displayName": "employeeCount",
-                          "inputType": "stringOrExpression",
-                          "defaultValue": "",
-                          "required": true,
-                          "helpTip": "",
-                          "validateType": "regex",
-                          "matchPattern": "^(-?\\d+|\\$\\{.+\\})$",
-                          "enableCondition": [
-                            {
-                              "entityDataType": "Company"
-                            }
-                          ]
-                        }
+                        "messagesInputMode": "JSON"
                       }
                     ]
                   }

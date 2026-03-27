@@ -26,15 +26,29 @@
 {{~#each unionMemberParams}}
     <parameter name="{{sanitizeParamName value}}" description="{{description}}"/>
 {{~/each}}
-{{~else}}
+{{~else}}{{#eq paramType "array"}}{{#if (isDualModeArray this)}}
+    <parameter name="{{sanitizeParamName value}}InputMode" description="Input mode for {{value}}: Table or JSON"/>
+    <parameter name="{{sanitizeParamName value}}Json" description="JSON array input for {{value}}"/>
+{{~/if}}{{/eq}}
     <parameter name="{{sanitizeParamName value}}" description="{{description}}"/>
 {{~/eq}}{{~/eq}}{{/each}}
     <sequence>
         {{#each functionParams ~}}
         <property name="param{{@index}}" value="{{sanitizeParamName value}}"/>
-        <property name="paramType{{@index}}" value="{{paramType}}"/>
+        <property name="paramType{{@index}}" value="{{#if typeDescriptor}}typedesc{{else}}{{paramType}}{{/if}}"/>
+        {{~#if typeDescriptor}}{{#if defaultValue}}
+        <property name="param{{@index}}_typedescDefault" value="{{defaultValue}}"/>
+        {{~/if}}{{/if}}
         {{~#eq paramType "array"}}
         <property name="arrayElementType{{@index}}" value="{{arrayElementType this}}"/>
+        {{~#if (arrayRecordFieldNames this)}}
+        <property name="arrayRecordFields{{@index}}" value="{{arrayRecordFieldNames this}}"/>
+        {{~/if}}
+        {{~#if (isDualModeArray this)}}
+        <property name="param{{@index}}_dualMode" value="true"/>
+        <property name="param{{@index}}_inputModeField" value="{{sanitizeParamName value}}InputMode"/>
+        <property name="param{{@index}}_jsonField" value="{{sanitizeParamName value}}Json"/>
+        {{~/if}}
         {{~/eq}}
         {{~#eq paramType "map"}}
         <property name="mapValueType{{@index}}" value="{{mapValueType this}}"/>
@@ -43,7 +57,14 @@
         {{~/if}}
         {{~/eq}}
         {{~#eq paramType "record"}}
-        <property name="param{{@index}}_recordName" value="{{recordName}}" />{{{writeFunctionRecordXmlProperties this @index}}}
+        <property name="param{{@index}}_recordName" value="{{recordName}}" />
+        {{~#if recordOrg}}
+        <property name="param{{@index}}_recordOrg" value="{{recordOrg}}" />
+        {{~/if}}{{~#if recordModule}}
+        <property name="param{{@index}}_recordModule" value="{{recordModule}}" />
+        {{~/if}}{{~#if recordVersion}}
+        <property name="param{{@index}}_recordVersion" value="{{recordVersion}}" />
+        {{~/if}}{{{writeFunctionRecordXmlProperties this @index}}}
         {{~/eq}}
         {{~#eq paramType "union"}}
         {{~#each unionMemberParams}}

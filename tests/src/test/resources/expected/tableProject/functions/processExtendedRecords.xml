@@ -19,11 +19,17 @@
 <template xmlns="http://ws.apache.org/ns/synapse" name="processExtendedRecords">
     <parameter name="responseVariable" description="The target variable in which the output of the operation will be stored"/>
     <parameter name="overwriteBody" description="Replace the Message Body in Message Context with the output payload of the operation"/>
+    <parameter name="recordsInputMode" description="Input mode for records: Table or JSON"/>
+    <parameter name="recordsJson" description="JSON array input for records"/>
     <parameter name="records" description=""/>
     <sequence>
         <property name="param0" value="records"/>
         <property name="paramType0" value="array"/>
         <property name="arrayElementType0" value="record"/>
+        <property name="arrayRecordFields0" value="field1,field2,field3,field4,field5,field6,field7,field8,field9,field10,field11"/>
+        <property name="param0_dualMode" value="true"/>
+        <property name="param0_inputModeField" value="recordsInputMode"/>
+        <property name="param0_jsonField" value="recordsJson"/>
         <property name="paramSize" value="1"/>
         <property name="paramFunctionName" value="processExtendedRecords"/>
         <property name="returnType" value="union"/>

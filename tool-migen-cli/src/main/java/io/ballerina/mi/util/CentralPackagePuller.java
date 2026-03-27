@@ -21,10 +21,12 @@ package io.ballerina.mi.util;
 import com.google.gson.JsonArray;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
+import org.wso2.ballerinalang.util.RepoUtils;
 
 import java.io.InputStreamReader;
 import java.net.HttpURLConnection;
 import java.net.URL;
+import java.net.URLEncoder;
 import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
@@ -35,7 +37,8 @@ import java.util.zip.ZipInputStream;
 
 public class CentralPackagePuller {
 
-    private static final String CENTRAL_API_VERSION_URL = "https://api.central.ballerina.io/2.0/registry/packages/%s/%s";
+    private static final String CENTRAL_SEARCH_API_URL = "https://api.central.ballerina.io/2.0/registry/search-packages?q=org%%3A%s%%20package%%3A%s&offset=0&limit=1&ballerina_version=%s";
+    private static final String CENTRAL_SEARCH_API_URL_NO_VERSION = "https://api.central.ballerina.io/2.0/registry/search-packages?q=org%%3A%s%%20package%%3A%s&offset=0&limit=1";
     private static final String CENTRAL_API_URL = "https://api.central.ballerina.io/2.0/registry/packages/%s/%s/%s";
 
     /** TCP connect timeout for all Central API calls (10 s). */
@@ -70,41 +73,17 @@ public class CentralPackagePuller {
         validatePackageIdentifier(org, "org");
         validatePackageIdentifier(name, "name");
 
-        if (version == null || version.isEmpty()) {
-            version = fetchLatestVersion(org, name);
-        }
-
-        // Validate version to prevent path traversal
-        validateVersion(version);
-
-        String apiUrl = String.format(CENTRAL_API_URL, org, name, version);
-
-        // 1. Fetch package details
         String balaUrl;
-        HttpURLConnection connection = (HttpURLConnection) new URL(apiUrl).openConnection();
-        try {
-            connection.setRequestMethod("GET");
-            connection.setRequestProperty("Accept", "application/json");
-            connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
-            connection.setReadTimeout(READ_TIMEOUT_MS);
 
-            if (connection.getResponseCode() != 200) {
-                throw new RuntimeException("Failed to fetch package details from Ballerina Central. HTTP code: "
-                        + connection.getResponseCode());
-            }
-
-            JsonObject responseJson;
-            try (InputStreamReader reader = new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8)) {
-                responseJson = JsonParser.parseReader(reader).getAsJsonObject();
-            }
-
-            if (!responseJson.has("balaURL")) {
-                throw new RuntimeException("The package details did not contain a balaURL.");
-            }
-
-            balaUrl = responseJson.get("balaURL").getAsString();
-        } finally {
-            connection.disconnect();
+        if (version == null || version.isEmpty()) {
+            // Use search API which returns both version and balaURL in one request
+            PackageInfo packageInfo = fetchLatestPackageInfo(org, name);
+            version = packageInfo.version;
+            balaUrl = packageInfo.balaUrl;
+        } else {
+            // Validate version to prevent path traversal
+            validateVersion(version);
+            balaUrl = fetchBalaUrl(org, name, version);
         }
 
         // 2. Download and Extract bala
@@ -161,8 +140,20 @@ public class CentralPackagePuller {
         return extractedBalaPath;
     }
 
-    private static String fetchLatestVersion(String org, String name) throws Exception {
-        String apiUrl = String.format(CENTRAL_API_VERSION_URL, org, name);
+    private record PackageInfo(String version, String balaUrl) {
+    }
+
+    private static PackageInfo fetchLatestPackageInfo(String org, String name) throws Exception {
+        String ballerinaVersion = RepoUtils.getBallerinaVersion();
+        String apiUrl;
+
+        if (ballerinaVersion != null) {
+            apiUrl = String.format(CENTRAL_SEARCH_API_URL, org, name,
+                    URLEncoder.encode(ballerinaVersion, StandardCharsets.UTF_8.name()));
+        } else {
+            apiUrl = String.format(CENTRAL_SEARCH_API_URL_NO_VERSION, org, name);
+        }
+
         HttpURLConnection connection = (HttpURLConnection) new URL(apiUrl).openConnection();
         try {
             connection.setRequestMethod("GET");
@@ -170,20 +161,84 @@ public class CentralPackagePuller {
             connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
             connection.setReadTimeout(READ_TIMEOUT_MS);
 
-            if (connection.getResponseCode() != 200) {
-                throw new RuntimeException("Failed to fetch package versions from Ballerina Central. HTTP code: "
-                        + connection.getResponseCode());
+            int responseCode = connection.getResponseCode();
+            if (responseCode == 404) {
+                throw new PackageNotCompatibleException(org + "/" + name,
+                        "Package '" + org + "/" + name + "' not found in Ballerina Central.\n" +
+                        "This package may not exist or may not be compatible with the current migen tool.\n" +
+                        "Please verify the package name exists in Ballerina Central.");
+            }
+            if (responseCode != 200) {
+                throw new RuntimeException("Failed to fetch package from Ballerina Central. HTTP code: "
+                        + responseCode);
             }
 
-            JsonArray versionsArray;
+            JsonObject responseJson;
             try (InputStreamReader reader = new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8)) {
-                versionsArray = JsonParser.parseReader(reader).getAsJsonArray();
-            }
-            if (versionsArray.isEmpty()) {
-                throw new RuntimeException("No versions found for package " + org + "/" + name);
+                responseJson = JsonParser.parseReader(reader).getAsJsonObject();
             }
 
-            return versionsArray.get(0).getAsString();
+            JsonArray packages = responseJson.getAsJsonArray("packages");
+            if (packages == null || packages.isEmpty()) {
+                String versionMsg = ballerinaVersion != null
+                        ? " compatible with Ballerina " + ballerinaVersion
+                        : "";
+                throw new PackageNotCompatibleException(org + "/" + name,
+                        "No versions available for package '" + org + "/" + name + "'" + versionMsg + " in Ballerina Central.\n" +
+                        "This package may not be compatible with the current migen tool.\n" +
+                        (ballerinaVersion != null ? "Your Ballerina version: " + ballerinaVersion : ""));
+            }
+
+            // Find exact match for org and name
+            for (int i = 0; i < packages.size(); i++) {
+                JsonObject pkg = packages.get(i).getAsJsonObject();
+                String pkgOrg = pkg.get("organization").getAsString();
+                String pkgName = pkg.get("name").getAsString();
+                if (org.equals(pkgOrg) && name.equals(pkgName)) {
+                    return new PackageInfo(pkg.get("version").getAsString(), pkg.get("balaURL").getAsString());
+                }
+            }
+
+            // Fallback to first result if no exact match
+            JsonObject firstPkg = packages.get(0).getAsJsonObject();
+            return new PackageInfo(firstPkg.get("version").getAsString(), firstPkg.get("balaURL").getAsString());
+        } finally {
+            connection.disconnect();
+        }
+    }
+
+    private static String fetchBalaUrl(String org, String name, String version) throws Exception {
+        String apiUrl = String.format(CENTRAL_API_URL, org, name, version);
+
+        HttpURLConnection connection = (HttpURLConnection) new URL(apiUrl).openConnection();
+        try {
+            connection.setRequestMethod("GET");
+            connection.setRequestProperty("Accept", "application/json");
+            connection.setConnectTimeout(CONNECT_TIMEOUT_MS);
+            connection.setReadTimeout(READ_TIMEOUT_MS);
+
+            int responseCode = connection.getResponseCode();
+            if (responseCode == 404) {
+                throw new PackageNotCompatibleException(org + "/" + name + ":" + version,
+                        "Package '" + org + "/" + name + ":" + version + "' not found in Ballerina Central.\n" +
+                        "This package may not exist or may not be compatible with the current migen tool.\n" +
+                        "Please verify the package name and version, or try a different version.");
+            }
+            if (responseCode != 200) {
+                throw new RuntimeException("Failed to fetch package details from Ballerina Central. HTTP code: "
+                        + responseCode);
+            }
+
+            JsonObject responseJson;
+            try (InputStreamReader reader = new InputStreamReader(connection.getInputStream(), StandardCharsets.UTF_8)) {
+                responseJson = JsonParser.parseReader(reader).getAsJsonObject();
+            }
+
+            if (!responseJson.has("balaURL")) {
+                throw new RuntimeException("The package details did not contain a balaURL.");
+            }
+
+            return responseJson.get("balaURL").getAsString();
         } finally {
             connection.disconnect();
         }

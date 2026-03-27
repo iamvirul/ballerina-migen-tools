@@ -18,6 +18,7 @@
 
 package io.ballerina.mi.generator;
 
+import io.ballerina.mi.model.param.ArrayFunctionParam;
 import io.ballerina.mi.model.param.FunctionParam;
 import io.ballerina.mi.model.param.RecordFunctionParam;
 import io.ballerina.mi.model.param.UnionFunctionParam;
@@ -25,7 +26,9 @@ import io.ballerina.mi.util.Utils;
 import org.ballerinalang.diagramutil.connector.models.connector.Type;
 import org.ballerinalang.diagramutil.connector.models.connector.types.PathParamType;
 
+import java.util.List;
 import java.util.Set;
+import java.util.stream.Collectors;
 
 import static io.ballerina.mi.util.Constants.RECORD;
 
@@ -153,6 +156,14 @@ public final class XmlPropertyWriter {
                     connectionType, indexHolder[0], RECORD));
             result.append(String.format("\n        <property name=\"%s_param%d_recordName\" value=\"%s\"/>",
                     connectionType, indexHolder[0], recordParam.getRecordName()));
+            if (recordParam.getRecordOrg() != null) {
+                result.append(String.format("\n        <property name=\"%s_param%d_recordOrg\" value=\"%s\"/>",
+                        connectionType, indexHolder[0], recordParam.getRecordOrg()));
+            }
+            if (recordParam.getRecordModule() != null) {
+                result.append(String.format("\n        <property name=\"%s_param%d_recordModule\" value=\"%s\"/>",
+                        connectionType, indexHolder[0], recordParam.getRecordModule()));
+            }
             isFirst[0] = false;
             indexHolder[0]++;
 
@@ -290,6 +301,41 @@ public final class XmlPropertyWriter {
                     }
                 }
             }
+        } else if (fieldParam instanceof ArrayFunctionParam arrayFieldParam) {
+            // Handle array fields - add element type and record field names for table-to-JSON conversion
+            String fieldValue = fieldParam.getValue();
+            String sanitizedFieldValue = Utils.sanitizeParamName(fieldValue);
+            result.append(String.format("\n        <property name=\"%s_param%d\" value=\"%s\"/>",
+                    recordParamName, fieldIndexHolder[0], fieldValue));
+            result.append(String.format("\n        <property name=\"%s_paramType%d\" value=\"%s\"/>",
+                    recordParamName, fieldIndexHolder[0], fieldParam.getParamType()));
+
+            // Add array element type
+            String elementTypeName = arrayFieldParam.getArrayElementTypeName();
+            if (elementTypeName != null && !elementTypeName.isEmpty()) {
+                result.append(String.format("\n        <property name=\"%s_arrayElementType%d\" value=\"%s\"/>",
+                        recordParamName, fieldIndexHolder[0], elementTypeName));
+            }
+
+            // Add record field names for arrays of records (for table-to-JSON conversion)
+            List<FunctionParam> elementFields = arrayFieldParam.getElementFieldParams();
+            if (elementFields != null && !elementFields.isEmpty()) {
+                String fieldNames = elementFields.stream()
+                        .map(FunctionParam::getValue)
+                        .collect(Collectors.joining(","));
+                result.append(String.format("\n        <property name=\"%s_arrayRecordFields%d\" value=\"%s\"/>",
+                        recordParamName, fieldIndexHolder[0], fieldNames));
+
+                // Add dual input mode properties for nested record arrays (Table/JSON selector)
+                result.append(String.format("\n        <property name=\"%s_param%d_dualMode\" value=\"true\"/>",
+                        recordParamName, fieldIndexHolder[0]));
+                result.append(String.format("\n        <property name=\"%s_param%d_inputModeField\" value=\"%sInputMode\"/>",
+                        recordParamName, fieldIndexHolder[0], sanitizedFieldValue));
+                result.append(String.format("\n        <property name=\"%s_param%d_jsonField\" value=\"%sJson\"/>",
+                        recordParamName, fieldIndexHolder[0], sanitizedFieldValue));
+            }
+
+            fieldIndexHolder[0]++;
         } else {
             String fieldValue = fieldParam.getValue();
             result.append(String.format("\n        <property name=\"%s_param%d\" value=\"%s\"/>",
@@ -400,6 +446,52 @@ public final class XmlPropertyWriter {
                     writeXmlParameterElements(member, result, isFirst, processedParams);
                 }
             }
+        } else if (functionParam instanceof ArrayFunctionParam arrayParam) {
+            // Handle array fields - add dual mode parameters if supported
+            String sanitizedParamName = Utils.sanitizeParamName(functionParam.getValue());
+
+            // Deduplicate: Don't write if already written
+            if (processedParams.contains(sanitizedParamName)) {
+                return;
+            }
+
+            // Add InputMode and Json parameters for dual mode arrays (record arrays)
+            List<FunctionParam> elementFields = arrayParam.getElementFieldParams();
+            if (elementFields != null && !elementFields.isEmpty()) {
+                // Add InputMode parameter
+                String inputModeParamName = sanitizedParamName + "InputMode";
+                if (!processedParams.contains(inputModeParamName)) {
+                    if (!isFirst[0]) {
+                        result.append("\n    ");
+                    }
+                    result.append(String.format("<parameter name=\"%s\" description=\"Input mode for %s: Table or JSON\"/>",
+                            inputModeParamName, functionParam.getValue()));
+                    isFirst[0] = false;
+                    processedParams.add(inputModeParamName);
+                }
+
+                // Add Json parameter
+                String jsonParamName = sanitizedParamName + "Json";
+                if (!processedParams.contains(jsonParamName)) {
+                    if (!isFirst[0]) {
+                        result.append("\n    ");
+                    }
+                    result.append(String.format("<parameter name=\"%s\" description=\"JSON array input for %s\"/>",
+                            jsonParamName, functionParam.getValue()));
+                    isFirst[0] = false;
+                    processedParams.add(jsonParamName);
+                }
+            }
+
+            // Add the array parameter itself
+            String description = functionParam.getDescription() != null ? functionParam.getDescription() : "";
+            if (!isFirst[0]) {
+                result.append("\n    ");
+            }
+            result.append(String.format("<parameter name=\"%s\" description=\"%s\"/>",
+                    sanitizedParamName, escapeXml(description)));
+            isFirst[0] = false;
+            processedParams.add(sanitizedParamName);
         } else {
             // Generate single parameter element
             String sanitizedParamName = Utils.sanitizeParamName(functionParam.getValue());

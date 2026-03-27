@@ -196,7 +196,7 @@ public class BalConnectorAnalyzer implements Analyzer {
         GenerationReport.ClientReport clientReport = new GenerationReport.ClientReport(clientClassName, connectionType);
 
         // Get the connector description
-        Optional<PackageReadmeMd> connectorReadMe = compilePackage.readmeMd();
+        Optional<PackageMd> connectorReadMe = compilePackage.packageMd();
         if (connectorReadMe.isPresent() && !connectorReadMe.get().content().isEmpty()) {
             connector.setDescription(connectorReadMe.get().content());
         } else {
