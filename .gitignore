@@ -23,6 +23,7 @@
 hs_err_pid*
 replay_pid*
 .idea
+.project
 bin
 target
 build
@@ -34,5 +35,5 @@ build
 .DS_Store
 
 # Generated source files (copied from native module for debugging visibility)
-tool-migen-cli/src/main/resources/native-src/
+tool-migen-cli/src/main/resources/src/
 tool-migen-cli/src/main/resources/lib/
