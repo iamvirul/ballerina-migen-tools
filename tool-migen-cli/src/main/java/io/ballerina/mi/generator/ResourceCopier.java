@@ -284,7 +284,7 @@ public final class ResourceCopier {
         }
     }
 
-    private static final String NATIVE_SRC_RESOURCE_PATH = "native-src";
+    private static final String NATIVE_SRC_RESOURCE_PATH = "src";
 
     /**
      * Copies native Java source files to the output folder for debugging visibility.
@@ -310,7 +310,7 @@ public final class ResourceCopier {
                 }
             }
         } else {
-            // Running from JAR - extract native-src resources
+            // Running from JAR - extract src resources
             try (JarFile jar = new JarFile(sourcePath.toFile())) {
                 Enumeration<JarEntry> entries = jar.entries();
                 while (entries.hasMoreElements()) {

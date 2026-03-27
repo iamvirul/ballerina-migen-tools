@@ -100,7 +100,7 @@ task copyMiRuntimeLibs(type: Copy) {
 
 task copyMiNativeSources(type: Copy) {
     from project(':mi-native').file('src/main/java')
-    into 'src/main/resources/native-src'
+    into 'src/main/resources/src'
 }
 
 processResources.dependsOn copyMiRuntimeLibs, copyMiNativeSources

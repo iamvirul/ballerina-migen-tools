@@ -124,7 +124,7 @@ public class Utils {
             Files.deleteIfExists(zipPath);
 
             ProcessBuilder pb = new ProcessBuilder(
-                    "zip", "-r", "-q", zipPath.toString(), ".", "-x", "native-src/*", "-x", "__MACOSX/*"
+                    "zip", "-r", "-q", zipPath.toString(), ".", "-x", "src/*", "-x", "__MACOSX/*"
             );
             pb.directory(sourceDirPath.toFile());
             pb.redirectErrorStream(true);
@@ -211,8 +211,8 @@ public class Utils {
         if ("__MACOSX".equals(dirName)) {
             return true;
         }
-        // Skip native-src directory (source files for debugging, not needed in ZIP)
-        if ("native-src".equals(dirName)) {
+        // Skip src directory (source files for debugging, not needed in ZIP)
+        if ("src".equals(dirName)) {
             return true;
         }
         return false;

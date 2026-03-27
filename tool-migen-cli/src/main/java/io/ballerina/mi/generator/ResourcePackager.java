@@ -48,8 +48,6 @@ public class ResourcePackager {
         this.targetPath = targetPath;
     }
 
-    private static final String NATIVE_SRC_RESOURCE_PATH = "native-src";
-
     /**
      * Copies runtime resources (JARs, icons) and the connector executable JAR
      * into the generated artifact directory, then packages everything into a ZIP.
@@ -67,7 +65,7 @@ public class ResourcePackager {
                 connector.getOrgName(), connector.getModuleName(), connector.getMajorVersion());
 
         // Copy native source files to output for debugging visibility
-        copyNativeSources(getClass().getClassLoader(), destinationPath, jarPath);
+        ResourceCopier.copyNativeSources(getClass().getClassLoader(), destinationPath, jarPath);
 
         // Copy the connector executable JAR
         if (connector.isBalModule()) {
@@ -95,9 +93,6 @@ public class ResourcePackager {
         System.out.println("Connector ZIP created successfully.");
     }
 
-    /**
-     * Copies runtime dependency JARs and icons from the tool's own JAR into the destination.
-     */
     /**
      * Copies runtime dependency JARs and icons from the tool's own JAR or classpath into the destination.
      */
@@ -130,62 +125,6 @@ public class ResourcePackager {
         // Let's just create the directory to avoid failures
         Files.createDirectories(destination.resolve(Connector.LIB_PATH));
         Files.createDirectories(destination.resolve(Connector.ICON_FOLDER));
-    }
-
-    /**
-     * Copies native Java source files to the output folder for debugging visibility.
-     * These files are included in the generated folder but the ZIP uses the compiled JAR.
-     */
-    private static void copyNativeSources(ClassLoader classLoader, Path destination, URI jarPath)
-            throws IOException {
-        Path nativeSrcDest = destination.resolve(NATIVE_SRC_RESOURCE_PATH);
-        Files.createDirectories(nativeSrcDest);
-
-        if ("file".equals(jarPath.getScheme())) {
-            // Running from IDE/Classes directory - try to find sources in project
-            Path classesPath = Paths.get(jarPath);
-            Path projectRoot = classesPath;
-            for (int i = 0; i < 5 && projectRoot != null; i++) {
-                projectRoot = projectRoot.getParent();
-            }
-            if (projectRoot != null) {
-                Path nativeSrcPath = projectRoot.resolve("native/src/main/java");
-                if (Files.exists(nativeSrcPath)) {
-                    copyDirectoryRecursively(nativeSrcPath, nativeSrcDest);
-                    return;
-                }
-            }
-        } else {
-            // Running from JAR - extract native-src resources
-            URI uri = URI.create("jar:" + jarPath.toString());
-            try (FileSystem fs = FileSystems.newFileSystem(uri, Collections.emptyMap())) {
-                Path srcPath = fs.getPath(NATIVE_SRC_RESOURCE_PATH);
-                if (Files.exists(srcPath)) {
-                    copyResourcesByExtension(classLoader, fs, destination, NATIVE_SRC_RESOURCE_PATH, ".java");
-                }
-            } catch (Exception e) {
-                // Native sources not available - this is fine for production
-            }
-        }
-    }
-
-    /**
-     * Recursively copies a directory to the destination.
-     */
-    private static void copyDirectoryRecursively(Path source, Path destination) throws IOException {
-        Files.walk(source).forEach(srcPath -> {
-            try {
-                Path destPath = destination.resolve(source.relativize(srcPath));
-                if (Files.isDirectory(srcPath)) {
-                    Files.createDirectories(destPath);
-                } else {
-                    Files.createDirectories(destPath.getParent());
-                    Files.copy(srcPath, destPath, StandardCopyOption.REPLACE_EXISTING);
-                }
-            } catch (IOException e) {
-                throw new RuntimeException("Failed to copy " + srcPath, e);
-            }
-        });
     }
 
     /**
