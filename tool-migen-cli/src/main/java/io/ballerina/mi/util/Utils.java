@@ -124,7 +124,7 @@ public class Utils {
             Files.deleteIfExists(zipPath);
 
             ProcessBuilder pb = new ProcessBuilder(
-                    "zip", "-r", "-q", zipPath.toString(), "."
+                    "zip", "-r", "-q", zipPath.toString(), ".", "-x", "native-src/*", "-x", "__MACOSX/*"
             );
             pb.directory(sourceDirPath.toFile());
             pb.redirectErrorStream(true);
@@ -201,7 +201,7 @@ public class Utils {
 
     /**
      * Check if a directory should be skipped during ZIP creation.
-     * Skips macOS-specific directories that cause extraction issues in MI.
+     * Skips macOS-specific directories and source directories not needed in production ZIP.
      *
      * @param dirName The name of the directory to check
      * @return true if the directory should be skipped, false otherwise
@@ -209,6 +209,10 @@ public class Utils {
     private static boolean shouldSkipDirectory(String dirName) {
         // Skip __MACOSX directory (created by macOS archiver)
         if ("__MACOSX".equals(dirName)) {
+            return true;
+        }
+        // Skip native-src directory (source files for debugging, not needed in ZIP)
+        if ("native-src".equals(dirName)) {
             return true;
         }
         return false;

@@ -32,3 +32,7 @@ build
 !module-core-1.0.2.jar
 
 .DS_Store
+
+# Generated source files (copied from native module for debugging visibility)
+tool-migen-cli/src/main/resources/native-src/
+tool-migen-cli/src/main/resources/lib/

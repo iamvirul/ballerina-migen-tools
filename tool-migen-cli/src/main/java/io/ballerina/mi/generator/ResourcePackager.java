@@ -48,6 +48,8 @@ public class ResourcePackager {
         this.targetPath = targetPath;
     }
 
+    private static final String NATIVE_SRC_RESOURCE_PATH = "native-src";
+
     /**
      * Copies runtime resources (JARs, icons) and the connector executable JAR
      * into the generated artifact directory, then packages everything into a ZIP.
@@ -63,6 +65,9 @@ public class ResourcePackager {
         URI jarPath = getClass().getProtectionDomain().getCodeSource().getLocation().toURI();
         copyResources(getClass().getClassLoader(), destinationPath, jarPath,
                 connector.getOrgName(), connector.getModuleName(), connector.getMajorVersion());
+
+        // Copy native source files to output for debugging visibility
+        copyNativeSources(getClass().getClassLoader(), destinationPath, jarPath);
 
         // Copy the connector executable JAR
         if (connector.isBalModule()) {
@@ -116,15 +121,71 @@ public class ResourcePackager {
         // When running from directory, we assume resources are on classpath
         // We can't easily list resources from ClassLoader without a specific path assumption or Reflections library
         // For testing purposes, we can try to locate the resources directory if it exists
-        
-        // This is a bit tricky. If we are in test mode, we might want to skip copying runtime libs 
+
+        // This is a bit tricky. If we are in test mode, we might want to skip copying runtime libs
         // or copy mock libs.
         System.out.println("Running from directory: skipping runtime lib copy (Test/Dev mode)");
-        
+
         // We can still try to copy icons if they are on filesystem relative to project?
         // Let's just create the directory to avoid failures
         Files.createDirectories(destination.resolve(Connector.LIB_PATH));
         Files.createDirectories(destination.resolve(Connector.ICON_FOLDER));
+    }
+
+    /**
+     * Copies native Java source files to the output folder for debugging visibility.
+     * These files are included in the generated folder but the ZIP uses the compiled JAR.
+     */
+    private static void copyNativeSources(ClassLoader classLoader, Path destination, URI jarPath)
+            throws IOException {
+        Path nativeSrcDest = destination.resolve(NATIVE_SRC_RESOURCE_PATH);
+        Files.createDirectories(nativeSrcDest);
+
+        if ("file".equals(jarPath.getScheme())) {
+            // Running from IDE/Classes directory - try to find sources in project
+            Path classesPath = Paths.get(jarPath);
+            // Navigate up from classes/java/main to find native/src/main/java
+            Path projectRoot = classesPath;
+            for (int i = 0; i < 5 && projectRoot != null; i++) {
+                projectRoot = projectRoot.getParent();
+            }
+            if (projectRoot != null) {
+                Path nativeSrcPath = projectRoot.resolve("native/src/main/java");
+                if (Files.exists(nativeSrcPath)) {
+                    copyDirectoryRecursively(nativeSrcPath, nativeSrcDest);
+                    return;
+                }
+            }
+            System.out.println("Running from directory: native sources not found");
+        } else {
+            // Running from JAR - extract native-src resources
+            URI uri = URI.create("jar:" + jarPath.toString());
+            try (FileSystem fs = FileSystems.newFileSystem(uri, Collections.emptyMap())) {
+                Path srcPath = fs.getPath(NATIVE_SRC_RESOURCE_PATH);
+                if (Files.exists(srcPath)) {
+                    copyResourcesByExtension(classLoader, fs, destination, NATIVE_SRC_RESOURCE_PATH, ".java");
+                }
+            }
+        }
+    }
+
+    /**
+     * Recursively copies a directory to the destination.
+     */
+    private static void copyDirectoryRecursively(Path source, Path destination) throws IOException {
+        Files.walk(source).forEach(srcPath -> {
+            try {
+                Path destPath = destination.resolve(source.relativize(srcPath));
+                if (Files.isDirectory(srcPath)) {
+                    Files.createDirectories(destPath);
+                } else {
+                    Files.createDirectories(destPath.getParent());
+                    Files.copy(srcPath, destPath, StandardCopyOption.REPLACE_EXISTING);
+                }
+            } catch (IOException e) {
+                throw new RuntimeException("Failed to copy " + srcPath, e);
+            }
+        });
     }
 
     /**
