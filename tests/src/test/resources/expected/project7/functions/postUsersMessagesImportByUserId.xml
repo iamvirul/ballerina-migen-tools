@@ -16,7 +16,7 @@
   ~ specific language governing permissions and limitations
   ~ under the License.
   -->
-<template xmlns="http://ws.apache.org/ns/synapse" name="postUsersMessages_importByUserId">
+<template xmlns="http://ws.apache.org/ns/synapse" name="postUsersMessagesImportByUserId">
     <parameter name="responseVariable" description="The target variable in which the output of the operation will be stored"/>
     <parameter name="overwriteBody" description="Replace the Message Body in Message Context with the output payload of the operation"/>
     <parameter name="userId" description=""/>
@@ -36,7 +36,7 @@
         <property name="message_param2" value="snippet"/>
         <property name="message_paramType2" value="string"/>
         <property name="paramSize" value="1"/>
-        <property name="paramFunctionName" value="postUsersMessages_importByUserId"/>
+        <property name="paramFunctionName" value="postUsersMessagesImportByUserId"/>
         <property name="pathParam0" value="userId"/>
         <property name="pathParamType0" value="string"/>
         <property name="returnType" value="union"/>

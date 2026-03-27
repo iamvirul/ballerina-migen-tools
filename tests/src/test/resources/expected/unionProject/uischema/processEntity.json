@@ -71,7 +71,7 @@
                       {
                         "type": "attribute",
                         "value": {
-                          "name": "entity.age",
+                          "name": "entity_age",
                           "displayName": "age",
                           "inputType": "stringOrExpression",
                           "defaultValue": "",
@@ -107,7 +107,7 @@
                       {
                         "type": "attribute",
                         "value": {
-                          "name": "entity.employeeCount",
+                          "name": "entity_employeeCount",
                           "displayName": "employeeCount",
                           "inputType": "stringOrExpression",
                           "defaultValue": "",
