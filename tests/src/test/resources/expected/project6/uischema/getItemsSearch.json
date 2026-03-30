@@ -51,7 +51,7 @@
                       {
                         "type": "attribute",
                         "value": {
-                          "name": "&#x27;limit",
+                          "name": "limit",
                           "displayName": "limit",
                           "inputType": "stringOrExpression",
                           "defaultValue": "10",

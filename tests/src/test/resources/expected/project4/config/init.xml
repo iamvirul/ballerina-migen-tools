@@ -94,6 +94,8 @@ value between 0 and 1"/>
         <property name="PROJECT4_CLIENT_param0" value="config"/>
         <property name="PROJECT4_CLIENT_paramType0" value="record"/>
         <property name="PROJECT4_CLIENT_param0_recordName" value="ConnectionConfig"/>
+        <property name="PROJECT4_CLIENT_param0_recordOrg" value="testOrg"/>
+        <property name="PROJECT4_CLIENT_param0_recordModule" value="project4"/>
         <property name="PROJECT4_CLIENT_config_param0" value="httpVersion"/>
         <property name="PROJECT4_CLIENT_config_paramType0" value="enum"/>
         <property name="PROJECT4_CLIENT_config_param1" value="http1Settings.keepAlive"/>

@@ -212,7 +212,7 @@
                             {
                               "type": "attribute",
                               "value": {
-                                "name": "http1Settings.proxy.port",
+                                "name": "http1Settings_proxy_port",
                                 "displayName": "port",
                                 "inputType": "stringOrExpression",
                                 "defaultValue": "",
@@ -326,7 +326,7 @@
                       {
                         "type": "attribute",
                         "value": {
-                          "name": "http2Settings.http2PriorKnowledge",
+                          "name": "http2Settings_http2PriorKnowledge",
                           "displayName": "http2PriorKnowledge",
                           "inputType": "boolean",
                           "defaultValue": "",
@@ -348,7 +348,7 @@
                       {
                         "type": "attribute",
                         "value": {
-                          "name": "http2Settings.http2InitialWindowSize",
+                          "name": "http2Settings_http2InitialWindowSize",
                           "displayName": "http2InitialWindowSize",
                           "inputType": "stringOrExpression",
                           "defaultValue": "",
@@ -442,7 +442,7 @@
                       {
                         "type": "attribute",
                         "value": {
-                          "name": "poolConfig.maxActiveConnections",
+                          "name": "poolConfig_maxActiveConnections",
                           "displayName": "maxActiveConnections",
                           "inputType": "stringOrExpression",
                           "defaultValue": "",
@@ -464,7 +464,7 @@
                       {
                         "type": "attribute",
                         "value": {
-                          "name": "poolConfig.maxIdleConnections",
+                          "name": "poolConfig_maxIdleConnections",
                           "displayName": "maxIdleConnections",
                           "inputType": "stringOrExpression",
                           "defaultValue": "",
@@ -486,7 +486,7 @@
                       {
                         "type": "attribute",
                         "value": {
-                          "name": "poolConfig.waitTime",
+                          "name": "poolConfig_waitTime",
                           "displayName": "waitTime",
                           "inputType": "stringOrExpression",
                           "defaultValue": "",
@@ -508,7 +508,7 @@
                       {
                         "type": "attribute",
                         "value": {
-                          "name": "poolConfig.maxActiveStreamsPerConnection",
+                          "name": "poolConfig_maxActiveStreamsPerConnection",
                           "displayName": "maxActiveStreamsPerConnection",
                           "inputType": "stringOrExpression",
                           "defaultValue": "",
@@ -530,7 +530,7 @@
                       {
                         "type": "attribute",
                         "value": {
-                          "name": "poolConfig.minEvictableIdleTime",
+                          "name": "poolConfig_minEvictableIdleTime",
                           "displayName": "minEvictableIdleTime",
                           "inputType": "stringOrExpression",
                           "defaultValue": "",
@@ -552,7 +552,7 @@
                       {
                         "type": "attribute",
                         "value": {
-                          "name": "poolConfig.timeBetweenEvictionRuns",
+                          "name": "poolConfig_timeBetweenEvictionRuns",
                           "displayName": "timeBetweenEvictionRuns",
                           "inputType": "stringOrExpression",
                           "defaultValue": "",
@@ -574,7 +574,7 @@
                       {
                         "type": "attribute",
                         "value": {
-                          "name": "poolConfig.minIdleTimeInStaleState",
+                          "name": "poolConfig_minIdleTimeInStaleState",
                           "displayName": "minIdleTimeInStaleState",
                           "inputType": "stringOrExpression",
                           "defaultValue": "",
@@ -596,7 +596,7 @@
                       {
                         "type": "attribute",
                         "value": {
-                          "name": "poolConfig.timeBetweenStaleEviction",
+                          "name": "poolConfig_timeBetweenStaleEviction",
                           "displayName": "timeBetweenStaleEviction",
                           "inputType": "stringOrExpression",
                           "defaultValue": "",
@@ -654,7 +654,7 @@
                       {
                         "type": "attribute",
                         "value": {
-                          "name": "cache.enabled",
+                          "name": "cache_enabled",
                           "displayName": "enabled",
                           "inputType": "boolean",
                           "defaultValue": "",
@@ -676,7 +676,7 @@
                       {
                         "type": "attribute",
                         "value": {
-                          "name": "cache.isShared",
+                          "name": "cache_isShared",
                           "displayName": "isShared",
                           "inputType": "boolean",
                           "defaultValue": "",
@@ -698,7 +698,7 @@
                       {
                         "type": "attribute",
                         "value": {
-                          "name": "cache.capacity",
+                          "name": "cache_capacity",
                           "displayName": "capacity",
                           "inputType": "stringOrExpression",
                           "defaultValue": "",
@@ -720,7 +720,7 @@
                       {
                         "type": "attribute",
                         "value": {
-                          "name": "cache.evictionFactor",
+                          "name": "cache_evictionFactor",
                           "displayName": "evictionFactor",
                           "inputType": "stringOrExpression",
                           "defaultValue": "",
@@ -863,7 +863,7 @@
                             {
                               "type": "attribute",
                               "value": {
-                                "name": "circuitBreaker.rollingWindow.requestVolumeThreshold",
+                                "name": "circuitBreaker_rollingWindow_requestVolumeThreshold",
                                 "displayName": "requestVolumeThreshold",
                                 "inputType": "stringOrExpression",
                                 "defaultValue": "",
@@ -888,7 +888,7 @@
                             {
                               "type": "attribute",
                               "value": {
-                                "name": "circuitBreaker.rollingWindow.timeWindow",
+                                "name": "circuitBreaker_rollingWindow_timeWindow",
                                 "displayName": "timeWindow",
                                 "inputType": "stringOrExpression",
                                 "defaultValue": "",
@@ -913,7 +913,7 @@
                             {
                               "type": "attribute",
                               "value": {
-                                "name": "circuitBreaker.rollingWindow.bucketSize",
+                                "name": "circuitBreaker_rollingWindow_bucketSize",
                                 "displayName": "bucketSize",
                                 "inputType": "stringOrExpression",
                                 "defaultValue": "",
@@ -941,7 +941,7 @@
                       {
                         "type": "attribute",
                         "value": {
-                          "name": "circuitBreaker.failureThreshold",
+                          "name": "circuitBreaker_failureThreshold",
                           "displayName": "failureThreshold",
                           "inputType": "stringOrExpression",
                           "defaultValue": "",
@@ -963,7 +963,7 @@
                       {
                         "type": "attribute",
                         "value": {
-                          "name": "circuitBreaker.resetTime",
+                          "name": "circuitBreaker_resetTime",
                           "displayName": "resetTime",
                           "inputType": "stringOrExpression",
                           "defaultValue": "",
@@ -1080,7 +1080,7 @@
                       {
                         "type": "attribute",
                         "value": {
-                          "name": "retryConfig.count",
+                          "name": "retryConfig_count",
                           "displayName": "count",
                           "inputType": "stringOrExpression",
                           "defaultValue": "",
@@ -1102,7 +1102,7 @@
                       {
                         "type": "attribute",
                         "value": {
-                          "name": "retryConfig.interval",
+                          "name": "retryConfig_interval",
                           "displayName": "interval",
                           "inputType": "stringOrExpression",
                           "defaultValue": "",
@@ -1124,7 +1124,7 @@
                       {
                         "type": "attribute",
                         "value": {
-                          "name": "retryConfig.backOffFactor",
+                          "name": "retryConfig_backOffFactor",
                           "displayName": "backOffFactor",
                           "inputType": "stringOrExpression",
                           "defaultValue": "",
@@ -1146,7 +1146,7 @@
                       {
                         "type": "attribute",
                         "value": {
-                          "name": "retryConfig.maxWaitInterval",
+                          "name": "retryConfig_maxWaitInterval",
                           "displayName": "maxWaitInterval",
                           "inputType": "stringOrExpression",
                           "defaultValue": "",
@@ -1263,7 +1263,7 @@
                       {
                         "type": "attribute",
                         "value": {
-                          "name": "responseLimits.maxStatusLineLength",
+                          "name": "responseLimits_maxStatusLineLength",
                           "displayName": "maxStatusLineLength",
                           "inputType": "stringOrExpression",
                           "defaultValue": "",
@@ -1285,7 +1285,7 @@
                       {
                         "type": "attribute",
                         "value": {
-                          "name": "responseLimits.maxHeaderSize",
+                          "name": "responseLimits_maxHeaderSize",
                           "displayName": "maxHeaderSize",
                           "inputType": "stringOrExpression",
                           "defaultValue": "",
@@ -1307,7 +1307,7 @@
                       {
                         "type": "attribute",
                         "value": {
-                          "name": "responseLimits.maxEntityBodySize",
+                          "name": "responseLimits_maxEntityBodySize",
                           "displayName": "maxEntityBodySize",
                           "inputType": "stringOrExpression",
                           "defaultValue": "",
@@ -1365,7 +1365,7 @@
                       {
                         "type": "attribute",
                         "value": {
-                          "name": "secureSocket.enable",
+                          "name": "secureSocket_enable",
                           "displayName": "enable",
                           "inputType": "boolean",
                           "defaultValue": "",
@@ -1865,7 +1865,7 @@
                             {
                               "type": "attribute",
                               "value": {
-                                "name": "secureSocket.certValidation.cacheSize",
+                                "name": "secureSocket_certValidation_cacheSize",
                                 "displayName": "cacheSize",
                                 "inputType": "stringOrExpression",
                                 "defaultValue": "",
@@ -1890,7 +1890,7 @@
                             {
                               "type": "attribute",
                               "value": {
-                                "name": "secureSocket.certValidation.cacheValidityPeriod",
+                                "name": "secureSocket_certValidation_cacheValidityPeriod",
                                 "displayName": "cacheValidityPeriod",
                                 "inputType": "stringOrExpression",
                                 "defaultValue": "",
@@ -1975,7 +1975,7 @@
                       {
                         "type": "attribute",
                         "value": {
-                          "name": "secureSocket.verifyHostName",
+                          "name": "secureSocket_verifyHostName",
                           "displayName": "verifyHostName",
                           "inputType": "boolean",
                           "defaultValue": "",
@@ -1997,7 +1997,7 @@
                       {
                         "type": "attribute",
                         "value": {
-                          "name": "secureSocket.shareSession",
+                          "name": "secureSocket_shareSession",
                           "displayName": "shareSession",
                           "inputType": "boolean",
                           "defaultValue": "",
@@ -2019,7 +2019,7 @@
                       {
                         "type": "attribute",
                         "value": {
-                          "name": "secureSocket.handshakeTimeout",
+                          "name": "secureSocket_handshakeTimeout",
                           "displayName": "handshakeTimeout",
                           "inputType": "stringOrExpression",
                           "defaultValue": "",
@@ -2041,7 +2041,7 @@
                       {
                         "type": "attribute",
                         "value": {
-                          "name": "secureSocket.sessionTimeout",
+                          "name": "secureSocket_sessionTimeout",
                           "displayName": "sessionTimeout",
                           "inputType": "stringOrExpression",
                           "defaultValue": "",
@@ -2143,7 +2143,7 @@
                       {
                         "type": "attribute",
                         "value": {
-                          "name": "proxy.port",
+                          "name": "proxy_port",
                           "displayName": "port",
                           "inputType": "stringOrExpression",
                           "defaultValue": "",

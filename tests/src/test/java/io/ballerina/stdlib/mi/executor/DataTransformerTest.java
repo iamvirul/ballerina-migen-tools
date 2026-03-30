@@ -42,6 +42,7 @@ import java.util.HashMap;
 import java.util.Map;
 
 import static org.mockito.ArgumentMatchers.any;
+import static org.mockito.ArgumentMatchers.anyBoolean;
 import static org.mockito.ArgumentMatchers.anyString;
 import static org.mockito.ArgumentMatchers.eq;
 import static org.mockito.Mockito.mock;
@@ -302,7 +303,7 @@ public class DataTransformerTest {
                 Assert.assertTrue(json.contains("\"isReady\":true"));
                 Assert.assertTrue(json.contains("\"count\":42"));
                 Assert.assertTrue(json.contains("\"score\":3.14"));
-                Assert.assertTrue(json.contains("\"price\":10.50"));
+                Assert.assertTrue(json.contains("\"price\":10.5"));
                 return expectedBallerinaRecord;
             });
 
@@ -1647,7 +1648,7 @@ public class DataTransformerTest {
             MessageContext context = mock(MessageContext.class);
             synapseUtilsMock.when(() -> SynapseUtils.findConnectionTypeForParam(context, "param0"))
                     .thenReturn("http");
-            dataTransformerMock.when(() -> DataTransformer.reconstructRecordFromFields("http_param0", context))
+            dataTransformerMock.when(() -> DataTransformer.reconstructRecordFromFields(eq("http_param0"), eq(context), anyBoolean()))
                     .thenReturn("not-a-map");
             when(context.getProperty("http_param0_recordName")).thenReturn("Rec");
             BMap<BString, Object> record = mock(BMap.class);
@@ -1817,12 +1818,13 @@ public class DataTransformerTest {
     @Test
     public void testSetNestedField_Array2D_FlattensValues() throws Exception {
         Method method = DataTransformer.class.getDeclaredMethod("setNestedField",
-                com.google.gson.JsonObject.class, String.class, Object.class, String.class, MessageContext.class);
+                com.google.gson.JsonObject.class, String.class, Object.class, String.class,
+                MessageContext.class, String.class, int.class);
         method.setAccessible(true);
 
         com.google.gson.JsonObject root = new com.google.gson.JsonObject();
         MessageContext context = mock(MessageContext.class);
-        method.invoke(null, root, "payload.items", "[[1,2],[3,null]]", Constants.ARRAY, context);
+        method.invoke(null, root, "payload.items", "[[1,2],[3,null]]", Constants.ARRAY, context, "testPrefix", 0);
 
         Assert.assertTrue(root.getAsJsonObject("payload").get("items").isJsonArray());
         Assert.assertEquals(root.getAsJsonObject("payload").getAsJsonArray("items").size(), 3);
@@ -1831,12 +1833,13 @@ public class DataTransformerTest {
     @Test
     public void testSetNestedField_Map2D_BuildsObjectFromPairs() throws Exception {
         Method method = DataTransformer.class.getDeclaredMethod("setNestedField",
-                com.google.gson.JsonObject.class, String.class, Object.class, String.class, MessageContext.class);
+                com.google.gson.JsonObject.class, String.class, Object.class, String.class,
+                MessageContext.class, String.class, int.class);
         method.setAccessible(true);
 
         com.google.gson.JsonObject root = new com.google.gson.JsonObject();
         MessageContext context = mock(MessageContext.class);
-        method.invoke(null, root, "payload.mapValues", "[[\"k1\",\"v1\"],[\"k2\",2]]", Constants.MAP, context);
+        method.invoke(null, root, "payload.mapValues", "[[\"k1\",\"v1\"],[\"k2\",2]]", Constants.MAP, context, "testPrefix", 0);
 
         com.google.gson.JsonObject mapObj = root.getAsJsonObject("payload").getAsJsonObject("mapValues");
         Assert.assertEquals(mapObj.get("k1").getAsString(), "v1");
@@ -1846,12 +1849,13 @@ public class DataTransformerTest {
     @Test
     public void testSetNestedField_MapInvalidJson_FallsBackToString() throws Exception {
         Method method = DataTransformer.class.getDeclaredMethod("setNestedField",
-                com.google.gson.JsonObject.class, String.class, Object.class, String.class, MessageContext.class);
+                com.google.gson.JsonObject.class, String.class, Object.class, String.class,
+                MessageContext.class, String.class, int.class);
         method.setAccessible(true);
 
         com.google.gson.JsonObject root = new com.google.gson.JsonObject();
         MessageContext context = mock(MessageContext.class);
-        method.invoke(null, root, "payload.raw", "{bad", Constants.MAP, context);
+        method.invoke(null, root, "payload.raw", "{bad", Constants.MAP, context, "testPrefix", 0);
 
         Assert.assertEquals(root.getAsJsonObject("payload").get("raw").getAsString(), "{bad");
     }

@@ -98,7 +98,12 @@ task copyMiRuntimeLibs(type: Copy) {
     into 'src/main/resources/lib'
 }
 
-processResources.dependsOn copyMiRuntimeLibs
+task copyMiNativeSources(type: Copy) {
+    from project(':mi-native').file('src/main/java')
+    into 'src/main/resources/src'
+}
+
+processResources.dependsOn copyMiRuntimeLibs, copyMiNativeSources
 
 shadowJar {
     archiveBaseName.set('tool-migen-cli')

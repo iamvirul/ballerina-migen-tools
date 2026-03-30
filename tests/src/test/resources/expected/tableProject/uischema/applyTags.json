@@ -30,6 +30,21 @@
               "groupName": "Input Variables",
               "elements": [
                 {
+                  "type": "attribute",
+                  "value": {
+                    "name": "tagListInputMode",
+                    "displayName": "tagList Input Mode",
+                    "inputType": "combo",
+                    "comboValues": [
+                      "Table",
+                      "JSON"
+                    ],
+                    "defaultValue": "Table",
+                    "required": "true",
+                    "helpTip": "Choose input mode: Table for interactive entry, JSON for array expression"
+                  }
+                },
+                {
                   "type": "table",
                   "value": {
                     "name": "tagList",
@@ -38,6 +53,11 @@
                     "description": "Configure tagList entries",
                     "tableKey": "category",
                     "tableValue": "label",
+                    "enableCondition": [
+                      {
+                        "tagListInputMode": "Table"
+                      }
+                    ],
                     "elements": [
                       {
                         "type": "attribute",
@@ -58,6 +78,24 @@
                           "required": true,
                           "helpTip": "Label"
                         }
+                      }
+                    ]
+                  }
+                },
+                {
+                  "type": "attribute",
+                  "value": {
+                    "name": "tagListJson",
+                    "displayName": "tagList (JSON Array)",
+                    "inputType": "stringOrExpression",
+                    "defaultValue": "",
+                    "required": true,
+                    "helpTip": "Enter JSON array of tagList objects. Example: [{\"field1\": \"value1\", ...}, ...]",
+                    "validateType": "json",
+                    "matchPattern": "",
+                    "enableCondition": [
+                      {
+                        "tagListInputMode": "JSON"
                       }
                     ]
                   }

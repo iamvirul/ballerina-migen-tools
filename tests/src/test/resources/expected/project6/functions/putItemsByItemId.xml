@@ -27,6 +27,8 @@
         <property name="param0" value="item"/>
         <property name="paramType0" value="record"/>
         <property name="param0_recordName" value="Item" />
+        <property name="param0_recordOrg" value="testOrg" />
+        <property name="param0_recordModule" value="project6" />
         <property name="item_param0" value="id"/>
         <property name="item_paramType0" value="string"/>
         <property name="item_param1" value="name"/>

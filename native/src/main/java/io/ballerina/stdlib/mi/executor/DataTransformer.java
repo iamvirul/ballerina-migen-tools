@@ -22,6 +22,7 @@ import com.google.gson.JsonElement;
 import com.google.gson.JsonObject;
 import com.google.gson.JsonParser;
 import com.google.gson.JsonSyntaxException;
+import io.ballerina.runtime.api.Module;
 import io.ballerina.runtime.api.creators.ValueCreator;
 import io.ballerina.runtime.api.types.*;
 import io.ballerina.runtime.api.utils.JsonUtils;
@@ -29,7 +30,9 @@ import io.ballerina.runtime.api.utils.StringUtils;
 import io.ballerina.runtime.api.values.BArray;
 import io.ballerina.runtime.api.values.BError;
 import io.ballerina.runtime.api.values.BMap;
+import io.ballerina.runtime.api.values.BObject;
 import io.ballerina.runtime.api.values.BString;
+import io.ballerina.runtime.api.values.BTypedesc;
 import io.ballerina.runtime.internal.values.MapValueImpl;
 import io.ballerina.stdlib.mi.BalConnectorConfig;
 import io.ballerina.stdlib.mi.utils.SynapseUtils;
@@ -62,6 +65,15 @@ public class DataTransformer {
         }
         if (targetType.getTag() == TypeTags.ARRAY_TAG && sourceValue instanceof BArray) {
             return createTypedArrayFromGeneric((BArray) sourceValue, (ArrayType) targetType);
+        }
+        // Handle decimal type conversion - JSON parsing may produce Long/Double instead of BDecimal
+        if (targetType.getTag() == TypeTags.DECIMAL_TAG) {
+            if (sourceValue instanceof Number) {
+                return ValueCreator.createDecimalValue(new java.math.BigDecimal(sourceValue.toString()));
+            }
+            if (sourceValue instanceof BString) {
+                return ValueCreator.createDecimalValue(new java.math.BigDecimal(((BString) sourceValue).getValue()));
+            }
         }
         return sourceValue;
     }
@@ -96,38 +108,149 @@ public class DataTransformer {
         return genericArray;
     }
 
+    /**
+     * Gets the expected parameter type for a method from a BObject.
+     * This allows us to convert generic BMaps to the correct typed records at runtime.
+     */
+    public static Type getMethodParameterType(BObject bObject, String methodName, int paramIndex) {
+        try {
+            Type type = bObject.getOriginalType();
+            if (type instanceof ObjectType objectType) {
+                for (MethodType method : objectType.getMethods()) {
+                    if (method.getName().equals(methodName)) {
+                        Parameter[] params = method.getParameters();
+                        if (paramIndex < params.length) {
+                            return params[paramIndex].type;
+                        }
+                    }
+                }
+            }
+        } catch (Exception e) {
+            log.warn("Failed to get method parameter type for " + methodName + "[" + paramIndex + "]: " + e.getMessage());
+        }
+        return null;
+    }
+
+    /**
+     * Converts a generic BMap to a typed record using the expected type from a method parameter.
+     * This is used when we can't create a typed record via ValueCreator (e.g., for external module types).
+     */
+    public static Object convertToExpectedType(Object value, BObject bObject, String methodName, int paramIndex) {
+        if (!(value instanceof BMap)) {
+            return value;
+        }
+
+        Type expectedType = getMethodParameterType(bObject, methodName, paramIndex);
+        if (expectedType == null) {
+            log.info("Could not determine expected type for " + methodName + "[" + paramIndex + "], using value as-is");
+            return value;
+        }
+
+        try {
+            // If expected type is a record type, convert using FromJsonStringWithType
+            if (expectedType.getTag() == TypeTags.RECORD_TYPE_TAG) {
+                if (!(value instanceof BMap)) {
+                    return value;
+                }
+                BMap<?, ?> bMap = (BMap<?, ?>) value;
+                String jsonStr;
+                try {
+                    jsonStr = bMap.stringValue(null);
+                } catch (Exception e) {
+                    jsonStr = null;
+                }
+                if (jsonStr == null || jsonStr.isEmpty()) {
+                    jsonStr = value.toString();
+                }
+                BString jsonBString = StringUtils.fromString(jsonStr);
+                BTypedesc typedesc = ValueCreator.createTypedescValue(expectedType);
+                Object result = FromJsonStringWithType.fromJsonStringWithType(jsonBString, typedesc);
+                if (result instanceof BError) {
+                    return value;
+                }
+                return result;
+            }
+        } catch (Exception e) {
+            log.warn("Failed to convert to expected type " + expectedType.getName() + ": " + e.getMessage());
+        }
+
+        return value;
+    }
+
     public static Object createRecordValue(String jsonString, String paramName, MessageContext context, int paramIndex) {
         if (jsonString == null) {
             String recordParamName = paramName;
             String connectionType = SynapseUtils.findConnectionTypeForParam(context, recordParamName);
             String propertyPrefix;
             String recordNamePropertyKey;
+            String recordOrgPropertyKey;
+            String recordModulePropertyKey;
+            String recordVersionPropertyKey;
             if (connectionType != null) {
                 propertyPrefix = connectionType + "_" + recordParamName;
                 recordNamePropertyKey = connectionType + "_param" + paramIndex + "_recordName";
+                recordOrgPropertyKey = connectionType + "_param" + paramIndex + "_recordOrg";
+                recordModulePropertyKey = connectionType + "_param" + paramIndex + "_recordModule";
+                recordVersionPropertyKey = connectionType + "_param" + paramIndex + "_recordVersion";
             } else {
                 propertyPrefix = recordParamName;
                 recordNamePropertyKey = "param" + paramIndex + "_recordName";
+                recordOrgPropertyKey = "param" + paramIndex + "_recordOrg";
+                recordModulePropertyKey = "param" + paramIndex + "_recordModule";
+                recordVersionPropertyKey = "param" + paramIndex + "_recordVersion";
             }
 
-            Object reconstructedBMap = reconstructRecordFromFields(propertyPrefix, context);
             Object recordNameObj = context.getProperty(recordNamePropertyKey);
+            String recordName = recordNameObj != null ? recordNameObj.toString() : null;
+            Module recordModule = getRecordModule(context, recordOrgPropertyKey, recordModulePropertyKey, recordVersionPropertyKey);
+
+            // First, try to create a typed record to see if it's possible
+            boolean canCreateTypedRecord = false;
+            Type recType = null;
+            if (recordName != null) {
+                try {
+                    BMap<BString, Object> recValue = ValueCreator.createRecordValue(recordModule, recordName);
+                    recType = recValue.getType();
+                    canCreateTypedRecord = true;
+                } catch (Exception e) {
+                    // External module type - will use generic BMap
+                }
+            }
+
+            // Reconstruct the BMap - only set defaults if we can't create a typed record
+            Object reconstructedBMap = reconstructRecordFromFields(propertyPrefix, context, !canCreateTypedRecord);
+
+            if (reconstructedBMap instanceof BError bError) {
+                throw new SynapseException("Failed to reconstruct record: " + bError.getMessage());
+            }
+
             if (recordNameObj == null) {
+                // No record name - return the reconstructed map as-is
+                if (reconstructedBMap instanceof BMap) {
+                    return reconstructedBMap;
+                }
                 throw new SynapseException("Record name not found for parameter at index " + paramIndex +
                         ". Ensure '" + recordNamePropertyKey + "' property is set in the synapse template.");
             }
-            String recordName = recordNameObj.toString();
-            BMap<BString, Object> recValue = ValueCreator.createRecordValue(BalConnectorConfig.getModule(), recordName);
-            Type recType = recValue.getType();
 
-            if (reconstructedBMap instanceof BMap) {
-                String jsonStr = ((MapValueImpl<?, ?>) reconstructedBMap).getJSONString();
-                BString jsonBString = StringUtils.fromString(jsonStr);
-                try{
-                     return FromJsonStringWithType.fromJsonStringWithType(jsonBString, ValueCreator.createTypedescValue(recType));
-                } catch(Exception e) {
-                     return convertValueToType(reconstructedBMap, recType);
+            // If we can create a typed record, populate it
+            if (canCreateTypedRecord && recType != null && reconstructedBMap instanceof BMap) {
+                BMap<?, ?> bMap = (BMap<?, ?>) reconstructedBMap;
+                String jsonStr = bMap.stringValue(null);
+                if (jsonStr == null || jsonStr.isEmpty()) {
+                    jsonStr = reconstructedBMap.toString();
                 }
+                BString jsonBString = StringUtils.fromString(jsonStr);
+                try {
+                    return FromJsonStringWithType.fromJsonStringWithType(jsonBString, ValueCreator.createTypedescValue(recType));
+                } catch (Exception e) {
+                    return convertValueToType(reconstructedBMap, recType);
+                }
+            }
+
+            // Return generic BMap with defaults
+            if (reconstructedBMap instanceof BMap) {
+                return reconstructedBMap;
             }
             throw new SynapseException("Failed to reconstruct record from flattened fields for parameter '" + paramName + "'");
         }
@@ -139,15 +262,20 @@ public class DataTransformer {
         Object recordNameObj = context.getProperty("param" + paramIndex + "_recordName");
         if (recordNameObj != null) {
             String recordName = recordNameObj.toString();
+            String recordOrgPropertyKey = "param" + paramIndex + "_recordOrg";
+            String recordModulePropertyKey = "param" + paramIndex + "_recordModule";
+            String recordVersionPropertyKey = "param" + paramIndex + "_recordVersion";
+            Module recordModule = getRecordModule(context, recordOrgPropertyKey, recordModulePropertyKey, recordVersionPropertyKey);
+
             try {
                 BString jsonBString = StringUtils.fromString(jsonString);
-                BMap<BString, Object> recValue = ValueCreator.createRecordValue(BalConnectorConfig.getModule(), recordName);
+                BMap<BString, Object> recValue = ValueCreator.createRecordValue(recordModule, recordName);
                 Type recType = recValue.getType();
                 return FromJsonStringWithType.fromJsonStringWithType(jsonBString, ValueCreator.createTypedescValue(recType));
             } catch (Exception e) {
                 try {
                     Object parseResult = JsonUtils.parse(jsonString);
-                    BMap<BString, Object> emptyRecord = ValueCreator.createRecordValue(BalConnectorConfig.getModule(), recordName);
+                    BMap<BString, Object> emptyRecord = ValueCreator.createRecordValue(recordModule, recordName);
                     Type targetType = emptyRecord.getType();
                     return convertValueToType(parseResult, targetType);
                 } catch (Exception deepEx) {
@@ -168,6 +296,10 @@ public class DataTransformer {
     }
 
     public static Object reconstructRecordFromFields(String propertyPrefix, MessageContext context) {
+        return reconstructRecordFromFields(propertyPrefix, context, true);
+    }
+
+    public static Object reconstructRecordFromFields(String propertyPrefix, MessageContext context, boolean setDefaultsForMissingFields) {
         com.google.gson.JsonObject recordJson = new com.google.gson.JsonObject();
         Map<String, String> unionFieldSelectedTypes = new HashMap<>();
         
@@ -221,7 +353,7 @@ public class DataTransformer {
                 String sanitizedFieldPath = fieldPath.replace(".", "_");
                 Object unionValue = SynapseUtils.lookupTemplateParameter(context, sanitizedFieldPath);
                 if (unionValue != null) {
-                     setNestedField(recordJson, fieldPath, unionValue, fieldType, context);
+                     setNestedField(recordJson, fieldPath, unionValue, fieldType, context, propertyPrefix, fieldIndex);
                      fieldIndex++;
                      continue;
                 }
@@ -243,21 +375,143 @@ public class DataTransformer {
             String sanitizedFieldPath = fieldPath.replace(".", "_");
             Object fieldValue = SynapseUtils.lookupTemplateParameter(context, sanitizedFieldPath);
 
+            // For arrays with dual mode, check if JSON mode is selected and use JSON field value
+            if (ARRAY.equals(fieldType)) {
+                String dualModeKey = propertyPrefix + "_param" + fieldIndex + "_dualMode";
+                Object dualModeObj = context.getProperty(dualModeKey);
+                if ("true".equals(dualModeObj != null ? dualModeObj.toString() : null)) {
+                    String inputModeFieldKey = propertyPrefix + "_param" + fieldIndex + "_inputModeField";
+                    Object inputModeFieldObj = context.getProperty(inputModeFieldKey);
+                    if (inputModeFieldObj != null) {
+                        Object inputModeValue = SynapseUtils.lookupTemplateParameter(context, inputModeFieldObj.toString());
+                        if ("JSON".equals(inputModeValue)) {
+                            // In JSON mode, use the JSON field value instead of table value
+                            String jsonFieldKey = propertyPrefix + "_param" + fieldIndex + "_jsonField";
+                            Object jsonFieldObj = context.getProperty(jsonFieldKey);
+                            if (jsonFieldObj != null) {
+                                Object jsonFieldValue = SynapseUtils.lookupTemplateParameter(context, jsonFieldObj.toString());
+                                if (jsonFieldValue != null && !jsonFieldValue.toString().isEmpty()) {
+                                    fieldValue = jsonFieldValue;
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
             if (fieldValue != null) {
                 String valueStr = fieldValue.toString();
                 if ((MAP.equals(fieldType) || ARRAY.equals(fieldType)) && "[]".equals(valueStr)) {
                     fieldIndex++;
                     continue;
                 }
-                setNestedField(recordJson, fieldPath, fieldValue, fieldType, context);
+                // Skip enum fields with invalid numeric placeholder values (e.g., "2", "3", ...)
+                // But allow "0" and "1" which are valid for ZERO_OR_ONE type
+                if (ENUM.equals(fieldType) && valueStr.matches("\\d+") && !valueStr.equals("0") && !valueStr.equals("1")) {
+                    fieldIndex++;
+                    continue;
+                }
+                setNestedField(recordJson, fieldPath, fieldValue, fieldType, context, propertyPrefix, fieldIndex);
+            } else if (setDefaultsForMissingFields && (DECIMAL.equals(fieldType) || INT.equals(fieldType))) {
+                // Set default value of 0 for numeric fields that aren't provided
+                // This prevents null pointer exceptions when Ballerina code accesses these fields in generic BMaps
+                setNestedField(recordJson, fieldPath, "0", fieldType, context, propertyPrefix, fieldIndex);
             }
             fieldIndex++;
         }
 
-        return JsonUtils.parse(recordJson.toString());
+        String jsonStr = recordJson.toString();
+
+        Object parseResult = JsonUtils.parse(jsonStr);
+        if (parseResult instanceof BError bError) {
+            throw new SynapseException("Failed to parse reconstructed record JSON: " + bError.getMessage());
+        }
+
+        // Post-process to convert numeric values to correct Ballerina types (especially decimal)
+        if (parseResult instanceof BMap) {
+            @SuppressWarnings("unchecked")
+            BMap<BString, Object> resultMap = (BMap<BString, Object>) parseResult;
+            convertFieldTypes(resultMap, propertyPrefix, context);
+        }
+
+        return parseResult;
     }
 
-    private static void setNestedField(JsonObject jsonObject, String fieldPath, Object value, String fieldType, MessageContext context) {
+    /**
+     * Converts field values to correct Ballerina types based on the field type info from properties.
+     * This is needed because JsonUtils.parse() may produce Long/Double for numeric values,
+     * but Ballerina expects specific types like BDecimal for decimal fields.
+     */
+    private static void convertFieldTypes(BMap<BString, Object> map, String propertyPrefix, MessageContext context) {
+        int fieldIndex = 0;
+        while (true) {
+            String fieldNameKey = propertyPrefix + "_param" + fieldIndex;
+            String fieldTypeKey = propertyPrefix + "_paramType" + fieldIndex;
+
+            Object fieldNameObj = context.getProperty(fieldNameKey);
+            Object fieldTypeObj = context.getProperty(fieldTypeKey);
+
+            if (fieldNameObj == null || fieldTypeObj == null) break;
+
+            String fieldPath = fieldNameObj.toString();
+            String fieldType = fieldTypeObj.toString();
+
+            // Handle nested fields (e.g., amqpRetryOptions.delay)
+            if (fieldPath.contains(".")) {
+                convertNestedFieldType(map, fieldPath, fieldType);
+            } else {
+                // Simple field
+                BString bFieldName = StringUtils.fromString(fieldPath);
+                if (map.containsKey(bFieldName)) {
+                    Object currentValue = map.get(bFieldName);
+                    if (DECIMAL.equals(fieldType) && currentValue != null && !(currentValue instanceof io.ballerina.runtime.api.values.BDecimal)) {
+                        Object newValue = ValueCreator.createDecimalValue(new java.math.BigDecimal(currentValue.toString()));
+                        map.put(bFieldName, newValue);
+                    }
+                }
+            }
+            fieldIndex++;
+        }
+    }
+
+    /**
+     * Converts a nested field value to the correct Ballerina type.
+     * For example, for fieldPath "amqpRetryOptions.delay" with type "decimal",
+     * navigates to the amqpRetryOptions BMap and converts the delay field.
+     */
+    @SuppressWarnings("unchecked")
+    private static void convertNestedFieldType(BMap<BString, Object> rootMap, String fieldPath, String fieldType) {
+        String[] parts = fieldPath.split("\\.");
+        BMap<BString, Object> currentMap = rootMap;
+
+        // Navigate to the parent object
+        for (int i = 0; i < parts.length - 1; i++) {
+            BString key = StringUtils.fromString(parts[i]);
+            Object nested = currentMap.get(key);
+            if (nested instanceof BMap) {
+                currentMap = (BMap<BString, Object>) nested;
+            } else {
+                // Parent doesn't exist or isn't a map - nothing to convert
+                return;
+            }
+        }
+
+        // Now convert the final field
+        String finalFieldName = parts[parts.length - 1];
+        BString bFieldName = StringUtils.fromString(finalFieldName);
+
+        if (currentMap.containsKey(bFieldName)) {
+            Object currentValue = currentMap.get(bFieldName);
+            if (DECIMAL.equals(fieldType) && currentValue != null && !(currentValue instanceof io.ballerina.runtime.api.values.BDecimal)) {
+                Object newValue = ValueCreator.createDecimalValue(new java.math.BigDecimal(currentValue.toString()));
+                currentMap.put(bFieldName, newValue);
+                log.info("Converted nested " + fieldPath + " to BDecimal: " + newValue);
+            }
+        }
+    }
+
+    private static void setNestedField(JsonObject jsonObject, String fieldPath, Object value, String fieldType,
+                                        MessageContext context, String propertyPrefix, int fieldIndex) {
         String[] parts = fieldPath.split("\\.");
         for (int i = 0; i < parts.length - 1; i++) {
             String part = parts[i];
@@ -283,7 +537,17 @@ public class DataTransformer {
                 jsonObject.addProperty(finalField, Double.parseDouble(valueStr));
                 break;
             case DECIMAL:
+                // Pass BigDecimal directly to preserve full precision
+                // Gson's addProperty(String, Number) supports BigDecimal since it extends Number
                 jsonObject.addProperty(finalField, new java.math.BigDecimal(valueStr));
+                break;
+            case ENUM:
+                // Handle ZERO_OR_ONE type (0|1) as integers, other enums as strings
+                if (valueStr.equals("0") || valueStr.equals("1")) {
+                    jsonObject.addProperty(finalField, Long.parseLong(valueStr));
+                } else {
+                    jsonObject.addProperty(finalField, valueStr);
+                }
                 break;
             case JSON:
             case RECORD:
@@ -297,29 +561,76 @@ public class DataTransformer {
                 }
                 break;
             case ARRAY:
-            case MAP: 
+                try {
+                    String cleanedJson = SynapseUtils.cleanupJsonString(valueStr);
+
+                    // Check if this is an array of records with dual input mode (Table/JSON selector)
+                    String dualModeKey = propertyPrefix + "_param" + fieldIndex + "_dualMode";
+                    String inputModeFieldKey = propertyPrefix + "_param" + fieldIndex + "_inputModeField";
+                    String jsonFieldKey = propertyPrefix + "_param" + fieldIndex + "_jsonField";
+                    String elementTypeKey = propertyPrefix + "_arrayElementType" + fieldIndex;
+                    String recordFieldsKey = propertyPrefix + "_arrayRecordFields" + fieldIndex;
+
+                    Object dualModeObj = context.getProperty(dualModeKey);
+                    Object elementTypeObj = context.getProperty(elementTypeKey);
+                    Object recordFieldsObj = context.getProperty(recordFieldsKey);
+
+                    // Check if user selected JSON mode for this nested array
+                    if ("true".equals(dualModeObj != null ? dualModeObj.toString() : null)) {
+                        Object inputModeFieldObj = context.getProperty(inputModeFieldKey);
+                        if (inputModeFieldObj != null) {
+                            Object inputModeValue = SynapseUtils.lookupTemplateParameter(context, inputModeFieldObj.toString());
+                            if ("JSON".equals(inputModeValue)) {
+                                // User selected JSON mode - read from JSON field instead of table
+                                Object jsonFieldObj = context.getProperty(jsonFieldKey);
+                                if (jsonFieldObj != null) {
+                                    Object jsonFieldValue = SynapseUtils.lookupTemplateParameter(context, jsonFieldObj.toString());
+                                    if (jsonFieldValue != null && !jsonFieldValue.toString().isEmpty()) {
+                                        cleanedJson = SynapseUtils.cleanupJsonString(jsonFieldValue.toString());
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Convert table data to JSON objects if needed (for Table mode)
+                    if ("record".equals(elementTypeObj != null ? elementTypeObj.toString() : null)
+                            && recordFieldsObj != null && cleanedJson.startsWith("[[")) {
+                        // Table data is 2D array format: [["val1","val2",...],...]
+                        // Convert to JSON objects: [{"field1":"val1","field2":"val2",...},...]
+                        cleanedJson = convertNestedTableToJsonObjects(cleanedJson, recordFieldsObj.toString());
+                    }
+
+                    JsonElement jsonElement = JsonParser.parseString(cleanedJson);
+                    if (jsonElement.isJsonArray() && jsonElement.getAsJsonArray().size() > 0 && jsonElement.getAsJsonArray().get(0).isJsonArray()) {
+                        // Generic 2D array flattening (for non-record arrays)
+                        com.google.gson.JsonArray flatArr = new com.google.gson.JsonArray();
+                        for(JsonElement e : jsonElement.getAsJsonArray()) {
+                            if(e.isJsonArray()) {
+                                for(JsonElement inner : e.getAsJsonArray()) if(!inner.isJsonNull()) flatArr.add(inner);
+                            }
+                        }
+                        jsonObject.add(finalField, flatArr);
+                    } else {
+                        jsonObject.add(finalField, jsonElement);
+                    }
+                } catch (JsonSyntaxException e) {
+                    jsonObject.addProperty(finalField, valueStr);
+                }
+                break;
+            case MAP:
                  try {
                     String cleanedJson = SynapseUtils.cleanupJsonString(valueStr);
                     JsonElement jsonElement = JsonParser.parseString(cleanedJson);
                     if (jsonElement.isJsonArray() && jsonElement.getAsJsonArray().size() > 0 && jsonElement.getAsJsonArray().get(0).isJsonArray()) {
-                         if (MAP.equals(fieldType)) {
-                             JsonObject mapObj = new JsonObject();
-                             for(JsonElement e : jsonElement.getAsJsonArray()) {
-                                 if(e.isJsonArray()) {
-                                     com.google.gson.JsonArray pair = e.getAsJsonArray();
-                                     if(pair.size() >= 2) mapObj.add(pair.get(0).getAsString(), pair.get(1));
-                                 }
-                             }
-                             jsonObject.add(finalField, mapObj);
-                         } else {
-                             com.google.gson.JsonArray flatArr = new com.google.gson.JsonArray();
-                             for(JsonElement e : jsonElement.getAsJsonArray()) {
-                                 if(e.isJsonArray()) {
-                                     for(JsonElement inner : e.getAsJsonArray()) if(!inner.isJsonNull()) flatArr.add(inner);
-                                 }
-                             }
-                             jsonObject.add(finalField, flatArr);
-                         }
+                        JsonObject mapObj = new JsonObject();
+                        for(JsonElement e : jsonElement.getAsJsonArray()) {
+                            if(e.isJsonArray()) {
+                                com.google.gson.JsonArray pair = e.getAsJsonArray();
+                                if(pair.size() >= 2) mapObj.add(pair.get(0).getAsString(), pair.get(1));
+                            }
+                        }
+                        jsonObject.add(finalField, mapObj);
                     } else {
                         jsonObject.add(finalField, jsonElement);
                     }
@@ -332,15 +643,75 @@ public class DataTransformer {
                 break;
         }
     }
+
+    /**
+     * Converts MI table 2D array format to JSON objects format for nested arrays in records.
+     * Input: [["val1","val2",...],["val3","val4",...],...] (2D array from table)
+     * Output: [{"field1":"val1","field2":"val2",...},{"field1":"val3","field2":"val4",...},...] (JSON objects)
+     *
+     * Empty string values are skipped to allow optional fields to use their defaults.
+     */
+    private static String convertNestedTableToJsonObjects(String tableJson, String fieldNamesStr) {
+        String[] fieldNames = fieldNamesStr.split(",");
+        try {
+            JsonElement parsed = JsonParser.parseString(tableJson);
+            if (!parsed.isJsonArray()) {
+                return tableJson;
+            }
+            com.google.gson.JsonArray outerArray = parsed.getAsJsonArray();
+            com.google.gson.JsonArray result = new com.google.gson.JsonArray();
+
+            for (int i = 0; i < outerArray.size(); i++) {
+                JsonElement row = outerArray.get(i);
+                if (row.isJsonArray()) {
+                    com.google.gson.JsonArray rowArray = row.getAsJsonArray();
+                    JsonObject obj = new JsonObject();
+                    for (int j = 0; j < Math.min(fieldNames.length, rowArray.size()); j++) {
+                        String fieldName = fieldNames[j].trim();
+                        JsonElement value = rowArray.get(j);
+                        if (value.isJsonNull()) {
+                            // Skip null values - let Ballerina use default
+                            continue;
+                        }
+                        // Skip empty string values - they represent unset optional fields
+                        if (value.isJsonPrimitive() && value.getAsJsonPrimitive().isString()
+                                && value.getAsString().isEmpty()) {
+                            continue;
+                        }
+                        obj.add(fieldName, value);
+                    }
+                    result.add(obj);
+                }
+            }
+            return result.toString();
+        } catch (Exception e) {
+            log.error("Failed to convert nested table to JSON objects: " + e.getMessage(), e);
+            return tableJson;
+        }
+    }
     
     public static Object getJsonParameter(Object param) {
-        if (param instanceof String strParam) {
+        String strParam;
+        if (param instanceof String) {
+            strParam = (String) param;
             if (strParam.startsWith("'") && strParam.endsWith("'")) {
                 strParam = strParam.substring(1, strParam.length() - 1);
             }
-            return JsonUtils.parse(strParam);
         } else {
-            return JsonUtils.parse(param.toString());
+            strParam = param.toString();
+        }
+
+        // Try parsing as JSON - handles int, float, boolean, objects, arrays, and quoted strings
+        try {
+            Object parsed = JsonUtils.parse(strParam);
+            if (parsed instanceof BError) {
+                // JSON parsing returned error - treat as plain string
+                return StringUtils.fromString(strParam);
+            }
+            return parsed;
+        } catch (Exception e) {
+            // JSON parsing threw exception - treat as plain string (e.g., unquoted text for anydata type)
+            return StringUtils.fromString(strParam);
         }
     }
     
@@ -553,5 +924,40 @@ public class DataTransformer {
             }
         }
         return resultMap;
+    }
+
+    /**
+     * Gets the appropriate Module for creating a record value.
+     * If recordOrg and recordModule properties are set, creates a Module from them.
+     * Otherwise, falls back to the connector's module.
+     */
+    private static Module getRecordModule(MessageContext context, String recordOrgPropertyKey,
+            String recordModulePropertyKey, String recordVersionPropertyKey) {
+        Object recordOrgObj = context.getProperty(recordOrgPropertyKey);
+        Object recordModuleObj = context.getProperty(recordModulePropertyKey);
+        Object recordVersionObj = recordVersionPropertyKey != null ? context.getProperty(recordVersionPropertyKey) : null;
+
+        Module connectorModule = BalConnectorConfig.getModule();
+
+        if (recordOrgObj != null && recordModuleObj != null) {
+            String recordOrg = recordOrgObj.toString();
+            String recordModuleName = recordModuleObj.toString();
+
+            if (!recordOrg.isEmpty() && !recordModuleName.isEmpty()) {
+                // If the record belongs to the same connector module, use the properly initialized module
+                // This ensures ValueCreator can find the value creator for this module
+                if (connectorModule != null &&
+                        recordOrg.equals(connectorModule.getOrg()) &&
+                        recordModuleName.equals(connectorModule.getName())) {
+                    return connectorModule;
+                }
+
+                // For external modules (like ballerina/time), create a new Module
+                String recordVersion = recordVersionObj != null ? recordVersionObj.toString() : null;
+                return new Module(recordOrg, recordModuleName, recordVersion);
+            }
+        }
+        // Fall back to connector module
+        return connectorModule;
     }
 }

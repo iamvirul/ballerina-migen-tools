@@ -32,6 +32,8 @@
         <property name="NESTEDRECORDCONFLICTPROJECT_TESTCLIENT_param0" value="config"/>
         <property name="NESTEDRECORDCONFLICTPROJECT_TESTCLIENT_paramType0" value="record"/>
         <property name="NESTEDRECORDCONFLICTPROJECT_TESTCLIENT_param0_recordName" value="ConnectionConfig"/>
+        <property name="NESTEDRECORDCONFLICTPROJECT_TESTCLIENT_param0_recordOrg" value="testOrg"/>
+        <property name="NESTEDRECORDCONFLICTPROJECT_TESTCLIENT_param0_recordModule" value="nestedRecordConflictProject"/>
         <property name="NESTEDRECORDCONFLICTPROJECT_TESTCLIENT_config_param0" value="server.host"/>
         <property name="NESTEDRECORDCONFLICTPROJECT_TESTCLIENT_config_paramType0" value="string"/>
         <property name="NESTEDRECORDCONFLICTPROJECT_TESTCLIENT_config_param1" value="server.port"/>

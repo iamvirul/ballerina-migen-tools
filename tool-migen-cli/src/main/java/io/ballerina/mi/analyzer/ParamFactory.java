@@ -21,12 +21,14 @@ package io.ballerina.mi.analyzer;
 import io.ballerina.compiler.api.impl.symbols.BallerinaUnionTypeSymbol;
 import io.ballerina.compiler.api.symbols.ArrayTypeSymbol;
 import io.ballerina.compiler.api.symbols.MapTypeSymbol;
+import io.ballerina.compiler.api.symbols.ModuleSymbol;
 import io.ballerina.compiler.api.symbols.ParameterKind;
 import io.ballerina.compiler.api.symbols.ParameterSymbol;
 import io.ballerina.compiler.api.symbols.RecordFieldSymbol;
 import io.ballerina.compiler.api.symbols.RecordTypeSymbol;
 import io.ballerina.compiler.api.symbols.TypeDescKind;
 import io.ballerina.compiler.api.symbols.TypeDescTypeSymbol;
+import io.ballerina.compiler.api.symbols.TypeReferenceTypeSymbol;
 import io.ballerina.compiler.api.symbols.TypeSymbol;
 import io.ballerina.compiler.api.symbols.UnionTypeSymbol;
 import io.ballerina.mi.model.param.ArrayFunctionParam;
@@ -174,7 +176,11 @@ public class ParamFactory {
         // ── RECORD constraint: fixed string field with the record type name ──────
         if (constraintKind == TypeDescKind.RECORD) {
             TypeSymbol actualConstraint = Utils.getActualTypeSymbol(constraint);
-            String recordName = actualConstraint.getName().orElse(paramName);
+            // Try to get name from the original constraint first (for type references like asb:Message)
+            // Fall back to actual type symbol name, then parameter name
+            String recordName = constraint.getName()
+                    .or(() -> actualConstraint.getName())
+                    .orElse(paramName);
             FunctionParam param = new FunctionParam(Integer.toString(index), paramName, Constants.STRING);
             param.setParamKind(parameterSymbol.paramKind());
             param.setTypeSymbol(rawTypeSymbol);
@@ -311,6 +317,22 @@ public class ParamFactory {
                 .or(() -> actualTypeSymbol.getName())
                 .orElse(paramName);
         recordParam.setRecordName(recordName);
+
+        // Set module info for the record type
+        // For external types like time:Civil, the TypeReferenceTypeSymbol has the module info
+        // whereas the unwrapped actualTypeSymbol may not
+        Optional<ModuleSymbol> moduleOpt = Optional.empty();
+        if (typeSymbol instanceof TypeReferenceTypeSymbol typeRef) {
+            moduleOpt = typeRef.getModule();
+        }
+        if (moduleOpt.isEmpty()) {
+            moduleOpt = actualTypeSymbol.getModule();
+        }
+        moduleOpt.ifPresent(moduleSymbol -> {
+            recordParam.setRecordOrg(moduleSymbol.id().orgName());
+            recordParam.setRecordModule(moduleSymbol.id().moduleName());
+            recordParam.setRecordVersion(moduleSymbol.id().version());
+        });
 
         // Set required based on parameter kind
         if (parameterSymbol.paramKind() == ParameterKind.DEFAULTABLE) {
@@ -512,6 +534,8 @@ public class ParamFactory {
                             TypeSymbol actualElementType = Utils.getActualTypeSymbol(elementType);
                             if (actualElementType instanceof RecordTypeSymbol recordType) {
                                 populateArrayElementFields(arrayFieldParam, recordType);
+                                // Enable dual input mode (Table/JSON) for record arrays
+                                arrayFieldParam.setSupportsDualInputMode(true);
                             }
                         }
                         if (shouldRender && elementTypeKind == TypeDescKind.ARRAY) {
@@ -749,6 +773,8 @@ public class ParamFactory {
                     TypeSymbol actualElementType = Utils.getActualTypeSymbol(elementType);
                     if (actualElementType instanceof RecordTypeSymbol recordTypeSymbol) {
                         populateArrayElementFields(arrayParam, recordTypeSymbol);
+                        // Enable dual input mode (Table/JSON) for record arrays
+                        arrayParam.setSupportsDualInputMode(true);
                     }
                 } else if (elementTypeKind == TypeDescKind.ARRAY) {
                     // 2D array (e.g., string[][], int[][]) - extract inner element type

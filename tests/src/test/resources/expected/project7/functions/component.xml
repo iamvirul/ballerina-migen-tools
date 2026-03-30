@@ -38,6 +38,11 @@
             <file>postUsersMessagesSendByUserId.xml</file>
             <description></description>
         </component>
+        <component name="postUsersMessagesImportByUserId">
+            <displayName>post users messages import by user id</displayName>
+            <file>postUsersMessagesImportByUserId.xml</file>
+            <description></description>
+        </component>
         <component name="getUsersDraftsByUserId">
             <displayName>get users drafts by user id</displayName>
             <file>getUsersDraftsByUserId.xml</file>
@@ -61,11 +66,6 @@
         <component name="postUsersDraftsByUserId">
             <displayName>post users drafts by user id</displayName>
             <file>postUsersDraftsByUserId.xml</file>
-            <description></description>
-        </component>
-        <component name="postUsersMessages_importByUserId">
-            <displayName>post users messages import by user id</displayName>
-            <file>postUsersMessages_importByUserId.xml</file>
             <description></description>
         </component>
         </subComponents>

@@ -28,7 +28,6 @@ import org.apache.axiom.soap.SOAP12Constants;
 import org.apache.axiom.soap.SOAPBody;
 import org.apache.axiom.soap.SOAPEnvelope;
 import org.apache.axis2.AxisFault;
-import org.apache.synapse.MessageContext;
 import org.apache.synapse.commons.json.JsonUtil;
 import org.apache.synapse.core.axis2.Axis2MessageContext;
 import org.apache.synapse.util.AXIOMUtils;
@@ -48,9 +47,14 @@ public class PayloadWriterTest {
 
     @Test
     public void testOverwriteBody_NullPayload() throws AxisFault {
-        MessageContext messageContext = mock(MessageContext.class);
-        PayloadWriter.overwriteBody(messageContext, null);
-        Mockito.verifyNoInteractions(messageContext);
+        Axis2MessageContext synCtx = mock(Axis2MessageContext.class);
+        org.apache.axis2.context.MessageContext axis2MsgCtx = mock(org.apache.axis2.context.MessageContext.class);
+
+        PayloadWriter.overwriteBody(synCtx, null);
+
+        // Verify no interactions when payload is null - method returns early
+        verifyNoInteractions(synCtx);
+        verifyNoInteractions(axis2MsgCtx);
     }
 
     @Test

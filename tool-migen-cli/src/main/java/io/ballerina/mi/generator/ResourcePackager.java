@@ -64,6 +64,9 @@ public class ResourcePackager {
         copyResources(getClass().getClassLoader(), destinationPath, jarPath,
                 connector.getOrgName(), connector.getModuleName(), connector.getMajorVersion());
 
+        // Copy native source files to output for debugging visibility
+        ResourceCopier.copyNativeSources(getClass().getClassLoader(), destinationPath, jarPath);
+
         // Copy the connector executable JAR
         if (connector.isBalModule()) {
             Files.copy(
@@ -91,9 +94,6 @@ public class ResourcePackager {
     }
 
     /**
-     * Copies runtime dependency JARs and icons from the tool's own JAR into the destination.
-     */
-    /**
      * Copies runtime dependency JARs and icons from the tool's own JAR or classpath into the destination.
      */
     private static void copyResources(ClassLoader classLoader, Path destination, URI jarPath,
@@ -116,11 +116,11 @@ public class ResourcePackager {
         // When running from directory, we assume resources are on classpath
         // We can't easily list resources from ClassLoader without a specific path assumption or Reflections library
         // For testing purposes, we can try to locate the resources directory if it exists
-        
-        // This is a bit tricky. If we are in test mode, we might want to skip copying runtime libs 
+
+        // This is a bit tricky. If we are in test mode, we might want to skip copying runtime libs
         // or copy mock libs.
         System.out.println("Running from directory: skipping runtime lib copy (Test/Dev mode)");
-        
+
         // We can still try to copy icons if they are on filesystem relative to project?
         // Let's just create the directory to avoid failures
         Files.createDirectories(destination.resolve(Connector.LIB_PATH));

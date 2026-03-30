@@ -283,4 +283,66 @@ public final class ResourceCopier {
             return inputStream;
         }
     }
+
+    private static final String NATIVE_SRC_RESOURCE_PATH = "src";
+
+    /**
+     * Copies native Java source files to the output folder for debugging visibility.
+     * These files are included in the generated folder but excluded from the final ZIP.
+     */
+    public static void copyNativeSources(ClassLoader classLoader, Path destination, URI jarPath)
+            throws IOException {
+        Path nativeSrcDest = destination.resolve(NATIVE_SRC_RESOURCE_PATH);
+        Files.createDirectories(nativeSrcDest);
+
+        Path sourcePath = Paths.get(jarPath);
+        if (Files.isDirectory(sourcePath)) {
+            // Running from IDE/Classes directory - try to find sources in project
+            Path projectRoot = sourcePath;
+            for (int i = 0; i < 5 && projectRoot != null; i++) {
+                projectRoot = projectRoot.getParent();
+            }
+            if (projectRoot != null) {
+                Path nativeSrcPath = projectRoot.resolve("native/src/main/java");
+                if (Files.exists(nativeSrcPath)) {
+                    copyDirectoryRecursively(nativeSrcPath, nativeSrcDest);
+                    return;
+                }
+            }
+        } else {
+            // Running from JAR - extract src resources
+            try (JarFile jar = new JarFile(sourcePath.toFile())) {
+                Enumeration<JarEntry> entries = jar.entries();
+                while (entries.hasMoreElements()) {
+                    JarEntry entry = entries.nextElement();
+                    if (entry.getName().startsWith(NATIVE_SRC_RESOURCE_PATH + "/") && entry.getName().endsWith(".java")) {
+                        copyResource(classLoader, entry.getName(), destination);
+                    }
+                }
+            } catch (Exception e) {
+                // Native sources not available - this is fine for production distributions
+            }
+        }
+    }
+
+    /**
+     * Recursively copies a directory to the destination.
+     */
+    private static void copyDirectoryRecursively(Path source, Path destination) throws IOException {
+        try (Stream<Path> stream = Files.walk(source)) {
+            stream.forEach(srcPath -> {
+                try {
+                    Path destPath = destination.resolve(source.relativize(srcPath));
+                    if (Files.isDirectory(srcPath)) {
+                        Files.createDirectories(destPath);
+                    } else {
+                        Files.createDirectories(destPath.getParent());
+                        Files.copy(srcPath, destPath, StandardCopyOption.REPLACE_EXISTING);
+                    }
+                } catch (IOException e) {
+                    throw new RuntimeException("Failed to copy " + srcPath, e);
+                }
+            });
+        }
+    }
 }

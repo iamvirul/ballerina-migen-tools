@@ -27,12 +27,15 @@
         <property name="param0" value="request"/>
         <property name="paramType0" value="record"/>
         <property name="param0_recordName" value="DeleteRequest" />
+        <property name="param0_recordOrg" value="ballerinax" />
+        <property name="param0_recordModule" value="milvus" />
         <property name="request_param0" value="collectionName"/>
         <property name="request_paramType0" value="string"/>
         <property name="request_param1" value="partitionName"/>
         <property name="request_paramType1" value="string"/>
         <property name="request_param2" value="ids"/>
         <property name="request_paramType2" value="array"/>
+        <property name="request_arrayElementType2" value="int"/>
         <property name="request_param3" value="filter"/>
         <property name="request_paramType3" value="string"/>
         <property name="paramSize" value="1"/>

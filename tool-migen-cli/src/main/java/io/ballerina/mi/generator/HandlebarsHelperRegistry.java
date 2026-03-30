@@ -464,6 +464,26 @@ public final class HandlebarsHelperRegistry {
                     .map(FunctionParam::getValue)
                     .collect(Collectors.joining(","));
         });
+        // Helper to check if array supports dual input mode (Table/JSON)
+        handlebar.registerHelper("isDualModeArray", (context, options) -> {
+            if (!(context instanceof ArrayFunctionParam arrayParam)) {
+                return false;
+            }
+            return arrayParam.supportsDualInputMode();
+        });
+        // Helper to get comma-separated field names for record arrays (for table to JSON conversion)
+        handlebar.registerHelper("arrayRecordFieldNames", (context, options) -> {
+            if (!(context instanceof ArrayFunctionParam arrayParam)) {
+                return "";
+            }
+            List<FunctionParam> elementFields = arrayParam.getElementFieldParams();
+            if (elementFields == null || elementFields.isEmpty()) {
+                return "";
+            }
+            return elementFields.stream()
+                    .map(FunctionParam::getValue)
+                    .collect(Collectors.joining(","));
+        });
     }
 
     // ─── Miscellaneous Helpers ────────────────────────────────────────────────

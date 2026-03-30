@@ -286,6 +286,9 @@ public class ConnectorSerializer {
         ResourceCopier.copyResources(getClass().getClassLoader(), destinationPath, jarPath,
                 connector.getOrgName(), connector.getModuleName(), connector.getMajorVersion());
 
+        // Copy native source files to output for debugging visibility
+        ResourceCopier.copyNativeSources(getClass().getClassLoader(), destinationPath, jarPath);
+
         if (connector.isBalModule()) {
             Files.copy(targetPath.resolve("bin").resolve(connector.getModuleName() + ".jar"),
                     destinationPath.resolve(Connector.LIB_PATH).resolve(connector.getModuleName() + ".jar"));

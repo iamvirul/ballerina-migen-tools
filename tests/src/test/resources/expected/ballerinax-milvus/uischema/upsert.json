@@ -96,7 +96,7 @@
                             {
                               "type": "attribute",
                               "value": {
-                                "name": "data.primaryKey.value",
+                                "name": "data_primaryKey_value",
                                 "displayName": "value",
                                 "inputType": "stringOrExpression",
                                 "defaultValue": "",
@@ -137,8 +137,8 @@
                       {
                         "type": "attribute",
                         "value": {
-                          "name": "data.properties",
-                          "displayName": "data.properties",
+                          "name": "data_properties",
+                          "displayName": "properties",
                           "inputType": "stringOrExpression",
                           "defaultValue": "",
                           "required": false,

@@ -27,6 +27,8 @@
         <property name="param0" value="message"/>
         <property name="paramType0" value="record"/>
         <property name="param0_recordName" value="Message" />
+        <property name="param0_recordOrg" value="testOrg" />
+        <property name="param0_recordModule" value="project7" />
         <property name="message_param0" value="id"/>
         <property name="message_paramType0" value="string"/>
         <property name="message_param1" value="threadId"/>

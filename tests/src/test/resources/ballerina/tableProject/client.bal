@@ -40,6 +40,19 @@ public type ExtendedRecord record {|
     string field11;
 |};
 
+// Message type for testing nested arrays inside records
+public type Message record {|
+    string body;
+    string contentType;
+    string messageId;
+|};
+
+// Batch record containing a nested array of records (like ASB MessageBatch)
+public type MessageBatch record {|
+    int messageCount;
+    Message[] messages;
+|};
+
 // Connection configuration with optional maps and arrays
 public type ConnectionConfig record {|
     string baseUrl;
@@ -214,5 +227,13 @@ public isolated client class TableClient {
     # + return - Processing result
     remote isolated function processLargeMapRecords(map<ExtendedRecord> data) returns string|error {
         return "Large map records processed: " + data.length().toString();
+    }
+
+    // Test 19: Record with nested array of records (like ASB MessageBatch)
+    # Send batch of messages
+    # + messageBatch - Batch containing message count and array of messages
+    # + return - Batch result
+    remote isolated function sendBatch(MessageBatch messageBatch) returns string|error {
+        return "Batch sent: " + messageBatch.messageCount.toString() + " messages";
     }
 }

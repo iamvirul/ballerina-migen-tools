@@ -29,6 +29,8 @@
         <property name="TABLEPROJECT_TABLECLIENT_param0" value="config"/>
         <property name="TABLEPROJECT_TABLECLIENT_paramType0" value="record"/>
         <property name="TABLEPROJECT_TABLECLIENT_param0_recordName" value="ConnectionConfig"/>
+        <property name="TABLEPROJECT_TABLECLIENT_param0_recordOrg" value="test"/>
+        <property name="TABLEPROJECT_TABLECLIENT_param0_recordModule" value="tableProject"/>
         <property name="TABLEPROJECT_TABLECLIENT_config_param0" value="baseUrl"/>
         <property name="TABLEPROJECT_TABLECLIENT_config_paramType0" value="string"/>
         <property name="TABLEPROJECT_TABLECLIENT_config_param1" value="defaultHeaders"/>

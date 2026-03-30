@@ -27,6 +27,8 @@
         <property name="param0" value="draft"/>
         <property name="paramType0" value="record"/>
         <property name="param0_recordName" value="Draft" />
+        <property name="param0_recordOrg" value="testOrg" />
+        <property name="param0_recordModule" value="project7" />
         <property name="draft_param0" value="id"/>
         <property name="draft_paramType0" value="string"/>
         <property name="draft_param1" value="subject"/>

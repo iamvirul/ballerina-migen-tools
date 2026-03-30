@@ -28,6 +28,8 @@
         <property name="PROJECT6_APICLIENT_param0" value="config"/>
         <property name="PROJECT6_APICLIENT_paramType0" value="record"/>
         <property name="PROJECT6_APICLIENT_param0_recordName" value="ConnectionConfig"/>
+        <property name="PROJECT6_APICLIENT_param0_recordOrg" value="testOrg"/>
+        <property name="PROJECT6_APICLIENT_param0_recordModule" value="project6"/>
         <property name="PROJECT6_APICLIENT_config_param0" value="baseUrl"/>
         <property name="PROJECT6_APICLIENT_config_paramType0" value="string"/>
         <property name="PROJECT6_APICLIENT_config_param1" value="apiKey"/>
