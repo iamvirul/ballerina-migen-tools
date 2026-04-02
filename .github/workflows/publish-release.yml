@@ -45,4 +45,4 @@ jobs:
           GITHUB_TOKEN: ${{ secrets.BALLERINA_BOT_TOKEN }}
         run: |
           gh release create v$VERSION --title "module-gen-tool-v$VERSION"
-          gh pr create --base main --title "[Automated] Sync main after $VERSION release" --body "Sync main after $VERSION release"
+          gh pr create --base ${{ github.ref_name }} --title "[Automated] Sync ${{ github.ref_name }} after $VERSION release" --body "Sync ${{ github.ref_name }} after $VERSION release"
