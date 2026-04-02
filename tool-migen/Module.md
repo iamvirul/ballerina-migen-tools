@@ -86,10 +86,10 @@ CONNECTOR OPTIONS
 
 ## Version Compatibility
 
-|   Tool Version    | Ballerina Version | Java Version | WSO2 MI Version |
-|:-----------------:|:-----------------:|:------------:|:---------------:|
-|       0.4.0       |     2201.12.x     |      21      |    >= 4.4.0     |
-|     \>= 0.4.1     |     2201.13.x     |      21      |    >= 4.4.0     |
+| Tool Version | Ballerina Version | Java Version | WSO2 MI Version |
+|:------------:|:-----------------:|:------------:|:---------------:|
+|    1.x.x     |     2201.10.x     |     >=17     |    >= 4.4.0     |
+|    2.x.x     |     2201.13.x     |     >=21     |    >= 4.4.0     |
 
 ## Related Links
 
