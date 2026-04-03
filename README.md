@@ -13,8 +13,7 @@ The `migen` tool allows generation of modules for WSO2 Micro Integrator from Bal
 
 **Tool version**|**`wso2/mi` Connector version**| **Ballerina Version** |**Java version**|**WSO2 MI version**|
 :-----:|:-----:|:---------------------:|:-----:|:-----:
-1.x.x | 1.0.x |     2201.10.x         | >=17| >= 4.4.0
-2.x.x | 1.1.x |     2201.13.x         | >=21| >= 4.4.0
+1.x.x | 1.1.x |     2201.13.x         | >=21| >= 4.4.0
 
 
 ## Steps to create a module for WSO2 MI from Ballerina

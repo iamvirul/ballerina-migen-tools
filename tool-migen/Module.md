@@ -88,8 +88,7 @@ CONNECTOR OPTIONS
 
 | Tool Version | Ballerina Version | Java Version | WSO2 MI Version |
 |:------------:|:-----------------:|:------------:|:---------------:|
-|    1.x.x     |     2201.10.x     |     >=17     |    >= 4.4.0     |
-|    2.x.x     |     2201.13.x     |     >=21     |    >= 4.4.0     |
+|    1.x.x     |     2201.13.x     |     >=21     |    >= 4.4.0     |
 
 ## Related Links
 
