@@ -14,7 +14,7 @@ This tool enables developers to:
 
 ### Prerequisites
 
-- [Ballerina](https://ballerina.io/downloads/) 2201.10.x or later
+- [Ballerina](https://ballerina.io/downloads/) 2201.10.x
 - Java 17 or later
 - WSO2 Micro Integrator 4.4.0 or later
 
