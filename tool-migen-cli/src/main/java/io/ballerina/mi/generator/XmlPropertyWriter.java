@@ -177,11 +177,11 @@ public final class XmlPropertyWriter {
                 result.append("\n        ");
             }
             String fieldValue = functionParam.getValue();
+            String sanitizedParamName = Utils.sanitizeParamName(fieldValue);
             result.append(String.format("<property name=\"%s_param%d\" value=\"%s\"/>",
-                    connectionType, indexHolder[0], fieldValue));
+                    connectionType, indexHolder[0], sanitizedParamName));
             result.append(String.format("\n        <property name=\"%s_paramType%d\" value=\"%s\"/>",
                     connectionType, indexHolder[0], functionParam.getParamType()));
-            String sanitizedParamName = Utils.sanitizeParamName(fieldValue);
             
             if (!unionParam.isTypeDescriptor()) {
                 result.append(String.format("\n        <property name=\"%s_dataType%d\" value=\"%s\"/>",
@@ -195,17 +195,24 @@ public final class XmlPropertyWriter {
 
             if (!unionParam.isTypeDescriptor()) {
                 for (FunctionParam memberParam : unionParam.getUnionMemberParams()) {
-                    if (memberParam instanceof RecordFunctionParam recordMemberParam) {
-                        String memberTypeName = recordMemberParam.getDisplayTypeName();
-                        if (memberTypeName == null || memberTypeName.isEmpty()) {
-                            memberTypeName = recordMemberParam.getRecordName();
+                    String memberTypeName = memberParam.getDisplayTypeName();
+                    if (memberTypeName == null || memberTypeName.isEmpty()) {
+                        if (memberParam instanceof RecordFunctionParam recordMember) {
+                            memberTypeName = recordMember.getRecordName();
+                        } else {
+                            memberTypeName = memberParam.getResolvedTypeName();
+                            if (memberTypeName == null || memberTypeName.isEmpty()) {
+                                memberTypeName = memberParam.getParamType();
+                            }
                         }
-                        
-                        result.append(String.format("\n        <property name=\"%s_param%dUnion%s\" value=\"%s_%s\"/>",
-                                connectionType, currentIndex, org.apache.commons.lang3.StringUtils.capitalize(memberTypeName), fieldValue, memberTypeName));
-                        
+                    }
+                    
+                    result.append(String.format("\n        <property name=\"%s_param%dUnion%s\" value=\"%s_%s\"/>",
+                            connectionType, currentIndex, org.apache.commons.lang3.StringUtils.capitalize(memberTypeName), sanitizedParamName, memberTypeName));
+                    
+                    if (memberParam instanceof RecordFunctionParam recordMemberParam) {
                         int[] fieldIndexHolder = {0};
-                        String recordParamName = fieldValue + "_" + memberTypeName;
+                        String recordParamName = sanitizedParamName + "_" + memberTypeName;
                         for (FunctionParam recordField : recordMemberParam.getRecordFieldParams()) {
                             writeRecordFieldParamPropertiesWithUnionMember(recordField, connectionType, recordParamName,
                                     result, fieldIndexHolder, memberTypeName);
