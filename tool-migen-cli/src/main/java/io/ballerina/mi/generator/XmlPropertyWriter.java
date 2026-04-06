@@ -172,6 +172,47 @@ public final class XmlPropertyWriter {
             for (FunctionParam fieldParam : recordParam.getRecordFieldParams()) {
                 writeRecordFieldParamProperties(fieldParam, connectionType, recordParamName, result, fieldIndexHolder);
             }
+        } else if (functionParam instanceof UnionFunctionParam unionParam) {
+            if (!isFirst[0]) {
+                result.append("\n        ");
+            }
+            String fieldValue = functionParam.getValue();
+            result.append(String.format("<property name=\"%s_param%d\" value=\"%s\"/>",
+                    connectionType, indexHolder[0], fieldValue));
+            result.append(String.format("\n        <property name=\"%s_paramType%d\" value=\"%s\"/>",
+                    connectionType, indexHolder[0], functionParam.getParamType()));
+            String sanitizedParamName = Utils.sanitizeParamName(fieldValue);
+            
+            if (!unionParam.isTypeDescriptor()) {
+                result.append(String.format("\n        <property name=\"%s_dataType%d\" value=\"%s\"/>",
+                        connectionType, indexHolder[0],
+                        sanitizedParamName + "DataType"));
+            }
+
+            int currentIndex = indexHolder[0];
+            isFirst[0] = false;
+            indexHolder[0]++;
+
+            if (!unionParam.isTypeDescriptor()) {
+                for (FunctionParam memberParam : unionParam.getUnionMemberParams()) {
+                    if (memberParam instanceof RecordFunctionParam recordMemberParam) {
+                        String memberTypeName = recordMemberParam.getDisplayTypeName();
+                        if (memberTypeName == null || memberTypeName.isEmpty()) {
+                            memberTypeName = recordMemberParam.getRecordName();
+                        }
+                        
+                        result.append(String.format("\n        <property name=\"%s_param%dUnion%s\" value=\"%s_%s\"/>",
+                                connectionType, currentIndex, org.apache.commons.lang3.StringUtils.capitalize(memberTypeName), fieldValue, memberTypeName));
+                        
+                        int[] fieldIndexHolder = {0};
+                        String recordParamName = fieldValue + "_" + memberTypeName;
+                        for (FunctionParam recordField : recordMemberParam.getRecordFieldParams()) {
+                            writeRecordFieldParamPropertiesWithUnionMember(recordField, connectionType, recordParamName,
+                                    result, fieldIndexHolder, memberTypeName);
+                        }
+                    }
+                }
+            }
         } else {
             if (!isFirst[0]) {
                 result.append("\n        ");
@@ -222,7 +263,7 @@ public final class XmlPropertyWriter {
             result.append("\n        ");
             String fieldValue = fieldParam.getValue();
             result.append(String.format("<property name=\"%s_%s_param%d\" value=\"%s\"/>",
-                    connectionType, recordParamName, fieldIndexHolder[0], fieldValue));
+                    connectionType, recordParamName, fieldIndexHolder[0], Utils.sanitizeParamName(fieldValue)));
             result.append(String.format("\n        <property name=\"%s_%s_paramType%d\" value=\"%s\"/>",
                     connectionType, recordParamName, fieldIndexHolder[0], fieldParam.getParamType()));
             String sanitizedParamName = Utils.sanitizeParamName(fieldValue);
@@ -267,7 +308,7 @@ public final class XmlPropertyWriter {
             result.append("\n        ");
             String fieldValue = fieldParam.getValue();
             result.append(String.format("<property name=\"%s_%s_param%d\" value=\"%s\"/>",
-                    connectionType, recordParamName, fieldIndexHolder[0], fieldValue));
+                    connectionType, recordParamName, fieldIndexHolder[0], Utils.sanitizeParamName(fieldValue)));
             result.append(String.format("\n        <property name=\"%s_%s_paramType%d\" value=\"%s\"/>",
                     connectionType, recordParamName, fieldIndexHolder[0], fieldParam.getParamType()));
 

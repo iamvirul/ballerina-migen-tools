@@ -112,7 +112,7 @@ public class ParamHandler {
         Object param = SynapseUtils.lookupTemplateParameter(context, paramName);
 
         String paramType;
-        if (value.matches("param\\d+Union.*")) {
+        if (value.matches("param\\d+Union.*") || value.matches(".*_param\\d+Union.*")) {
             paramType = type;
         } else {
             paramType = SynapseUtils.getPropertyAsString(context, type);
@@ -123,7 +123,7 @@ public class ParamHandler {
         }
         if (param == null) {
             if (UNION.equals(paramType)) {
-                return getUnionParameter(paramName, context, index);
+                return getUnionParameter(paramName, context, index, value);
             } else if (RECORD.equals(paramType)) {
                 return DataTransformer.createRecordValue(null, paramName, context, index);
             } else if (ANYDATA.equals(paramType)) {
@@ -155,7 +155,7 @@ public class ParamHandler {
                 case RECORD -> DataTransformer.createRecordValue((String) param, paramName, context, index);
                 case ARRAY -> getArrayParameter((String) param, context, value);
                 case MAP -> DataTransformer.getMapParameter(param, context, value);
-                case UNION -> getUnionParameter(paramName, context, index);
+                case UNION -> getUnionParameter(paramName, context, index, value);
                 case TYPEDESC -> getTypedescValueWithFallback((String) param, paramName, context, index);
                 default -> null;
             };
@@ -210,10 +210,16 @@ public class ParamHandler {
         return ValueCreator.createTypedescValue(type);
     }
 
-    private Object getUnionParameter(String paramName, MessageContext context, int index) {
+    private Object getUnionParameter(String paramName, MessageContext context, int index, String originalValueKey) {
         Object paramType = SynapseUtils.lookupTemplateParameter(context, paramName + "DataType");
         if (paramType instanceof String typeStr) {
-            String unionParamName = "param" + index + "Union" + org.apache.commons.lang3.StringUtils.capitalize(typeStr);
+            String unionParamName;
+            if (originalValueKey != null && originalValueKey.contains("_param")) {
+               String prefix = originalValueKey.substring(0, originalValueKey.indexOf("_param") + 1);
+               unionParamName = prefix + "param" + index + "Union" + org.apache.commons.lang3.StringUtils.capitalize(typeStr);
+            } else {
+               unionParamName = "param" + index + "Union" + org.apache.commons.lang3.StringUtils.capitalize(typeStr);
+            }
             return getParameter(context, unionParamName, typeStr, -1);
         }
         return null;
