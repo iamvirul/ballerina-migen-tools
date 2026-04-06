@@ -33,6 +33,7 @@ import io.ballerina.runtime.api.values.BMap;
 import io.ballerina.runtime.api.values.BObject;
 import io.ballerina.runtime.api.values.BString;
 import io.ballerina.runtime.api.values.BTypedesc;
+import io.ballerina.runtime.internal.values.ErrorValue;
 import io.ballerina.runtime.internal.values.MapValueImpl;
 import io.ballerina.stdlib.mi.BalConnectorConfig;
 import io.ballerina.stdlib.mi.utils.SynapseUtils;
@@ -241,11 +242,11 @@ public class DataTransformer {
                     jsonStr = reconstructedBMap.toString();
                 }
                 BString jsonBString = StringUtils.fromString(jsonStr);
-                try {
-                    return FromJsonStringWithType.fromJsonStringWithType(jsonBString, ValueCreator.createTypedescValue(recType));
-                } catch (Exception e) {
+                Object convertedObject = FromJsonStringWithType.fromJsonStringWithType(jsonBString, ValueCreator.createTypedescValue(recType));
+                if (convertedObject instanceof ErrorValue) {
                     return convertValueToType(reconstructedBMap, recType);
                 }
+                return convertedObject;
             }
 
             // Return generic BMap with defaults
