@@ -206,10 +206,17 @@ public final class XmlPropertyWriter {
     static void writeRecordFieldParamPropertiesWithUnionMember(FunctionParam fieldParam, String connectionType,
                                                                String recordParamName, StringBuilder result,
                                                                int[] fieldIndexHolder, String unionMemberType) {
+        writeRecordFieldParamPropertiesWithUnionMember(fieldParam, connectionType, recordParamName, result, fieldIndexHolder, unionMemberType, new java.util.HashSet<>());
+    }
+
+    static void writeRecordFieldParamPropertiesWithUnionMember(FunctionParam fieldParam, String connectionType,
+                                                               String recordParamName, StringBuilder result,
+                                                               int[] fieldIndexHolder, String unionMemberType,
+                                                               java.util.Set<String> visitedTypes) {
         if (fieldParam instanceof RecordFunctionParam nestedRecordParam && !nestedRecordParam.getRecordFieldParams().isEmpty()) {
             for (FunctionParam nestedFieldParam : nestedRecordParam.getRecordFieldParams()) {
                 writeRecordFieldParamPropertiesWithUnionMember(nestedFieldParam, connectionType, recordParamName,
-                        result, fieldIndexHolder, unionMemberType);
+                        result, fieldIndexHolder, unionMemberType, visitedTypes);
             }
         } else if (fieldParam instanceof UnionFunctionParam unionFieldParam) {
             result.append("\n        ");
@@ -240,9 +247,18 @@ public final class XmlPropertyWriter {
                         if (memberTypeName == null || memberTypeName.isEmpty()) {
                             memberTypeName = recordMemberParam.getRecordName();
                         }
+                        if (memberTypeName != null && visitedTypes.contains(memberTypeName)) {
+                            continue; // Prevent infinite recursion
+                        }
+                        if (memberTypeName != null) {
+                            visitedTypes.add(memberTypeName);
+                        }
                         for (FunctionParam recordField : recordMemberParam.getRecordFieldParams()) {
                             writeRecordFieldParamPropertiesWithUnionMember(recordField, connectionType, recordParamName,
-                                    result, fieldIndexHolder, memberTypeName);
+                                    result, fieldIndexHolder, memberTypeName, visitedTypes);
+                        }
+                        if (memberTypeName != null) {
+                            visitedTypes.remove(memberTypeName);
                         }
                     }
                 }
@@ -273,9 +289,14 @@ public final class XmlPropertyWriter {
      */
     static void writeFunctionRecordFieldProperties(FunctionParam fieldParam, String recordParamName,
                                                    StringBuilder result, int[] fieldIndexHolder) {
+        writeFunctionRecordFieldProperties(fieldParam, recordParamName, result, fieldIndexHolder, new java.util.HashSet<>());
+    }
+
+    static void writeFunctionRecordFieldProperties(FunctionParam fieldParam, String recordParamName,
+                                                   StringBuilder result, int[] fieldIndexHolder, java.util.Set<String> visitedTypes) {
         if (fieldParam instanceof RecordFunctionParam nestedRecordParam && !nestedRecordParam.getRecordFieldParams().isEmpty()) {
             for (FunctionParam nestedFieldParam : nestedRecordParam.getRecordFieldParams()) {
-                writeFunctionRecordFieldProperties(nestedFieldParam, recordParamName, result, fieldIndexHolder);
+                writeFunctionRecordFieldProperties(nestedFieldParam, recordParamName, result, fieldIndexHolder, visitedTypes);
             }
         } else if (fieldParam instanceof UnionFunctionParam unionFieldParam) {
             String fieldValue = fieldParam.getValue();
@@ -295,9 +316,18 @@ public final class XmlPropertyWriter {
                     if (memberTypeName == null || memberTypeName.isEmpty()) {
                         memberTypeName = recordMemberParam.getRecordName();
                     }
+                    if (memberTypeName != null && visitedTypes.contains(memberTypeName)) {
+                        continue;
+                    }
+                    if (memberTypeName != null) {
+                        visitedTypes.add(memberTypeName);
+                    }
                     for (FunctionParam recordField : recordMemberParam.getRecordFieldParams()) {
                         writeFunctionRecordFieldPropertiesWithUnionMember(recordField, recordParamName,
-                                result, fieldIndexHolder, memberTypeName);
+                                result, fieldIndexHolder, memberTypeName, visitedTypes);
+                    }
+                    if (memberTypeName != null) {
+                        visitedTypes.remove(memberTypeName);
                     }
                 }
             }
@@ -352,10 +382,16 @@ public final class XmlPropertyWriter {
     static void writeFunctionRecordFieldPropertiesWithUnionMember(FunctionParam fieldParam, String recordParamName,
                                                                   StringBuilder result, int[] fieldIndexHolder,
                                                                   String unionMemberType) {
+        writeFunctionRecordFieldPropertiesWithUnionMember(fieldParam, recordParamName, result, fieldIndexHolder, unionMemberType, new java.util.HashSet<>());
+    }
+
+    static void writeFunctionRecordFieldPropertiesWithUnionMember(FunctionParam fieldParam, String recordParamName,
+                                                                  StringBuilder result, int[] fieldIndexHolder,
+                                                                  String unionMemberType, java.util.Set<String> visitedTypes) {
         if (fieldParam instanceof RecordFunctionParam nestedRecordParam && !nestedRecordParam.getRecordFieldParams().isEmpty()) {
             for (FunctionParam nestedFieldParam : nestedRecordParam.getRecordFieldParams()) {
                 writeFunctionRecordFieldPropertiesWithUnionMember(nestedFieldParam, recordParamName,
-                        result, fieldIndexHolder, unionMemberType);
+                        result, fieldIndexHolder, unionMemberType, visitedTypes);
             }
         } else if (fieldParam instanceof UnionFunctionParam unionFieldParam) {
             String fieldValue = fieldParam.getValue();
@@ -383,9 +419,18 @@ public final class XmlPropertyWriter {
                         if (memberTypeName == null || memberTypeName.isEmpty()) {
                             memberTypeName = recordMemberParam.getRecordName();
                         }
+                        if (memberTypeName != null && visitedTypes.contains(memberTypeName)) {
+                            continue; // Prevent infinite recursion
+                        }
+                        if (memberTypeName != null) {
+                            visitedTypes.add(memberTypeName);
+                        }
                         for (FunctionParam recordField : recordMemberParam.getRecordFieldParams()) {
                             writeFunctionRecordFieldPropertiesWithUnionMember(recordField, recordParamName,
-                                    result, fieldIndexHolder, memberTypeName);
+                                    result, fieldIndexHolder, memberTypeName, visitedTypes);
+                        }
+                        if (memberTypeName != null) {
+                            visitedTypes.remove(memberTypeName);
                         }
                     }
                 }
@@ -412,10 +457,28 @@ public final class XmlPropertyWriter {
      */
     static void writeXmlParameterElements(FunctionParam functionParam, StringBuilder result,
                                           boolean[] isFirst, Set<String> processedParams) {
+        writeXmlParameterElements(functionParam, result, isFirst, processedParams, new java.util.HashSet<>());
+    }
+
+    static void writeXmlParameterElements(FunctionParam functionParam, StringBuilder result,
+                                          boolean[] isFirst, Set<String> processedParams, java.util.Set<String> visitedTypes) {
         if (functionParam instanceof RecordFunctionParam recordParam && !recordParam.getRecordFieldParams().isEmpty()) {
+            String typeKey = recordParam.getDisplayTypeName();
+            if (typeKey == null || typeKey.isEmpty()) {
+                typeKey = recordParam.getRecordName();
+            }
+            if (typeKey != null && visitedTypes.contains(typeKey)) {
+                return;
+            }
+            if (typeKey != null) {
+                visitedTypes.add(typeKey);
+            }
             // Expand record fields as separate parameters
             for (FunctionParam fieldParam : recordParam.getRecordFieldParams()) {
-                writeXmlParameterElements(fieldParam, result, isFirst, processedParams);
+                writeXmlParameterElements(fieldParam, result, isFirst, processedParams, visitedTypes);
+            }
+            if (typeKey != null) {
+                visitedTypes.remove(typeKey);
             }
         } else if (functionParam instanceof UnionFunctionParam unionParam) {
             String sanitizedParamName = Utils.sanitizeParamName(unionParam.getValue());
@@ -436,15 +499,7 @@ public final class XmlPropertyWriter {
 
             // Expand all union members properties
             for (FunctionParam member : unionParam.getUnionMemberParams()) {
-                if (member instanceof RecordFunctionParam memberRecord) {
-                    for (FunctionParam field : memberRecord.getRecordFieldParams()) {
-                        writeXmlParameterElements(field, result, isFirst, processedParams);
-                    }
-                } else if (member instanceof UnionFunctionParam) {
-                    writeXmlParameterElements(member, result, isFirst, processedParams);
-                } else {
-                    writeXmlParameterElements(member, result, isFirst, processedParams);
-                }
+                writeXmlParameterElements(member, result, isFirst, processedParams, visitedTypes);
             }
         } else if (functionParam instanceof ArrayFunctionParam arrayParam) {
             // Handle array fields - add dual mode parameters if supported
