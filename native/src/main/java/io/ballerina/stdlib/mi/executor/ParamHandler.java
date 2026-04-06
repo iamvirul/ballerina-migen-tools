@@ -215,7 +215,7 @@ public class ParamHandler {
         if (paramType instanceof String typeStr) {
             String unionParamName;
             if (originalValueKey != null && originalValueKey.contains("_param")) {
-               String prefix = originalValueKey.substring(0, originalValueKey.indexOf("_param") + 1);
+               String prefix = originalValueKey.substring(0, originalValueKey.lastIndexOf("_param") + 1);
                unionParamName = prefix + "param" + index + "Union" + org.apache.commons.lang3.StringUtils.capitalize(typeStr);
             } else {
                unionParamName = "param" + index + "Union" + org.apache.commons.lang3.StringUtils.capitalize(typeStr);
