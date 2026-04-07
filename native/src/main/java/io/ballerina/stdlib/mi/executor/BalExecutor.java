@@ -37,6 +37,8 @@ import java.lang.reflect.Constructor;
 import java.lang.reflect.Field;
 import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
+import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ExecutionException;
 
 import static io.ballerina.stdlib.mi.Constants.FUNCTION_NAME;
 
@@ -147,7 +149,7 @@ public class BalExecutor {
             strandClass = Class.forName("io.ballerina.runtime.internal.scheduling.Strand");
             Class<?> schedulerClass = Class.forName("io.ballerina.runtime.internal.scheduling.Scheduler");
 
-            java.lang.reflect.Constructor<?> strandCtor = null;
+            Constructor<?> strandCtor = null;
             Object[] ctorArgs = null;
 
             try {
@@ -197,8 +199,19 @@ public class BalExecutor {
                     Field cfField = futureValue.getClass().getDeclaredField("completableFuture");
                     cfField.setAccessible(true);
                     Object completableFuture = cfField.get(futureValue);
-                    if (completableFuture instanceof java.util.concurrent.CompletableFuture<?> cf) {
-                        cf.get();
+                    if (completableFuture instanceof CompletableFuture<?> cf) {
+                        try {
+                            cf.get();
+                        } catch (InterruptedException ie) {
+                            Thread.currentThread().interrupt();
+                            // Fall through to inspect futureValue's panic/result fields below
+                        } catch (ExecutionException ee) {
+                            Throwable cause = ee.getCause();
+                            if (cause instanceof BError) {
+                                throw (BError) cause;
+                            }
+                            // Fall through to inspect futureValue's panic/result fields below
+                        }
                     }
 
                     Field resultField = futureValue.getClass().getDeclaredField("result");
