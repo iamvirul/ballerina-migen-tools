@@ -1663,13 +1663,23 @@ public class DataTransformerTest {
     @Test
     public void testCreateRecordValue_WithRecordName_DeepConversionFails_FallsBackToParse() {
         try (MockedStatic<JsonUtils> jsonUtilsMock = Mockito.mockStatic(JsonUtils.class);
-             MockedStatic<FromJsonStringWithType> fromJsonMock = Mockito.mockStatic(FromJsonStringWithType.class)) {
+             MockedStatic<FromJsonStringWithType> fromJsonMock = Mockito.mockStatic(FromJsonStringWithType.class);
+             MockedStatic<ValueCreator> valueCreatorMock = Mockito.mockStatic(ValueCreator.class)) {
             MessageContext context = mock(MessageContext.class);
             when(context.getProperty("param0_recordName")).thenReturn("Rec");
+
+            // Ensure recType is non-null so the inner fallback path (JsonUtils.parse +
+            // convertValueToType) is exercised before falling through to the outer parse.
+            BMap<BString, Object> recValue = mock(BMap.class);
+            Type recType = mock(Type.class);
+            when(recValue.getType()).thenReturn(recType);
+            valueCreatorMock.when(() -> ValueCreator.createRecordValue(any(), eq("Rec"))).thenReturn(recValue);
+
             fromJsonMock.when(() -> FromJsonStringWithType.fromJsonStringWithType(any(), any()))
                     .thenThrow(new RuntimeException("fromJson fail"));
 
             Object expected = new Object();
+            // First call hits the inner fallback (fails); second call is the outer parse (succeeds).
             jsonUtilsMock.when(() -> JsonUtils.parse("{\"id\":1}"))
                     .thenThrow(new RuntimeException("deep parse fail"))
                     .thenReturn(expected);
