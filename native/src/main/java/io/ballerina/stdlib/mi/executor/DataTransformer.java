@@ -293,21 +293,32 @@ public class DataTransformer {
             String recordVersionPropertyKey = "param" + paramIndex + "_recordVersion";
             Module recordModule = getRecordModule(context, recordOrgPropertyKey, recordModulePropertyKey, recordVersionPropertyKey);
 
+            BString jsonBString = StringUtils.fromString(jsonString);
+            Type recType = null;
             try {
-                BString jsonBString = StringUtils.fromString(jsonString);
-                BMap<BString, Object> recValue = ValueCreator.createRecordValue(recordModule, recordName);
-                Type recType = recValue.getType();
-                Object converted = FromJsonStringWithType.fromJsonStringWithType(
-                        jsonBString, ValueCreator.createTypedescValue(recType));
-                if (!(converted instanceof BError)) {
+                recType = ValueCreator.createRecordValue(recordModule, recordName).getType();
+            } catch (Exception e) {
+                // Record type not loadable in this module — skip typed conversion
+            }
+
+            if (recType != null) {
+                // Attempt typed conversion; fromJsonStringWithType returns BError on failure (does not throw).
+                Object converted = null;
+                try {
+                    converted = FromJsonStringWithType.fromJsonStringWithType(
+                            jsonBString, ValueCreator.createTypedescValue(recType));
+                } catch (Exception e) {
+                    // fromJsonStringWithType threw — fall through to the same generic-parse fallback below
+                }
+                if (converted != null && !(converted instanceof BError)) {
                     return converted;
                 }
-            } catch (Exception e) {
+                // fromJsonStringWithType returned BError or threw — try generic parse with type coercion.
+                // Both failure modes are handled by a single path here, eliminating the duplicated
+                // typed-conversion code that previously lived only in the catch block.
                 try {
                     Object parseResult = JsonUtils.parse(jsonString);
-                    BMap<BString, Object> emptyRecord = ValueCreator.createRecordValue(recordModule, recordName);
-                    Type targetType = emptyRecord.getType();
-                    return convertValueToType(parseResult, targetType);
+                    return convertValueToType(parseResult, recType);
                 } catch (Exception deepEx) {
                     log.error("Manual deep conversion failed: " + deepEx.getMessage(), deepEx);
                 }
