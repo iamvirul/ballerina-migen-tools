@@ -214,6 +214,16 @@ public final class XmlPropertyWriter {
                     // e.g. SAP_JCO_CLIENT_param0UnionMap = configurations_map
                     result.append(String.format("\n        <property name=\"%s_param%dUnionMap\" value=\"%s_map\"/>",
                             connectionType, currentIndex, sanitizedParamName));
+                } else {
+                    // Primitive or array union member (string, int, boolean, float, decimal, array).
+                    // Emit a pointer so ParamHandler.getUnionParameter() can resolve the selected member
+                    // value at runtime: e.g. PREFIX_param0UnionString = configurations_string.
+                    String memberType = memberParam.getParamType();
+                    if (memberType != null && !memberType.isEmpty()) {
+                        String capitalizedType = org.apache.commons.lang3.StringUtils.capitalize(memberType);
+                        result.append(String.format("\n        <property name=\"%s_param%dUnion%s\" value=\"%s_%s\"/>",
+                                connectionType, currentIndex, capitalizedType, sanitizedParamName, memberType));
+                    }
                 }
             }
         } else {

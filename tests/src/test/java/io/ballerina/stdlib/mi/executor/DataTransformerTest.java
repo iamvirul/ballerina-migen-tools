@@ -1649,7 +1649,7 @@ public class DataTransformerTest {
             MessageContext context = mock(MessageContext.class);
             synapseUtilsMock.when(() -> SynapseUtils.findConnectionTypeForParam(context, "param0"))
                     .thenReturn("http");
-            dataTransformerMock.when(() -> DataTransformer.reconstructRecordFromFields(eq("http_param0"), eq(context), anyBoolean()))
+            dataTransformerMock.when(() -> DataTransformer.reconstructRecordFromFields(eq("http_param0"), eq(context), anyBoolean(), anyBoolean()))
                     .thenReturn("not-a-map");
             when(context.getProperty("http_param0_recordName")).thenReturn("Rec");
             BMap<BString, Object> record = mock(BMap.class);
