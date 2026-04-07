@@ -196,6 +196,14 @@ public class UtilsTest {
         Assert.assertEquals(Utils.sanitizeParamName("'config.value"), "config_value");
         Assert.assertEquals(Utils.sanitizeParamName(null), "");
         Assert.assertEquals(Utils.sanitizeParamName("simple"), "simple");
+        Assert.assertEquals(Utils.sanitizeParamName("prefs/externalMembersDisabled"),
+                "prefs_externalMembersDisabled");
+        Assert.assertEquals(Utils.sanitizeParamName("prefs/boardVisibilityRestrict/private"),
+                "prefs_boardVisibilityRestrict_private");
+        Assert.assertEquals(Utils.sanitizeParamName("prefs\\/externalMembersDisabled"),
+                "prefs_externalMembersDisabled");
+        Assert.assertEquals(Utils.sanitizeParamName("prefs\\/boardVisibilityRestrict\\/private"),
+                "prefs_boardVisibilityRestrict_private");
     }
 
     @Test
