@@ -791,9 +791,13 @@ public static String sanitizeParamName(String paramName) {
     while (sanitized.startsWith("'")) {
         sanitized = sanitized.substring(1);
     }
-    // Replace dots with underscores for Synapse template parameter compatibility
+    // Replace dots and forward slashes with underscores for Synapse template parameter compatibility
     // Synapse/MI cannot correctly handle parameter names with dots (e.g., auth.token)
+    // or forward slashes (e.g., prefs/externalMembersDisabled) as they are invalid in XML
     sanitized = sanitized.replace(".", "_");
+    sanitized = sanitized.replace("\\/", "_");
+    sanitized = sanitized.replace("/", "_");
+    sanitized = sanitized.replace("\\", "_");
     // If the name is empty after sanitization, use a default
     if (sanitized.isEmpty()) {
         sanitized = "param";
