@@ -33,8 +33,6 @@ import io.ballerina.runtime.api.values.BMap;
 import io.ballerina.runtime.api.values.BObject;
 import io.ballerina.runtime.api.values.BString;
 import io.ballerina.runtime.api.values.BTypedesc;
-import io.ballerina.runtime.internal.values.ErrorValue;
-import io.ballerina.runtime.internal.values.MapValueImpl;
 import io.ballerina.stdlib.mi.BalConnectorConfig;
 import io.ballerina.stdlib.mi.utils.SynapseUtils;
 import org.apache.commons.logging.Log;
