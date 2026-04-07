@@ -233,8 +233,13 @@ public class DataTransformer {
                 }
             }
 
-            // Reconstruct the BMap - only set defaults if we can't create a typed record
-            Object reconstructedBMap = reconstructRecordFromFields(propertyPrefix, context, !canCreateTypedRecord);
+            // Reconstruct the BMap - only set defaults if we can't create a typed record.
+            // Pass recordTypeHint != null as the isDirectUnionMemberRecord flag: when a type hint is
+            // present we are building a standalone union-member record (e.g. SAP DestinationConfig)
+            // and must strip the parent-path prefix from field names.  When there is no hint we are
+            // building the parent record itself (e.g. OneDrive ConnectionConfig) and must keep the
+            // full dot-notation path so that setNestedField creates the correct nesting.
+            Object reconstructedBMap = reconstructRecordFromFields(propertyPrefix, context, !canCreateTypedRecord, recordTypeHint != null);
 
             if (reconstructedBMap instanceof BError bError) {
                 throw new SynapseException("Failed to reconstruct record: " + bError.getMessage());
@@ -257,11 +262,18 @@ public class DataTransformer {
                     jsonStr = reconstructedBMap.toString();
                 }
                 BString jsonBString = StringUtils.fromString(jsonStr);
-                Object convertedObject = FromJsonStringWithType.fromJsonStringWithType(jsonBString, ValueCreator.createTypedescValue(recType));
-                if (convertedObject instanceof ErrorValue) {
+                try {
+                    Object converted = FromJsonStringWithType.fromJsonStringWithType(
+                            jsonBString, ValueCreator.createTypedescValue(recType));
+                    if (converted instanceof BError) {
+                        // fromJsonStringWithType returns BError on conversion failure rather than throwing;
+                        // fall through to the generic converter so we never propagate an ErrorValue as a record.
+                        return convertValueToType(reconstructedBMap, recType);
+                    }
+                    return converted;
+                } catch (Exception e) {
                     return convertValueToType(reconstructedBMap, recType);
                 }
-                return convertedObject;
             }
 
             // Return generic BMap with defaults
@@ -287,7 +299,11 @@ public class DataTransformer {
                 BString jsonBString = StringUtils.fromString(jsonString);
                 BMap<BString, Object> recValue = ValueCreator.createRecordValue(recordModule, recordName);
                 Type recType = recValue.getType();
-                return FromJsonStringWithType.fromJsonStringWithType(jsonBString, ValueCreator.createTypedescValue(recType));
+                Object converted = FromJsonStringWithType.fromJsonStringWithType(
+                        jsonBString, ValueCreator.createTypedescValue(recType));
+                if (!(converted instanceof BError)) {
+                    return converted;
+                }
             } catch (Exception e) {
                 try {
                     Object parseResult = JsonUtils.parse(jsonString);
@@ -312,10 +328,30 @@ public class DataTransformer {
     }
 
     public static Object reconstructRecordFromFields(String propertyPrefix, MessageContext context) {
-        return reconstructRecordFromFields(propertyPrefix, context, true);
+        return reconstructRecordFromFields(propertyPrefix, context, true, false);
     }
 
     public static Object reconstructRecordFromFields(String propertyPrefix, MessageContext context, boolean setDefaultsForMissingFields) {
+        return reconstructRecordFromFields(propertyPrefix, context, setDefaultsForMissingFields, false);
+    }
+
+    /**
+     * Reconstructs a Ballerina record from flattened Synapse context properties.
+     *
+     * @param isDirectUnionMemberRecord {@code true} when this call is building a standalone union-member
+     *   record (e.g. SAP {@code DestinationConfig}).  In that mode the field paths stored in the template
+     *   carry the parent union-param name as a leading segment (e.g. {@code "configurations.ashost"}) and
+     *   only the leaf name should be used as the JSON key so that the result matches the member record's
+     *   own field names.
+     *   <p>
+     *   {@code false} when building the parent record that <em>contains</em> the union field (e.g. OneDrive
+     *   {@code ConnectionConfig}).  In that mode the full dot-notation path (e.g. {@code "auth.token"})
+     *   must be preserved so that {@link #setNestedField} creates the correct nesting
+     *   ({@code {"auth":{"token":"…"}}}).
+     */
+    public static Object reconstructRecordFromFields(String propertyPrefix, MessageContext context,
+                                                     boolean setDefaultsForMissingFields,
+                                                     boolean isDirectUnionMemberRecord) {
         com.google.gson.JsonObject recordJson = new com.google.gson.JsonObject();
         Map<String, String> unionFieldSelectedTypes = new HashMap<>();
         
@@ -369,7 +405,11 @@ public class DataTransformer {
                 String sanitizedFieldPath = fieldPath.replace(".", "_");
                 Object unionValue = SynapseUtils.lookupTemplateParameter(context, sanitizedFieldPath);
                 if (unionValue != null) {
-                    String unionJsonKey = (unionMemberType != null && fieldPath.contains("."))
+                    // When building a union-member record directly (SAP DestinationConfig), field paths carry
+                    // the parent-union param name as a prefix (e.g. "configurations.auth") — strip to leaf.
+                    // When building a parent record (OneDrive ConnectionConfig), the path IS the correct
+                    // nested key (e.g. "auth") — keep it so setNestedField creates proper nesting.
+                    String unionJsonKey = (isDirectUnionMemberRecord && unionMemberType != null && fieldPath.contains("."))
                             ? fieldPath.substring(fieldPath.lastIndexOf('.') + 1)
                             : fieldPath;
                      setNestedField(recordJson, unionJsonKey, unionValue, fieldType, context, propertyPrefix, fieldIndex);
@@ -418,12 +458,16 @@ public class DataTransformer {
                 }
             }
 
-            // When building JSON for a union member record (e.g. DestinationConfig), the field path stored
-            // in the property value includes the parent union param name as a dot-notation prefix
-            // (e.g. "configurations.ashost"). We must use only the leaf field name ("ashost") as the JSON
-            // key so that the resulting JSON matches the record's own field names and FromJsonStringWithType
-            // can convert it to a typed record. The full path is still used above for context lookup.
-            String jsonKey = (unionMemberType != null && fieldPath.contains("."))
+            // When building a union-member record directly (e.g. SAP DestinationConfig,
+            // isDirectUnionMemberRecord=true), field paths carry the parent-union param name as a
+            // dot-notation prefix (e.g. "configurations.ashost") — use only the leaf name ("ashost")
+            // so the JSON matches the member record's own field names.
+            //
+            // When building the parent record that *contains* the union field (e.g. OneDrive
+            // ConnectionConfig, isDirectUnionMemberRecord=false), the full path IS the correct nested
+            // key (e.g. "auth.token" → {"auth":{"token":"…"}}) — keep it so setNestedField creates
+            // the right nesting level inside the parent record.
+            String jsonKey = (isDirectUnionMemberRecord && unionMemberType != null && fieldPath.contains("."))
                     ? fieldPath.substring(fieldPath.lastIndexOf('.') + 1)
                     : fieldPath;
 
