@@ -554,6 +554,12 @@ public class DataTransformer {
             valueStr = SynapseUtils.resolveSynapseExpressions(valueStr, context);
         }
 
+        // Empty strings for non-string types mean the field was not provided;
+        // skip setting it so the record field remains nil/absent
+        if (valueStr.isEmpty() && !STRING.equals(fieldType)) {
+            return;
+        }
+
         switch (fieldType) {
             case BOOLEAN:
                 jsonObject.addProperty(finalField, Boolean.parseBoolean(valueStr));

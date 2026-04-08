@@ -810,8 +810,8 @@ public static String sanitizeParamName(String paramName) {
             return "";
         }
 
-        // Handle hyphenated or underscore-separated words
-        String[] parts = str.split("[-_\\s]+");
+        // Handle hyphenated, underscore-separated, or dot-separated words
+        String[] parts = str.split("[-_.\\s]+");
         StringBuilder result = new StringBuilder();
 
         for (String part : parts) {
@@ -829,8 +829,8 @@ public static String sanitizeParamName(String paramName) {
     }
 
     /**
-     * Sanitize a string to be a valid XML name.
-     * XML names must start with a letter or underscore, and contain only letters, digits, underscores, hyphens, and periods.
+     * Sanitize a string to be a valid XML/Synapse template name.
+     * Names must start with a letter or underscore, and contain only letters, digits, underscores, and hyphens.
      */
     public static String sanitizeXmlName(String name) {
         if (name == null || name.isEmpty()) {
@@ -853,8 +853,9 @@ public static String sanitizeParamName(String paramName) {
                 }
                 // Skip invalid first characters
             } else {
-                // Subsequent characters can be letters, digits, underscores, hyphens, periods
-                if (Character.isLetterOrDigit(c) || c == '_' || c == '-' || c == '.') {
+                // Subsequent characters can be letters, digits, underscores, hyphens
+                // Dots are NOT allowed as they cause issues in Synapse template/component names
+                if (Character.isLetterOrDigit(c) || c == '_' || c == '-') {
                     sanitized.append(c);
                 } else {
                     // Replace invalid characters with underscore

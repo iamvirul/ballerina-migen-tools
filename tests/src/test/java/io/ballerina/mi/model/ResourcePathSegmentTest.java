@@ -137,4 +137,30 @@ public class ResourcePathSegmentTest {
         Assert.assertEquals(segment.getValue(), "api-v2");
         Assert.assertEquals(segment.toJvmMethodNameComponent(), "$api-v2");
     }
+
+    @Test
+    public void testDotEncodingInJvmMethodName() {
+        // Slack-style dotted path segments with Ballerina escape: auth\.test -> auth&0046test
+        ResourcePathSegment segment = new ResourcePathSegment("auth\\.test");
+        Assert.assertEquals(segment.toJvmMethodNameComponent(), "$auth&0046test");
+
+        // Multiple escaped dots: admin\.apps\.approved\.list
+        ResourcePathSegment segment2 = new ResourcePathSegment("admin\\.apps\\.approved\\.list");
+        Assert.assertEquals(segment2.toJvmMethodNameComponent(), "$admin&0046apps&0046approved&0046list");
+
+        // Unescaped dots should also be encoded
+        ResourcePathSegment segment3 = new ResourcePathSegment("auth.test");
+        Assert.assertEquals(segment3.toJvmMethodNameComponent(), "$auth&0046test");
+    }
+
+    @Test
+    public void testSlashEncodingInJvmMethodName() {
+        // Escaped slash
+        ResourcePathSegment segment = new ResourcePathSegment("prefs\\/externalMembers");
+        Assert.assertEquals(segment.toJvmMethodNameComponent(), "$prefs&0047externalMembers");
+
+        // Unescaped slash
+        ResourcePathSegment segment2 = new ResourcePathSegment("prefs/externalMembers");
+        Assert.assertEquals(segment2.toJvmMethodNameComponent(), "$prefs&0047externalMembers");
+    }
 }

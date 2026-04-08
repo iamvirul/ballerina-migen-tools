@@ -94,9 +94,71 @@ public class ResourcePathSegment {
             // Path parameters use $$ as placeholder in XML, which is replaced by ^ in runtime
             return "$$";
         } else {
-            // Static segments use $ prefix
-            return "$" + value;
+            // Static segments use $ prefix, with JVM-reserved characters encoded
+            return "$" + encodeForJvm(value);
         }
+    }
+
+    /**
+     * Encodes characters that are reserved in the JVM method name format.
+     * Ballerina uses &XXXX (decimal Unicode) encoding for these characters.
+     * Escape backslashes (e.g., \. in Ballerina identifiers) are removed first,
+     * matching the Ballerina compiler's unescapeJava step before JVM encoding.
+     */
+    private static String encodeForJvm(String name) {
+        if (name == null || name.isEmpty()) {
+            return name;
+        }
+        // First, unescape Ballerina escape sequences: \. -> . , \/ -> / etc.
+        String unescaped = unescapeBallerinaIdentifier(name);
+        StringBuilder sb = new StringBuilder(unescaped.length());
+        for (int i = 0; i < unescaped.length(); i++) {
+            char c = unescaped.charAt(i);
+            String encoded = getJvmReservedCharEncoding(c);
+            if (encoded != null) {
+                sb.append("&").append(encoded);
+            } else {
+                sb.append(c);
+            }
+        }
+        return sb.toString();
+    }
+
+    /**
+     * Removes escape backslashes from Ballerina quoted identifiers.
+     * In Ballerina, special characters in identifiers are escaped with backslash
+     * (e.g., auth\.test means the identifier is auth.test).
+     */
+    private static String unescapeBallerinaIdentifier(String name) {
+        if (!name.contains("\\")) {
+            return name;
+        }
+        StringBuilder sb = new StringBuilder(name.length());
+        for (int i = 0; i < name.length(); i++) {
+            char c = name.charAt(i);
+            if (c == '\\' && i + 1 < name.length()) {
+                // Skip the backslash, take the next character as-is
+                sb.append(name.charAt(++i));
+            } else {
+                sb.append(c);
+            }
+        }
+        return sb.toString();
+    }
+
+    private static String getJvmReservedCharEncoding(char c) {
+        return switch (c) {
+            case '.' -> "0046";
+            case '/' -> "0047";
+            case ':' -> "0058";
+            case ';' -> "0059";
+            case '<' -> "0060";
+            case '>' -> "0062";
+            case '[' -> "0091";
+            case '\\' -> "0092";
+            case ']' -> "0093";
+            default -> null;
+        };
     }
 
     @Override
