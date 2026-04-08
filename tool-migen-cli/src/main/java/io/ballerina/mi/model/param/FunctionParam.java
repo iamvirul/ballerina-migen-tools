@@ -135,4 +135,26 @@ public class FunctionParam extends Param {
     public void accept(FunctionParamVisitor visitor) {
         visitor.visit(this);
     }
+
+    /**
+     * Resolved coordinates of the Ballerina function that produces this parameter's default value.
+     * Non-null only when the Ballerina default expression is a no-arg function call
+     * (e.g. {@code uuid:createType4AsString()}) and the import alias was successfully resolved
+     * to a full module identity at generation time.
+     * <p>
+     * The runtime uses these coordinates to call the function via
+     * {@code Runtime.callFunction(new Module(org, moduleName, version), functionName, null)}
+     * instead of approximating the result in Java.
+     */
+    public record FunctionCallDefaultInfo(String org, String moduleName, String version, String functionName) {}
+
+    private FunctionCallDefaultInfo defaultCallInfo;
+
+    public FunctionCallDefaultInfo getDefaultCallInfo() {
+        return defaultCallInfo;
+    }
+
+    public void setDefaultCallInfo(FunctionCallDefaultInfo defaultCallInfo) {
+        this.defaultCallInfo = defaultCallInfo;
+    }
 }

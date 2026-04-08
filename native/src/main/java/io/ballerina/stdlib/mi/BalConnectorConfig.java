@@ -93,13 +93,13 @@ public class BalConnectorConfig extends AbstractConnector {
                 }
                 Object[] args = new Object[paramCount];
                 setParameters(args, messageContext, connectionType);
-                
+
                 String objectTypeNameKey = connectionType + "_objectTypeName";
                 String objectTypeName = getPropertyAsString(messageContext, objectTypeNameKey);
                 if (objectTypeName == null) {
                     throw new ConnectException("Required property '" + objectTypeNameKey + "' is missing in message context");
                 }
-                
+
                 clientObject = ValueCreator.createObjectValue(module, objectTypeName, args);
             } catch (BError clientError) {
                 messageContext.setProperty(SynapseConstants.ERROR_CODE, "BALLERINA_CLIENT_ERROR");

@@ -105,62 +105,159 @@ public class BalConnectorAnalyzer implements Analyzer {
         List<Symbol> moduleSymbols = semanticModel.moduleSymbols();
         List<Symbol> classSymbols = moduleSymbols.stream().filter((s) -> s instanceof BallerinaClassSymbol).toList();
 
-        // Extract default values from syntax trees
-        Map<String, Map<String, Map<String, String>>> classMethodDefaultValues = extractDefaultValues(module);
+        // Extract default values from syntax trees, also resolving any function-call defaults
+        // to their full module coordinates using the semantic model.
+        DefaultExtractionResult extracted = extractDefaultValues(module, semanticModel);
 
         for (Symbol classSymbol : classSymbols) {
             String className = classSymbol.getName().orElse("");
-            Map<String, Map<String, String>> methodDefaultValues = classMethodDefaultValues.getOrDefault(className, Map.of());
-            analyzeClass(compilePackage, module, (ClassSymbol) classSymbol, methodDefaultValues);
+            Map<String, Map<String, String>> methodDefaultValues =
+                    extracted.defaultValues().getOrDefault(className, Map.of());
+            Map<String, Map<String, FunctionParam.FunctionCallDefaultInfo>> methodCallInfos =
+                    extracted.callInfos().getOrDefault(className, Map.of());
+            analyzeClass(compilePackage, module, (ClassSymbol) classSymbol, methodDefaultValues, methodCallInfos);
         }
     }
 
     /**
-     * Extracts default values for all method parameters from the module's syntax trees.
-     * Returns a map of className -> (functionName -> (paramName -> defaultValue))
+     * Wrapper for the two parallel maps produced by {@link #extractDefaultValues}.
+     *
+     * @param defaultValues className → functionName → paramName → raw default expression string
+     * @param callInfos     className → functionName → paramName → resolved function-call coordinates
+     *                      (null entry means the default is not a no-arg function call)
      */
-    private Map<String, Map<String, Map<String, String>>> extractDefaultValues(Module module) {
-        Map<String, Map<String, Map<String, String>>> result = new HashMap<>();
+    private record DefaultExtractionResult(
+            Map<String, Map<String, Map<String, String>>> defaultValues,
+            Map<String, Map<String, Map<String, FunctionParam.FunctionCallDefaultInfo>>> callInfos
+    ) {}
+
+    /**
+     * Extracts default values for all method parameters from the module's syntax trees.
+     * Also resolves any function-call defaults (e.g. {@code uuid:createType4AsString()}) to their
+     * full Ballerina module coordinates using the semantic model so the runtime can call the actual
+     * function rather than approximating its result in Java.
+     */
+    private DefaultExtractionResult extractDefaultValues(Module module, SemanticModel semanticModel) {
+        Map<String, Map<String, Map<String, String>>> defaultValues = new HashMap<>();
+        Map<String, Map<String, Map<String, FunctionParam.FunctionCallDefaultInfo>>> callInfos = new HashMap<>();
 
         for (DocumentId docId : module.documentIds()) {
             Document document = module.document(docId);
             SyntaxTree syntaxTree = document.syntaxTree();
             ModulePartNode modulePartNode = syntaxTree.rootNode();
 
+            // Build alias → ImportedModule map from this document's imports.
+            // Used to resolve function-call defaults like "uuid:createType4AsString()".
+            Map<String, ImportedModule> aliasToModule = buildImportAliasMap(modulePartNode, semanticModel);
+
             for (ModuleMemberDeclarationNode member : modulePartNode.members()) {
                 if (member instanceof ClassDefinitionNode classNode) {
                     String className = classNode.className().text();
                     Map<String, Map<String, String>> functionDefaults = new HashMap<>();
+                    Map<String, Map<String, FunctionParam.FunctionCallDefaultInfo>> functionCallInfos = new HashMap<>();
 
                     for (Node classMember : classNode.members()) {
                         if (classMember instanceof FunctionDefinitionNode funcNode) {
                             String functionName = funcNode.functionName().text();
-                            // Normalize init method name to match Constants.INIT_FUNCTION_NAME
                             if (functionName.equals(Constants.INIT_FUNCTION_NAME)) {
                                 functionName = Constants.INIT_FUNCTION_NAME;
                             }
                             Map<String, String> paramDefaults = new HashMap<>();
-                            extractFunctionDefaultValues(funcNode, paramDefaults);
+                            Map<String, FunctionParam.FunctionCallDefaultInfo> paramCallInfos = new HashMap<>();
+                            extractFunctionDefaultValues(funcNode, paramDefaults, paramCallInfos, aliasToModule);
                             if (!paramDefaults.isEmpty()) {
                                 functionDefaults.put(functionName, paramDefaults);
+                            }
+                            if (!paramCallInfos.isEmpty()) {
+                                functionCallInfos.put(functionName, paramCallInfos);
                             }
                         }
                     }
 
                     if (!functionDefaults.isEmpty()) {
-                        result.put(className, functionDefaults);
+                        defaultValues.put(className, functionDefaults);
+                    }
+                    if (!functionCallInfos.isEmpty()) {
+                        callInfos.put(className, functionCallInfos);
                     }
                 }
             }
         }
 
-        return result;
+        return new DefaultExtractionResult(defaultValues, callInfos);
+    }
+
+    /** Holds resolved Ballerina module coordinates for an imported module alias. */
+    private record ImportedModule(String org, String moduleName, String version) {}
+
+    /**
+     * Builds a map of import alias → {@link ImportedModule} for the given document's imports.
+     * The alias is the explicit {@code as} prefix if present, otherwise the last segment of the module name.
+     * Module coordinates are resolved via the semantic model so the version is exact.
+     */
+    private Map<String, ImportedModule> buildImportAliasMap(ModulePartNode modulePartNode, SemanticModel semanticModel) {
+        Map<String, ImportedModule> aliasMap = new HashMap<>();
+        for (ImportDeclarationNode importDecl : modulePartNode.imports()) {
+            try {
+                // Determine the alias used in source code
+                String alias;
+                if (importDecl.prefix().isPresent()) {
+                    alias = importDecl.prefix().get().prefix().text();
+                } else {
+                    SeparatedNodeList<IdentifierToken> parts = importDecl.moduleName();
+                    alias = parts.get(parts.size() - 1).text();
+                }
+                // Resolve via the semantic model to get exact org/module/version.
+                // Chaining .id().orgName() etc. avoids importing ModuleID explicitly.
+                Optional<Symbol> sym = semanticModel.symbol(importDecl);
+                if (sym.isPresent() && sym.get() instanceof ModuleSymbol ms) {
+                    aliasMap.put(alias, new ImportedModule(
+                            ms.id().orgName(), ms.id().moduleName(), ms.id().version()));
+                }
+            } catch (Exception e) {
+                // Non-fatal: skip this import if resolution fails
+            }
+        }
+        return aliasMap;
     }
 
     /**
-     * Extracts default values from a function's parameters.
+     * If {@code expression} is a no-arg Ballerina function call of the form {@code alias:funcName()},
+     * resolves the alias using {@code aliasToModule} and returns a {@link FunctionParam.FunctionCallDefaultInfo}.
+     * Returns {@code null} for any other kind of expression.
      */
-    private void extractFunctionDefaultValues(FunctionDefinitionNode funcNode, Map<String, String> paramDefaults) {
+    private FunctionParam.FunctionCallDefaultInfo resolveFunctionCallDefault(
+            String expression, Map<String, ImportedModule> aliasToModule) {
+        if (expression == null || !expression.endsWith("()")) {
+            return null;
+        }
+        int colonIdx = expression.indexOf(':');
+        if (colonIdx < 0) {
+            return null; // No module qualifier — local or built-in function, skip
+        }
+        String alias = expression.substring(0, colonIdx);
+        String functionName = expression.substring(colonIdx + 1, expression.length() - 2); // strip "()"
+        ImportedModule imported = aliasToModule.get(alias);
+        if (imported == null) {
+            return null; // Alias not found in imports
+        }
+        // The Ballerina runtime Module version should be the major version (e.g. "1" not "1.6.0")
+        String majorVersion = imported.version().contains(".")
+                ? imported.version().split("\\.")[0]
+                : imported.version();
+        return new FunctionParam.FunctionCallDefaultInfo(
+                imported.org(), imported.moduleName(), majorVersion, functionName);
+    }
+
+    /**
+     * Extracts default values from a function's parameters, and for function-call defaults
+     * (e.g. {@code uuid:createType4AsString()}) also resolves the module coordinates so the
+     * runtime can invoke the actual Ballerina function.
+     */
+    private void extractFunctionDefaultValues(FunctionDefinitionNode funcNode,
+                                              Map<String, String> paramDefaults,
+                                              Map<String, FunctionParam.FunctionCallDefaultInfo> paramCallInfos,
+                                              Map<String, ImportedModule> aliasToModule) {
         FunctionSignatureNode signature = funcNode.functionSignature();
         SeparatedNodeList<ParameterNode> parameters = signature.parameters();
 
@@ -168,14 +265,22 @@ public class BalConnectorAnalyzer implements Analyzer {
             if (paramNode instanceof DefaultableParameterNode defaultableParam) {
                 String paramName = defaultableParam.paramName().map(Token::text).orElse("");
                 String defaultValue = defaultableParam.expression().toSourceCode().trim();
-                // Clean up the default value (remove quotes for simple strings if needed)
                 paramDefaults.put(paramName, defaultValue);
+
+                // Detect no-arg function-call expressions like "uuid:createType4AsString()"
+                // and resolve the module alias to full coordinates.
+                FunctionParam.FunctionCallDefaultInfo callInfo =
+                        resolveFunctionCallDefault(defaultValue, aliasToModule);
+                if (callInfo != null) {
+                    paramCallInfos.put(paramName, callInfo);
+                }
             }
         }
     }
 
     private void analyzeClass(Package compilePackage, Module module, ClassSymbol classSymbol,
-                              Map<String, Map<String, String>> defaultValues) {
+                              Map<String, Map<String, String>> defaultValues,
+                              Map<String, Map<String, FunctionParam.FunctionCallDefaultInfo>> callInfos) {
         SemanticModel semanticModel = compilePackage.getCompilation().getSemanticModel(module.moduleId());
 
         if (!isClientClass(classSymbol) || classSymbol.getName().isEmpty()) {
@@ -243,8 +348,10 @@ public class BalConnectorAnalyzer implements Analyzer {
             Component component = new Component(functionName, docString, functionType, Integer.toString(i),
                     List.of(), List.of(), returnType);
 
-            // Get default values for this specific function
+            // Get default values and function-call metadata for this specific function
             Map<String, String> functionParamDefaults = defaultValues.getOrDefault(functionKey, Map.of());
+            Map<String, FunctionParam.FunctionCallDefaultInfo> functionParamCallInfos =
+                    callInfos.getOrDefault(functionKey, Map.of());
 
             // Prepare context for synapse name generation
             SynapseNameContext.Builder contextBuilder = SynapseNameContext.builder().module(module);
@@ -454,6 +561,12 @@ public class BalConnectorAnalyzer implements Analyzer {
                         }
                         param.setDefaultValue(defaultValue);
                         param.setRequired(false);
+                        // If the default is a no-arg function call, attach the resolved module
+                        // coordinates so the runtime can invoke the actual Ballerina function.
+                        FunctionParam.FunctionCallDefaultInfo callInfo = functionParamCallInfos.get(paramName);
+                        if (callInfo != null) {
+                            param.setDefaultCallInfo(callInfo);
+                        }
                     }
                     component.setFunctionParam(param);
                     paramIndex++;

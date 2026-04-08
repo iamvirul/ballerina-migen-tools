@@ -653,4 +653,128 @@ public class XmlPropertyWriterTest {
         String output = result.toString();
         Assert.assertTrue(output.contains("<property name=\"CONN_parent_param0\" value=\"unionField\"/>"));
     }
+
+    // ── Ballerina default-value emission ──────────────────────────────────────────────────────
+
+    @Test
+    public void testWriteXmlParamProperties_NonRequiredWithLiteralDefault_EmitsDefaultValue() {
+        FunctionParam param = mock(FunctionParam.class);
+        when(param.getValue()).thenReturn("timeout");
+        when(param.getParamType()).thenReturn("int");
+        when(param.isRequired()).thenReturn(false);
+        when(param.getDefaultValue()).thenReturn("30");
+        when(param.getDefaultCallInfo()).thenReturn(null);
+
+        StringBuilder result = new StringBuilder();
+        int[] indexHolder = {0};
+        boolean[] isFirst = {true};
+
+        XmlPropertyWriter.writeXmlParamProperties(param, "CONN", result, indexHolder, isFirst);
+
+        String output = result.toString();
+        Assert.assertTrue(output.contains("<property name=\"CONN_param0_defaultValue\" value=\"30\"/>"),
+                "Should emit _defaultValue for non-required param with literal default");
+        Assert.assertFalse(output.contains("_defaultOrg"),
+                "Should NOT emit _defaultOrg when FunctionCallDefaultInfo is null");
+    }
+
+    @Test
+    public void testWriteXmlParamProperties_NonRequiredWithCallInfo_EmitsAllModuleCoordinates() {
+        FunctionParam.FunctionCallDefaultInfo callInfo =
+                new FunctionParam.FunctionCallDefaultInfo("ballerina", "uuid", "1", "createType4AsString");
+
+        FunctionParam param = mock(FunctionParam.class);
+        when(param.getValue()).thenReturn("destinationId");
+        when(param.getParamType()).thenReturn("string");
+        when(param.isRequired()).thenReturn(false);
+        when(param.getDefaultValue()).thenReturn("uuid:createType4AsString()");
+        when(param.getDefaultCallInfo()).thenReturn(callInfo);
+
+        StringBuilder result = new StringBuilder();
+        int[] indexHolder = {0};
+        boolean[] isFirst = {true};
+
+        XmlPropertyWriter.writeXmlParamProperties(param, "SAP_JCO_CLIENT", result, indexHolder, isFirst);
+
+        String output = result.toString();
+        Assert.assertTrue(output.contains(
+                "<property name=\"SAP_JCO_CLIENT_param0_defaultValue\" value=\"uuid:createType4AsString()\"/>"),
+                "Should emit _defaultValue expression");
+        Assert.assertTrue(output.contains(
+                "<property name=\"SAP_JCO_CLIENT_param0_defaultOrg\" value=\"ballerina\"/>"),
+                "Should emit _defaultOrg");
+        Assert.assertTrue(output.contains(
+                "<property name=\"SAP_JCO_CLIENT_param0_defaultModule\" value=\"uuid\"/>"),
+                "Should emit _defaultModule");
+        Assert.assertTrue(output.contains(
+                "<property name=\"SAP_JCO_CLIENT_param0_defaultVersion\" value=\"1\"/>"),
+                "Should emit _defaultVersion");
+        Assert.assertTrue(output.contains(
+                "<property name=\"SAP_JCO_CLIENT_param0_defaultFunction\" value=\"createType4AsString\"/>"),
+                "Should emit _defaultFunction");
+    }
+
+    @Test
+    public void testWriteXmlParamProperties_RequiredParam_DoesNotEmitDefaultValue() {
+        FunctionParam param = mock(FunctionParam.class);
+        when(param.getValue()).thenReturn("config");
+        when(param.getParamType()).thenReturn("string");
+        when(param.isRequired()).thenReturn(true);
+        when(param.getDefaultValue()).thenReturn("someDefault");
+
+        StringBuilder result = new StringBuilder();
+        int[] indexHolder = {0};
+        boolean[] isFirst = {true};
+
+        XmlPropertyWriter.writeXmlParamProperties(param, "CONN", result, indexHolder, isFirst);
+
+        String output = result.toString();
+        Assert.assertFalse(output.contains("_defaultValue"),
+                "Required params must not emit _defaultValue");
+    }
+
+    @Test
+    public void testWriteXmlParamProperties_NonRequiredEmptyDefault_DoesNotEmitDefaultValue() {
+        FunctionParam param = mock(FunctionParam.class);
+        when(param.getValue()).thenReturn("optionalParam");
+        when(param.getParamType()).thenReturn("string");
+        when(param.isRequired()).thenReturn(false);
+        when(param.getDefaultValue()).thenReturn("");
+
+        StringBuilder result = new StringBuilder();
+        int[] indexHolder = {0};
+        boolean[] isFirst = {true};
+
+        XmlPropertyWriter.writeXmlParamProperties(param, "CONN", result, indexHolder, isFirst);
+
+        String output = result.toString();
+        Assert.assertFalse(output.contains("_defaultValue"),
+                "Empty default value must not emit _defaultValue property");
+    }
+
+    @Test
+    public void testWriteXmlParamProperties_IndexAdvancedAfterDefaultEmission() {
+        FunctionParam.FunctionCallDefaultInfo callInfo =
+                new FunctionParam.FunctionCallDefaultInfo("ballerinax", "sap.jco", "1", "generateId");
+
+        FunctionParam param = mock(FunctionParam.class);
+        when(param.getValue()).thenReturn("connId");
+        when(param.getParamType()).thenReturn("string");
+        when(param.isRequired()).thenReturn(false);
+        when(param.getDefaultValue()).thenReturn("sap:generateId()");
+        when(param.getDefaultCallInfo()).thenReturn(callInfo);
+
+        int[] indexHolder = {2}; // already at index 2
+        boolean[] isFirst = {false};
+        StringBuilder result = new StringBuilder();
+
+        XmlPropertyWriter.writeXmlParamProperties(param, "CONN", result, indexHolder, isFirst);
+
+        Assert.assertEquals(indexHolder[0], 3, "Index must advance by exactly 1 after writing the param");
+        String output = result.toString();
+        Assert.assertTrue(output.contains("CONN_param2_defaultOrg"),
+                "Must use the correct index (2) for all coordinate properties");
+        Assert.assertTrue(output.contains("CONN_param2_defaultFunction\" value=\"generateId\""),
+                "Must use the correct index for _defaultFunction");
+    }
 }

@@ -146,6 +146,14 @@ public class ParamHandler {
                 // _recordName property for union members, so the hint is the only source of the type.
                 return DataTransformer.createRecordValue(null, paramName, context, index, paramType);
             }
+            // Check for a Ballerina-declared default value emitted by the generator.
+            // The Ballerina runtime does not apply param defaults when invoked from Java, so we
+            // call the actual Ballerina function (or approximate it) to get the correct value.
+            String defaultValKey = value + "_defaultValue";
+            String defaultValStr = SynapseUtils.getPropertyAsString(context, defaultValKey);
+            if (defaultValStr != null && !defaultValStr.isEmpty()) {
+                return resolveBalDefaultValue(defaultValStr, paramType, context, value);
+            }
             return null;
         }
 
@@ -238,6 +246,57 @@ public class ParamHandler {
         }
         java.util.regex.Matcher m = java.util.regex.Pattern.compile("^(.*?)param\\d+").matcher(key);
         return m.find() ? m.group(1) : "";
+    }
+
+    /**
+     * Resolves a Ballerina default value for a parameter that was not provided by the user.
+     * <p>
+     * The Ballerina runtime does not apply declared defaults when a function is invoked from Java
+     * (e.g. via {@code ValueCreator.createObjectValue}). The generator embeds two layers of metadata:
+     * <ol>
+     *   <li><b>Module coordinates</b> ({@code _defaultOrg}, {@code _defaultModule},
+     *       {@code _defaultVersion}, {@code _defaultFunction}) — emitted for no-arg function-call
+     *       defaults whose import alias was successfully resolved at generation time. When present,
+     *       the actual Ballerina function is invoked via {@code Runtime.callFunction} so the result
+     *       is identical to what the Ballerina runtime would have produced.</li>
+     *   <li><b>Raw expression string</b> ({@code _defaultValue}) — emitted for all non-required
+     *       params. Used as a fallback for connectors generated before the module-coordinate feature
+     *       was added, or when the function call cannot be resolved. Plain string literals are used
+     *       as-is; {@code uuid:*} expressions fall back to {@code UUID.randomUUID()}.</li>
+     * </ol>
+     */
+    private static Object resolveBalDefaultValue(String defaultVal, String paramType, MessageContext context,
+                                                 String valueKey) {
+        // ── Primary path: call the actual Ballerina function via the runtime ──────────────────
+        String org = SynapseUtils.getPropertyAsString(context, valueKey + "_defaultOrg");
+        String moduleName = SynapseUtils.getPropertyAsString(context, valueKey + "_defaultModule");
+        String version = SynapseUtils.getPropertyAsString(context, valueKey + "_defaultVersion");
+        String functionName = SynapseUtils.getPropertyAsString(context, valueKey + "_defaultFunction");
+
+        if (org != null && moduleName != null && functionName != null) {
+            try {
+                io.ballerina.runtime.api.Runtime rt = io.ballerina.stdlib.mi.BalConnectorConfig.getRuntime();
+                if (rt != null) {
+                    io.ballerina.runtime.api.Module module =
+                            new io.ballerina.runtime.api.Module(org, moduleName, version != null ? version : "");
+                    return rt.callFunction(module, functionName, null);
+                }
+            } catch (Exception e) {
+                log.warn("Failed to call Ballerina default function " + org + "/" + moduleName + ":" + functionName
+                        + " — falling back to expression resolution", e);
+            }
+        }
+
+        // ── Fallback: approximate the expression in Java ──────────────────────────────────────
+        // Handles connectors generated before module-coordinate emission was added.
+        if (defaultVal.contains("uuid:") || defaultVal.startsWith("uuid:")) {
+            return StringUtils.fromString(java.util.UUID.randomUUID().toString());
+        }
+        if (STRING.equals(paramType) && !defaultVal.contains("(")) {
+            // Plain string literal default (no function call)
+            return StringUtils.fromString(defaultVal);
+        }
+        return null;
     }
 
     /**

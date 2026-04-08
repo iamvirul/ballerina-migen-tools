@@ -361,9 +361,12 @@ public class DataTransformer {
     public static Object reconstructRecordFromFields(String propertyPrefix, MessageContext context,
                                                      boolean setDefaultsForMissingFields,
                                                      boolean isDirectUnionMemberRecord) {
+        log.debug("[reconstructRecordFromFields] prefix=" + propertyPrefix
+                + " setDefaults=" + setDefaultsForMissingFields
+                + " isDirectUnionMember=" + isDirectUnionMemberRecord);
         com.google.gson.JsonObject recordJson = new com.google.gson.JsonObject();
         Map<String, String> unionFieldSelectedTypes = new HashMap<>();
-        
+
         int tempIndex = 0;
         while (true) {
             String fieldNameKey = propertyPrefix + "_param" + tempIndex;
@@ -383,6 +386,7 @@ public class DataTransformer {
             }
             tempIndex++;
         }
+        log.debug("[reconstructRecordFromFields] unionFieldSelectedTypes=" + unionFieldSelectedTypes);
 
         int fieldIndex = 0;
         while (true) {
@@ -400,12 +404,17 @@ public class DataTransformer {
             String fieldType = fieldTypeObj.toString();
             String unionMemberType = unionMemberObj != null ? unionMemberObj.toString() : null;
 
+            log.debug("[reconstructRecordFromFields] [" + fieldIndex + "] fieldPath=" + fieldPath
+                    + " fieldType=" + fieldType + " unionMemberType=" + unionMemberType);
+
             if (UNION.equals(fieldType)) {
                if (unionMemberType != null) {
                     String parentUnionPath = SynapseUtils.findParentUnionPath(fieldPath, unionFieldSelectedTypes.keySet());
                     if (parentUnionPath != null) {
                         String selectedType = unionFieldSelectedTypes.get(parentUnionPath);
                         if (selectedType != null && !selectedType.equals(unionMemberType)) {
+                            log.debug("[reconstructRecordFromFields] [" + fieldIndex + "] SKIPPED (union member mismatch:"
+                                    + " selected=" + selectedType + " member=" + unionMemberType + ")");
                             fieldIndex++;
                             continue;
                         }
@@ -414,17 +423,16 @@ public class DataTransformer {
                 String sanitizedFieldPath = fieldPath.replace(".", "_");
                 Object unionValue = SynapseUtils.lookupTemplateParameter(context, sanitizedFieldPath);
                 if (unionValue != null) {
-                    // When building a union-member record directly (SAP DestinationConfig), field paths carry
-                    // the parent-union param name as a prefix (e.g. "configurations.auth") — strip to leaf.
-                    // When building a parent record (OneDrive ConnectionConfig), the path IS the correct
-                    // nested key (e.g. "auth") — keep it so setNestedField creates proper nesting.
                     String unionJsonKey = (isDirectUnionMemberRecord && unionMemberType != null && fieldPath.contains("."))
                             ? fieldPath.substring(fieldPath.indexOf('.') + 1)
                             : fieldPath;
+                    log.debug("[reconstructRecordFromFields] [" + fieldIndex + "] UNION key=" + unionJsonKey
+                            + " sanitizedLookup=" + sanitizedFieldPath + " value=" + unionValue);
                      setNestedField(recordJson, unionJsonKey, unionValue, fieldType, context, propertyPrefix, fieldIndex);
                      fieldIndex++;
                      continue;
                 }
+                log.debug("[reconstructRecordFromFields] [" + fieldIndex + "] UNION value null for lookup=" + sanitizedFieldPath);
                 fieldIndex++;
                 continue;
             }
@@ -434,6 +442,8 @@ public class DataTransformer {
                 if (parentUnionPath != null) {
                     String selectedType = unionFieldSelectedTypes.get(parentUnionPath);
                     if (selectedType != null && !selectedType.equals(unionMemberType)) {
+                        log.debug("[reconstructRecordFromFields] [" + fieldIndex + "] SKIPPED (union member mismatch:"
+                                + " selected=" + selectedType + " member=" + unionMemberType + ")");
                         fieldIndex++;
                         continue;
                     }
@@ -483,25 +493,34 @@ public class DataTransformer {
             if (fieldValue != null) {
                 String valueStr = fieldValue.toString();
                 if ((MAP.equals(fieldType) || ARRAY.equals(fieldType)) && "[]".equals(valueStr)) {
+                    log.debug("[reconstructRecordFromFields] [" + fieldIndex + "] SKIPPED empty " + fieldType);
                     fieldIndex++;
                     continue;
                 }
                 // Skip enum fields with invalid numeric placeholder values (e.g., "2", "3", ...)
                 // But allow "0" and "1" which are valid for ZERO_OR_ONE type
                 if (ENUM.equals(fieldType) && valueStr.matches("\\d+") && !valueStr.equals("0") && !valueStr.equals("1")) {
+                    log.debug("[reconstructRecordFromFields] [" + fieldIndex + "] SKIPPED invalid enum value=" + valueStr);
                     fieldIndex++;
                     continue;
                 }
+                log.debug("[reconstructRecordFromFields] [" + fieldIndex + "] SET key=" + jsonKey
+                        + " sanitizedLookup=" + sanitizedFieldPath + " value=" + valueStr + " type=" + fieldType);
                 setNestedField(recordJson, jsonKey, fieldValue, fieldType, context, propertyPrefix, fieldIndex);
             } else if (setDefaultsForMissingFields && (DECIMAL.equals(fieldType) || INT.equals(fieldType))) {
                 // Set default value of 0 for numeric fields that aren't provided
                 // This prevents null pointer exceptions when Ballerina code accesses these fields in generic BMaps
+                log.debug("[reconstructRecordFromFields] [" + fieldIndex + "] DEFAULT 0 key=" + jsonKey + " type=" + fieldType);
                 setNestedField(recordJson, jsonKey, "0", fieldType, context, propertyPrefix, fieldIndex);
+            } else {
+                log.debug("[reconstructRecordFromFields] [" + fieldIndex + "] MISSING value for lookup="
+                        + sanitizedFieldPath + " key=" + jsonKey + " type=" + fieldType);
             }
             fieldIndex++;
         }
 
         String jsonStr = recordJson.toString();
+        log.debug("[reconstructRecordFromFields] reconstructed JSON: " + jsonStr);
 
         Object parseResult = JsonUtils.parse(jsonStr);
         if (parseResult instanceof BError bError) {

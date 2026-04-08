@@ -234,6 +234,31 @@ public final class XmlPropertyWriter {
                     connectionType, indexHolder[0], functionParam.getValue()));
             result.append(String.format("\n        <property name=\"%s_paramType%d\" value=\"%s\"/>",
                     connectionType, indexHolder[0], functionParam.getParamType()));
+            // For non-required params, emit the Ballerina-declared default so the runtime can
+            // substitute it when the user leaves the field blank.
+            String defaultVal = functionParam.getDefaultValue();
+            if (!functionParam.isRequired() && defaultVal != null && !defaultVal.isEmpty()) {
+                result.append(String.format("\n        <property name=\"%s_param%d_defaultValue\" value=\"%s\"/>",
+                        connectionType, indexHolder[0], defaultVal));
+                // When the default is a no-arg function call, also emit the resolved module
+                // coordinates so the runtime can invoke the actual Ballerina function via
+                // Runtime.callFunction rather than approximating its result in Java.
+                FunctionParam.FunctionCallDefaultInfo callInfo = functionParam.getDefaultCallInfo();
+                if (callInfo != null) {
+                    result.append(String.format(
+                            "\n        <property name=\"%s_param%d_defaultOrg\" value=\"%s\"/>",
+                            connectionType, indexHolder[0], callInfo.org()));
+                    result.append(String.format(
+                            "\n        <property name=\"%s_param%d_defaultModule\" value=\"%s\"/>",
+                            connectionType, indexHolder[0], callInfo.moduleName()));
+                    result.append(String.format(
+                            "\n        <property name=\"%s_param%d_defaultVersion\" value=\"%s\"/>",
+                            connectionType, indexHolder[0], callInfo.version()));
+                    result.append(String.format(
+                            "\n        <property name=\"%s_param%d_defaultFunction\" value=\"%s\"/>",
+                            connectionType, indexHolder[0], callInfo.functionName()));
+                }
+            }
             isFirst[0] = false;
             indexHolder[0]++;
         }

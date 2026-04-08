@@ -26,6 +26,7 @@ import io.ballerina.runtime.api.values.BDecimal;
 import io.ballerina.runtime.api.values.BMap;
 import io.ballerina.runtime.api.values.BString;
 import io.ballerina.runtime.api.values.BXml;
+import io.ballerina.stdlib.mi.BalConnectorConfig;
 import io.ballerina.stdlib.mi.Constants;
 import io.ballerina.stdlib.mi.utils.SynapseUtils;
 import org.apache.axiom.om.OMElement;
@@ -1312,5 +1313,210 @@ public class ParamHandlerTest {
 
         String output = (String) method.invoke(handler, rows);
         Assert.assertEquals(output, "[]");
+    }
+
+    // ── Ballerina default-value resolution via getParameter ────────────────────────────────────
+
+    /**
+     * When all module coordinates are present and Runtime is available, getParameter must invoke
+     * the actual Ballerina function via rt.callFunction and return its result.
+     */
+    @Test
+    public void testGetParameter_NullParam_WithModuleCoordinates_CallsBalRuntime() {
+        try (MockedStatic<SynapseUtils> synapseUtilsMock = Mockito.mockStatic(SynapseUtils.class);
+             MockedStatic<BalConnectorConfig> configMock = Mockito.mockStatic(BalConnectorConfig.class)) {
+
+            MessageContext context = mock(MessageContext.class);
+            io.ballerina.runtime.api.Runtime mockRuntime = mock(io.ballerina.runtime.api.Runtime.class);
+            BString mockUuid = mock(BString.class);
+
+            // Param lookup: destinationId is null (user didn't fill it in)
+            synapseUtilsMock.when(() -> SynapseUtils.getPropertyAsString(context, "param1"))
+                    .thenReturn("destinationId");
+            synapseUtilsMock.when(() -> SynapseUtils.lookupTemplateParameter(context, "destinationId"))
+                    .thenReturn(null);
+            synapseUtilsMock.when(() -> SynapseUtils.getPropertyAsString(context, "paramType1"))
+                    .thenReturn(Constants.STRING);
+
+            // Default value expression and resolved module coordinates
+            synapseUtilsMock.when(() -> SynapseUtils.getPropertyAsString(context, "param1_defaultValue"))
+                    .thenReturn("uuid:createType4AsString()");
+            synapseUtilsMock.when(() -> SynapseUtils.getPropertyAsString(context, "param1_defaultOrg"))
+                    .thenReturn("ballerina");
+            synapseUtilsMock.when(() -> SynapseUtils.getPropertyAsString(context, "param1_defaultModule"))
+                    .thenReturn("uuid");
+            synapseUtilsMock.when(() -> SynapseUtils.getPropertyAsString(context, "param1_defaultVersion"))
+                    .thenReturn("1");
+            synapseUtilsMock.when(() -> SynapseUtils.getPropertyAsString(context, "param1_defaultFunction"))
+                    .thenReturn("createType4AsString");
+
+            // Runtime is available and returns a UUID BString
+            configMock.when(BalConnectorConfig::getRuntime).thenReturn(mockRuntime);
+            Mockito.doReturn(mockUuid).when(mockRuntime)
+                    .callFunction(Mockito.any(), Mockito.eq("createType4AsString"), Mockito.isNull());
+
+            ParamHandler handler = new ParamHandler();
+            Object result = handler.getParameter(context, "param1", "paramType1", 1);
+
+            Assert.assertSame(result, mockUuid,
+                    "Should return the value produced by the actual Ballerina function");
+            Mockito.verify(mockRuntime).callFunction(
+                    Mockito.any(), Mockito.eq("createType4AsString"), Mockito.isNull());
+        }
+    }
+
+    /**
+     * When module coordinates are absent but _defaultValue is a uuid:* expression,
+     * getParameter must fall back to generating a random UUID string.
+     */
+    @Test
+    public void testGetParameter_NullParam_UuidDefaultValue_FallsBackToRandomUUID() {
+        try (MockedStatic<SynapseUtils> synapseUtilsMock = Mockito.mockStatic(SynapseUtils.class);
+             MockedStatic<BalConnectorConfig> configMock = Mockito.mockStatic(BalConnectorConfig.class);
+             MockedStatic<StringUtils> stringUtilsMock = Mockito.mockStatic(StringUtils.class)) {
+
+            MessageContext context = mock(MessageContext.class);
+            BString mockUuid = mock(BString.class);
+
+            synapseUtilsMock.when(() -> SynapseUtils.getPropertyAsString(context, "param1"))
+                    .thenReturn("destinationId");
+            synapseUtilsMock.when(() -> SynapseUtils.lookupTemplateParameter(context, "destinationId"))
+                    .thenReturn(null);
+            synapseUtilsMock.when(() -> SynapseUtils.getPropertyAsString(context, "paramType1"))
+                    .thenReturn(Constants.STRING);
+            synapseUtilsMock.when(() -> SynapseUtils.getPropertyAsString(context, "param1_defaultValue"))
+                    .thenReturn("uuid:createType4AsString()");
+            // No _defaultOrg/_defaultModule/_defaultFunction — old connector without coordinates
+            synapseUtilsMock.when(() -> SynapseUtils.getPropertyAsString(context, "param1_defaultOrg"))
+                    .thenReturn(null);
+            synapseUtilsMock.when(() -> SynapseUtils.getPropertyAsString(context, "param1_defaultModule"))
+                    .thenReturn(null);
+            synapseUtilsMock.when(() -> SynapseUtils.getPropertyAsString(context, "param1_defaultFunction"))
+                    .thenReturn(null);
+
+            // No runtime available (covers old connector fallback path)
+            configMock.when(BalConnectorConfig::getRuntime).thenReturn(null);
+            stringUtilsMock.when(() -> StringUtils.fromString(any(String.class))).thenReturn(mockUuid);
+
+            ParamHandler handler = new ParamHandler();
+            Object result = handler.getParameter(context, "param1", "paramType1", 1);
+
+            Assert.assertSame(result, mockUuid,
+                    "Should fall back to UUID.randomUUID() when module coordinates are absent");
+            // Verify that fromString was called with a UUID-format string
+            stringUtilsMock.verify(() -> StringUtils.fromString(
+                    org.mockito.ArgumentMatchers.matches(
+                            "[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}")));
+        }
+    }
+
+    /**
+     * When _defaultValue is a plain string literal (no parentheses — not a function call),
+     * getParameter must use the literal directly.
+     */
+    @Test
+    public void testGetParameter_NullParam_LiteralDefaultValue_ReturnsLiteral() {
+        try (MockedStatic<SynapseUtils> synapseUtilsMock = Mockito.mockStatic(SynapseUtils.class);
+             MockedStatic<BalConnectorConfig> configMock = Mockito.mockStatic(BalConnectorConfig.class);
+             MockedStatic<StringUtils> stringUtilsMock = Mockito.mockStatic(StringUtils.class)) {
+
+            MessageContext context = mock(MessageContext.class);
+            BString mockBStr = mock(BString.class);
+
+            synapseUtilsMock.when(() -> SynapseUtils.getPropertyAsString(context, "param0"))
+                    .thenReturn("serviceUrl");
+            synapseUtilsMock.when(() -> SynapseUtils.lookupTemplateParameter(context, "serviceUrl"))
+                    .thenReturn(null);
+            synapseUtilsMock.when(() -> SynapseUtils.getPropertyAsString(context, "paramType0"))
+                    .thenReturn(Constants.STRING);
+            synapseUtilsMock.when(() -> SynapseUtils.getPropertyAsString(context, "param0_defaultValue"))
+                    .thenReturn("https://api.example.com");
+            synapseUtilsMock.when(() -> SynapseUtils.getPropertyAsString(context, "param0_defaultOrg"))
+                    .thenReturn(null);
+            synapseUtilsMock.when(() -> SynapseUtils.getPropertyAsString(context, "param0_defaultFunction"))
+                    .thenReturn(null);
+
+            configMock.when(BalConnectorConfig::getRuntime).thenReturn(null);
+            stringUtilsMock.when(() -> StringUtils.fromString("https://api.example.com"))
+                    .thenReturn(mockBStr);
+
+            ParamHandler handler = new ParamHandler();
+            Object result = handler.getParameter(context, "param0", "paramType0", 0);
+
+            Assert.assertSame(result, mockBStr,
+                    "Should use the literal default value directly as a BString");
+        }
+    }
+
+    /**
+     * When no _defaultValue property is present, getParameter must return null for a missing param.
+     */
+    @Test
+    public void testGetParameter_NullParam_NoDefaultValue_ReturnsNull() {
+        try (MockedStatic<SynapseUtils> synapseUtilsMock = Mockito.mockStatic(SynapseUtils.class)) {
+
+            MessageContext context = mock(MessageContext.class);
+
+            synapseUtilsMock.when(() -> SynapseUtils.getPropertyAsString(context, "param0"))
+                    .thenReturn("optionalParam");
+            synapseUtilsMock.when(() -> SynapseUtils.lookupTemplateParameter(context, "optionalParam"))
+                    .thenReturn(null);
+            synapseUtilsMock.when(() -> SynapseUtils.getPropertyAsString(context, "paramType0"))
+                    .thenReturn(Constants.STRING);
+            synapseUtilsMock.when(() -> SynapseUtils.getPropertyAsString(context, "param0_defaultValue"))
+                    .thenReturn(null);
+
+            ParamHandler handler = new ParamHandler();
+            Object result = handler.getParameter(context, "param0", "paramType0", 0);
+
+            Assert.assertNull(result,
+                    "Should return null when param is absent and no _defaultValue is configured");
+        }
+    }
+
+    /**
+     * When rt.callFunction throws, getParameter must fall back to UUID generation
+     * rather than propagating the exception.
+     */
+    @Test
+    public void testGetParameter_NullParam_CallFunctionThrows_FallsBackToUUID() {
+        try (MockedStatic<SynapseUtils> synapseUtilsMock = Mockito.mockStatic(SynapseUtils.class);
+             MockedStatic<BalConnectorConfig> configMock = Mockito.mockStatic(BalConnectorConfig.class);
+             MockedStatic<StringUtils> stringUtilsMock = Mockito.mockStatic(StringUtils.class)) {
+
+            MessageContext context = mock(MessageContext.class);
+            io.ballerina.runtime.api.Runtime mockRuntime = mock(io.ballerina.runtime.api.Runtime.class);
+            BString mockUuid = mock(BString.class);
+
+            synapseUtilsMock.when(() -> SynapseUtils.getPropertyAsString(context, "param1"))
+                    .thenReturn("destinationId");
+            synapseUtilsMock.when(() -> SynapseUtils.lookupTemplateParameter(context, "destinationId"))
+                    .thenReturn(null);
+            synapseUtilsMock.when(() -> SynapseUtils.getPropertyAsString(context, "paramType1"))
+                    .thenReturn(Constants.STRING);
+            synapseUtilsMock.when(() -> SynapseUtils.getPropertyAsString(context, "param1_defaultValue"))
+                    .thenReturn("uuid:createType4AsString()");
+            synapseUtilsMock.when(() -> SynapseUtils.getPropertyAsString(context, "param1_defaultOrg"))
+                    .thenReturn("ballerina");
+            synapseUtilsMock.when(() -> SynapseUtils.getPropertyAsString(context, "param1_defaultModule"))
+                    .thenReturn("uuid");
+            synapseUtilsMock.when(() -> SynapseUtils.getPropertyAsString(context, "param1_defaultVersion"))
+                    .thenReturn("1");
+            synapseUtilsMock.when(() -> SynapseUtils.getPropertyAsString(context, "param1_defaultFunction"))
+                    .thenReturn("createType4AsString");
+
+            configMock.when(BalConnectorConfig::getRuntime).thenReturn(mockRuntime);
+            // Simulate runtime failure (e.g., module not found)
+            Mockito.doThrow(new RuntimeException("Module not found"))
+                    .when(mockRuntime)
+                    .callFunction(Mockito.any(), Mockito.eq("createType4AsString"), Mockito.isNull());
+            stringUtilsMock.when(() -> StringUtils.fromString(any(String.class))).thenReturn(mockUuid);
+
+            ParamHandler handler = new ParamHandler();
+            Object result = handler.getParameter(context, "param1", "paramType1", 1);
+
+            Assert.assertSame(result, mockUuid,
+                    "Should fall back to UUID.randomUUID() when callFunction throws");
+        }
     }
 }
