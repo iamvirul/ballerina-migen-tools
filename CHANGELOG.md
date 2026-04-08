@@ -18,7 +18,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Fixed Ballerina execution errors not being propagated properly from the `BalExecutor`. `InterruptedException` and `ExecutionException` from `CompletableFuture.get()` are now handled explicitly with proper interrupt flag restoration and `BError` unwrapping.
 - Fixed union parameter handling for connector init configurations. Union member pointers, record fields, and discriminator properties are now correctly emitted in `init.xml`, and record-typed union members are properly reconstructed from flattened context fields.
 - Fixed connection-type prefix not being propagated in `ParamHandler.getUnionParameter`, which caused runtime errors when resolving union parameters in connectors with prefixed property keys (e.g., SAP JCo).
-- Fixed an infinite recursion bug in `XmlPropertyWriter` caused by cyclic nested `UnionFunctionParam` types (e.g. `ClientCredentialsGrantConfig`). The generator now tracks visited types and stops recursive property unrolling cleanly.
+- Fixed an infinite recursion bug in `XmlPropertyWriter` caused by cyclic nested `UnionFunctionParam` types (e.g., `ClientCredentialsGrantConfig`). The generator now tracks visited types and stops recursive property unrolling cleanly.
 
 ## [1.0.0] - 2025-02-05
 
