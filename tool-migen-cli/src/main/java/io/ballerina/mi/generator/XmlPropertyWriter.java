@@ -211,9 +211,11 @@ public final class XmlPropertyWriter {
                                 result, fieldIndexHolder, memberTypeName);
                     }
                 } else if ("map".equals(memberParam.getParamType())) {
-                    // e.g. SAP_JCO_CLIENT_param0UnionMap = configurations_map
-                    result.append(String.format("\n        <property name=\"%s_param%dUnionMap\" value=\"%s_map\"/>",
-                            connectionType, currentIndex, sanitizedParamName));
+                    // e.g. SAP_JCO_CLIENT_param0UnionMap = configMap
+                    // Value must match the <parameter> name written by writeXmlParameterElements
+                    // (sanitizedParamName + "Map") and the uischema field name.
+                    result.append(String.format("\n        <property name=\"%s_param%dUnionMap\" value=\"%s\"/>",
+                            connectionType, currentIndex, sanitizedParamName + "Map"));
                 } else {
                     // Primitive or array union member (string, int, boolean, float, decimal, array).
                     // Emit a pointer so ParamHandler.getUnionParameter() can resolve the selected member
