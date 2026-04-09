@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Fixed
+- Fixed union map parameter pointer mismatch in `XmlPropertyWriter` where the generated `init.xml` property used `config_map` (underscore) while the `<parameter>` declaration and uischema field both used `configMap` (camelCase). This caused `lookupTemplateParameter` to return null for `map<string>` union members, propagating as a null argument to `createObjectValue` and triggering a `NullPointerException` in the Ballerina connector's `init` method.
+- Fixed `typedesc`-backed union parameters generating spurious `<parameter>` declarations and union pointer properties in functions XML. Member parameters and pointer properties are now suppressed via `{{#unless typeDescriptor}}` guards; only the discriminator `DataType` property is emitted, matching the runtime's `typedesc` resolution path.
+- Fixed attribute group `enableCondition` not being propagated when all child fields of a grouped union member share the same condition. The condition is now promoted to the enclosing `attributeGroup` (merged with any parent condition), so MI Studio correctly hides or shows the group when its union branch is deselected.
+
 ## [1.0.1] - 2026-04-08
 
 ### Fixed
