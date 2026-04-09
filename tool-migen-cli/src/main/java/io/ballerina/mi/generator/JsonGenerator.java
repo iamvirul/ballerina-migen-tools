@@ -478,8 +478,34 @@ public class JsonGenerator {
                 } else {
                     AttributeGroup attributeGroup = new AttributeGroup(displayGroupName);
                     String parentCondition = functionParam.getEnableCondition();
-                    if (parentCondition != null && !parentCondition.isEmpty()) {
-                        attributeGroup.setEnableCondition(parentCondition);
+                    String groupCondition = null;
+                    if (groupFields != null && !groupFields.isEmpty()) {
+                        String firstCondition = groupFields.get(0).getEnableCondition();
+                        if (firstCondition != null && !firstCondition.isEmpty()) {
+                            boolean allShareSameCondition = true;
+                            for (FunctionParam f : groupFields) {
+                                if (f.getEnableCondition() == null || !f.getEnableCondition().equals(firstCondition)) {
+                                    allShareSameCondition = false;
+                                    break;
+                                }
+                            }
+                            if (allShareSameCondition) {
+                                groupCondition = firstCondition;
+                            }
+                        }
+                    }
+
+                    String mergedGroupCondition = parentCondition;
+                    if (groupCondition != null && !groupCondition.isEmpty()) {
+                        if (mergedGroupCondition == null || mergedGroupCondition.isEmpty()) {
+                            mergedGroupCondition = groupCondition;
+                        } else if (!mergedGroupCondition.equals(groupCondition)) {
+                            mergedGroupCondition = mergeEnableConditions(parentCondition, groupCondition);
+                        }
+                    }
+
+                    if (mergedGroupCondition != null && !mergedGroupCondition.isEmpty()) {
+                        attributeGroup.setEnableCondition(mergedGroupCondition);
                     }
 
                     builder.addFromTemplate(ATTRIBUTE_GROUP_TEMPLATE_PATH, attributeGroup);
