@@ -1438,6 +1438,9 @@
                             },
                             {
                               "enable_secureSocket": "true"
+                            },
+                            {
+                              "secureSocket_certDataType": "TrustStore"
                             }
                           ],
                           "elements": [
