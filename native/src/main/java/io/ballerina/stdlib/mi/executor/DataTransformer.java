@@ -90,6 +90,12 @@ public class DataTransformer {
         if (targetType.getTag() == TypeTags.STRING_TAG && sourceValue instanceof Number) {
             return StringUtils.fromString(sourceValue.toString());
         }
+        // Guard: union-typed fields (e.g. TrustStore|string, KeyStore|CertKey|string) receive a raw
+        // Number (Long) when MI Studio sends a numeric dropdown placeholder. A Long is never a valid
+        // union member (members are strings or records). Return null so the field is treated as absent.
+        if (targetType.getTag() == TypeTags.UNION_TAG && sourceValue instanceof Number) {
+            return null;
+        }
         return sourceValue;
     }
 
@@ -430,6 +436,14 @@ public class DataTransformer {
                 String sanitizedFieldPath = fieldPath.replace(".", "_");
                 Object unionValue = SynapseUtils.lookupTemplateParameter(context, sanitizedFieldPath);
                 if (unionValue != null) {
+                    // Skip numeric placeholder values from MI Studio dropdowns (e.g. "0", "1", "2").
+                    // Union members are either records (BMap) or strings — a raw integer is never valid
+                    // and would be stored as Long, causing "Long cannot be cast to BString" later.
+                    String unionValueStr = unionValue.toString();
+                    if (unionValueStr.matches("\\d+")) {
+                        fieldIndex++;
+                        continue;
+                    }
                     // When building a union-member record directly (SAP DestinationConfig), field paths carry
                     // the parent-union param name as a prefix (e.g. "configurations.auth") — strip to leaf.
                     // When building a parent record (OneDrive ConnectionConfig), the path IS the correct
