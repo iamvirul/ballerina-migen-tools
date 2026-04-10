@@ -22,7 +22,7 @@
         {{#each components ~}}
         <component name="{{name}}">
             <displayName>{{displayName}}</displayName>
-            <file>{{name}}.xml</file>
+            <file>{{fileName}}.xml</file>
             <description>{{documentation}}</description>
         </component>
         {{/each ~}}
