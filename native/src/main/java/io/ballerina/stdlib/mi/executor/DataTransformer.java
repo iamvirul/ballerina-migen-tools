@@ -74,6 +74,13 @@ public class DataTransformer {
                 return ValueCreator.createDecimalValue(new java.math.BigDecimal(((BString) sourceValue).getValue()));
             }
         }
+        // Guard: if the target field is string-typed but the source is a numeric (e.g. an ENUM field
+        // that received "0"/"1" from MI Studio and was stored as Long in the generic BMap), coerce it
+        // to BString so the typed record does not end up with a Long in a string field — which would
+        // cause "Long cannot be cast to BString" inside the Ballerina HTTP client at call time.
+        if (targetType.getTag() == TypeTags.STRING_TAG && sourceValue instanceof Number) {
+            return StringUtils.fromString(sourceValue.toString());
+        }
         return sourceValue;
     }
 
@@ -265,7 +272,7 @@ public class DataTransformer {
                             jsonBString, ValueCreator.createTypedescValue(recType));
                     if (converted instanceof BError) {
                         // fromJsonStringWithType returns BError on conversion failure rather than throwing;
-                        // fall through to the generic converter so we never propagate an ErrorValue as a record.
+                        // fall through to the typed converter so we never propagate an ErrorValue as a record.
                         return convertValueToType(reconstructedBMap, recType);
                     }
                     return converted;
@@ -440,6 +447,23 @@ public class DataTransformer {
                 }
             }
 
+            // Skip structural record-header entries introduced by the new XML format.
+            // A record header entry (e.g. paramN = "http1Settings", paramTypeN = "record",
+            // paramN_recordName = "ClientHttp1Settings") is purely metadata — its child fields
+            // are emitted as subsequent dot-notation entries (http1Settings.keepAlive, etc.)
+            // and are already processed by setNestedField. Writing the header entry into the
+            // JSON would corrupt the nested structure (sets the field to the literal name string
+            // instead of a nested object), so we must skip it here.
+            if (RECORD.equals(fieldType)) {
+                String recordNameKey = propertyPrefix + "_param" + fieldIndex + "_recordName";
+                Object recordNameObj = context.getProperty(recordNameKey);
+                if (recordNameObj != null) {
+                    // This is a record header — skip; children handle the actual values
+                    fieldIndex++;
+                    continue;
+                }
+            }
+
             String sanitizedFieldPath = fieldPath.replace(".", "_");
             Object fieldValue = SynapseUtils.lookupTemplateParameter(context, sanitizedFieldPath);
 
@@ -494,11 +518,67 @@ public class DataTransformer {
                 }
                 setNestedField(recordJson, jsonKey, fieldValue, fieldType, context, propertyPrefix, fieldIndex);
             } else if (setDefaultsForMissingFields && (DECIMAL.equals(fieldType) || INT.equals(fieldType))) {
-                // Set default value of 0 for numeric fields that aren't provided
-                // This prevents null pointer exceptions when Ballerina code accesses these fields in generic BMaps
+                // Set default value of 0 for numeric fields that aren't provided.
+                // This is needed for required int/decimal fields in nested records (e.g. certValidation.cacheSize)
+                // that must be present in the JSON even when the user only partially fills the parent record.
                 setNestedField(recordJson, jsonKey, "0", fieldType, context, propertyPrefix, fieldIndex);
             }
             fieldIndex++;
+        }
+
+        // Second pass: fill required int/decimal defaults for partially-constructed nested objects.
+        // This handles cases like certValidation.cacheSize where the user provides certValidation.type
+        // (an enum) but leaves the required int fields empty. Without this, FromJsonStringWithType
+        // fails with ConversionError because the nested object exists but is missing required int fields.
+        {
+            int passIndex = 0;
+            while (true) {
+                String fieldNameKey = propertyPrefix + "_param" + passIndex;
+                String fieldTypeKey = propertyPrefix + "_paramType" + passIndex;
+                Object fieldNameObj = context.getProperty(fieldNameKey);
+                Object fieldTypeObj = context.getProperty(fieldTypeKey);
+                if (fieldNameObj == null || fieldTypeObj == null) break;
+
+                String fieldPath = fieldNameObj.toString();
+                String fieldType = fieldTypeObj.toString();
+
+                // Skip record headers (with _recordName)
+                if (RECORD.equals(fieldType)) {
+                    String recordNameKey = propertyPrefix + "_param" + passIndex + "_recordName";
+                    if (context.getProperty(recordNameKey) != null) {
+                        passIndex++;
+                        continue;
+                    }
+                }
+
+                if ((INT.equals(fieldType) || DECIMAL.equals(fieldType)) && fieldPath.contains(".")) {
+                    String sanitizedPath = fieldPath.replace(".", "_");
+                    Object existingValue = SynapseUtils.lookupTemplateParameter(context, sanitizedPath);
+                    if (existingValue == null || existingValue.toString().isEmpty()) {
+                        // Only fill the default if the parent nested object already exists in the JSON
+                        // (meaning a sibling field was set and the parent object was created)
+                        String[] parts = fieldPath.split("\\.");
+                        com.google.gson.JsonObject parentObj = recordJson;
+                        boolean parentExists = true;
+                        for (int pi = 0; pi < parts.length - 1; pi++) {
+                            if (parentObj.has(parts[pi]) && parentObj.get(parts[pi]).isJsonObject()) {
+                                parentObj = parentObj.getAsJsonObject(parts[pi]);
+                            } else {
+                                parentExists = false;
+                                break;
+                            }
+                        }
+                        if (parentExists && !parentObj.has(parts[parts.length - 1])) {
+                            if (INT.equals(fieldType)) {
+                                parentObj.addProperty(parts[parts.length - 1], 0L);
+                            } else {
+                                parentObj.addProperty(parts[parts.length - 1], java.math.BigDecimal.ZERO);
+                            }
+                        }
+                    }
+                }
+                passIndex++;
+            }
         }
 
         String jsonStr = recordJson.toString();
@@ -536,6 +616,15 @@ public class DataTransformer {
 
             String fieldPath = fieldNameObj.toString();
             String fieldType = fieldTypeObj.toString();
+
+            // Skip structural record-header entries (have _recordName); children handle actual values.
+            if (RECORD.equals(fieldType)) {
+                String recordNameKey = propertyPrefix + "_param" + fieldIndex + "_recordName";
+                if (context.getProperty(recordNameKey) != null) {
+                    fieldIndex++;
+                    continue;
+                }
+            }
 
             // Handle nested fields (e.g., amqpRetryOptions.delay)
             if (fieldPath.contains(".")) {
@@ -629,12 +718,11 @@ public class DataTransformer {
                 jsonObject.addProperty(finalField, new java.math.BigDecimal(valueStr));
                 break;
             case ENUM:
-                // Handle ZERO_OR_ONE type (0|1) as integers, other enums as strings
-                if (valueStr.equals("0") || valueStr.equals("1")) {
-                    jsonObject.addProperty(finalField, Long.parseLong(valueStr));
-                } else {
-                    jsonObject.addProperty(finalField, valueStr);
-                }
+                // Ballerina enum types are string unions — always write as string so typed record
+                // field access via (BString) cast in the Ballerina HTTP client does not fail.
+                // Numeric placeholder values ("0", "1", …) from MI Studio dropdowns are skipped
+                // earlier at the fieldValue check; any that reach here are valid string enum values.
+                jsonObject.addProperty(finalField, valueStr);
                 break;
             case JSON:
             case RECORD:
