@@ -90,10 +90,18 @@ public class DataTransformer {
         if (targetType.getTag() == TypeTags.STRING_TAG && sourceValue instanceof Number) {
             return StringUtils.fromString(sourceValue.toString());
         }
-        // Guard: union-typed fields (e.g. TrustStore|string, KeyStore|CertKey|string) receive a raw
-        // Number (Long) when MI Studio sends a numeric dropdown placeholder. A Long is never a valid
-        // union member (members are strings or records). Return null so the field is treated as absent.
+        // Guard: union-typed fields (e.g. decimal?=decimal|(), decimal|string, TrustStore|string).
+        // If the union contains a numeric member type, convert the Number to that member type.
+        // If there is no numeric member, the Number is a placeholder — return null (treat as absent).
         if (targetType.getTag() == TypeTags.UNION_TAG && sourceValue instanceof Number) {
+            UnionType unionType = (UnionType) targetType;
+            for (Type memberType : unionType.getMemberTypes()) {
+                int tag = memberType.getTag();
+                if (tag == TypeTags.DECIMAL_TAG || tag == TypeTags.INT_TAG
+                        || tag == TypeTags.FLOAT_TAG || tag == TypeTags.BYTE_TAG) {
+                    return convertValueToType(sourceValue, memberType);
+                }
+            }
             return null;
         }
         return sourceValue;
@@ -544,7 +552,9 @@ public class DataTransformer {
                 // Set default value of 0 for numeric fields that aren't provided.
                 // This is needed for required int/decimal fields in nested records (e.g. certValidation.cacheSize)
                 // that must be present in the JSON even when the user only partially fills the parent record.
-                setNestedField(recordJson, jsonKey, "0", fieldType, context, propertyPrefix, fieldIndex);
+                // Use "0.0" for decimal so Gson writes "0.0" and JsonUtils.parse produces Double (not Long).
+                String defaultValue = DECIMAL.equals(fieldType) ? "0.0" : "0";
+                setNestedField(recordJson, jsonKey, defaultValue, fieldType, context, propertyPrefix, fieldIndex);
             }
             fieldIndex++;
         }
@@ -595,7 +605,12 @@ public class DataTransformer {
                             if (INT.equals(fieldType)) {
                                 parentObj.addProperty(parts[parts.length - 1], 0L);
                             } else {
-                                parentObj.addProperty(parts[parts.length - 1], java.math.BigDecimal.ZERO);
+                                // Use 0.0 (double notation) so Gson serialises "0.0" and
+                                // JsonUtils.parse produces Double, not Long.  A Long default for
+                                // a decimal field causes ClassCastException inside Ballerina
+                                // (e.g. "Long cannot be cast to BDecimal" or "...BString" when
+                                // the field is typed as decimal? = decimal|()).
+                                parentObj.addProperty(parts[parts.length - 1], 0.0);
                             }
                         }
                     }
