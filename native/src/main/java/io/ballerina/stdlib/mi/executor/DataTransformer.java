@@ -552,71 +552,9 @@ public class DataTransformer {
                 // Set default value of 0 for numeric fields that aren't provided.
                 // This is needed for required int/decimal fields in nested records (e.g. certValidation.cacheSize)
                 // that must be present in the JSON even when the user only partially fills the parent record.
-                // Use "0.0" for decimal so Gson writes "0.0" and JsonUtils.parse produces Double (not Long).
-                String defaultValue = DECIMAL.equals(fieldType) ? "0.0" : "0";
-                setNestedField(recordJson, jsonKey, defaultValue, fieldType, context, propertyPrefix, fieldIndex);
+                setNestedField(recordJson, jsonKey, "0", fieldType, context, propertyPrefix, fieldIndex);
             }
             fieldIndex++;
-        }
-
-        // Second pass: fill required int/decimal defaults for partially-constructed nested objects.
-        // This handles cases like certValidation.cacheSize where the user provides certValidation.type
-        // (an enum) but leaves the required int fields empty. Without this, FromJsonStringWithType
-        // fails with ConversionError because the nested object exists but is missing required int fields.
-        {
-            int passIndex = 0;
-            while (true) {
-                String fieldNameKey = propertyPrefix + "_param" + passIndex;
-                String fieldTypeKey = propertyPrefix + "_paramType" + passIndex;
-                Object fieldNameObj = context.getProperty(fieldNameKey);
-                Object fieldTypeObj = context.getProperty(fieldTypeKey);
-                if (fieldNameObj == null || fieldTypeObj == null) break;
-
-                String fieldPath = fieldNameObj.toString();
-                String fieldType = fieldTypeObj.toString();
-
-                // Skip record headers (with _recordName)
-                if (RECORD.equals(fieldType)) {
-                    String recordNameKey = propertyPrefix + "_param" + passIndex + "_recordName";
-                    if (context.getProperty(recordNameKey) != null) {
-                        passIndex++;
-                        continue;
-                    }
-                }
-
-                if ((INT.equals(fieldType) || DECIMAL.equals(fieldType)) && fieldPath.contains(".")) {
-                    String sanitizedPath = fieldPath.replace(".", "_");
-                    Object existingValue = SynapseUtils.lookupTemplateParameter(context, sanitizedPath);
-                    if (existingValue == null || existingValue.toString().isEmpty()) {
-                        // Only fill the default if the parent nested object already exists in the JSON
-                        // (meaning a sibling field was set and the parent object was created)
-                        String[] parts = fieldPath.split("\\.");
-                        com.google.gson.JsonObject parentObj = recordJson;
-                        boolean parentExists = true;
-                        for (int pi = 0; pi < parts.length - 1; pi++) {
-                            if (parentObj.has(parts[pi]) && parentObj.get(parts[pi]).isJsonObject()) {
-                                parentObj = parentObj.getAsJsonObject(parts[pi]);
-                            } else {
-                                parentExists = false;
-                                break;
-                            }
-                        }
-                        if (parentExists && !parentObj.has(parts[parts.length - 1])) {
-                            if (INT.equals(fieldType)) {
-                                parentObj.addProperty(parts[parts.length - 1], 0L);
-                            } else {
-                                // Use 0.0 (double notation) so Gson serialises "0.0" and
-                                // JsonUtils.parse produces Double, not Long.  A Long default for
-                                // a decimal field causes ClassCastException inside Ballerina
-                                // (e.g. "Long cannot be cast to BDecimal" or "...BString" when
-                                // the field is typed as decimal? = decimal|()).
-                                parentObj.addProperty(parts[parts.length - 1], 0.0);
-                            }
-                        }
-                    }
-                }
-                passIndex++;
-            }
         }
 
         String jsonStr = recordJson.toString();
