@@ -483,10 +483,30 @@ public class ParamFactory {
                     TypeSymbol actualTypeSymbol = Utils.getActualTypeSymbol(fieldTypeSymbol);
                     RecordFunctionParam nestedRecordParam = new RecordFunctionParam(Integer.toString(fieldIndex), qualifiedFieldName, fieldType);
                     nestedRecordParam.setTypeSymbol(fieldTypeSymbol);
-                    nestedRecordParam.setRecordName(actualTypeSymbol.getName().orElse(fieldName));
+                    // Prefer the name from the TypeReference (e.g. "ClientHttp1Settings") over the
+                    // unwrapped actualTypeSymbol name, falling back to the field name.
+                    String nestedRecordName = fieldTypeSymbol.getName()
+                            .or(() -> actualTypeSymbol.getName())
+                            .orElse(fieldName);
+                    nestedRecordParam.setRecordName(nestedRecordName);
                     nestedRecordParam.setParentParamPath(parentPath);
                     // Set required status BEFORE recursion so it propagates to children
                     nestedRecordParam.setRequired(isEffectiveRequired);
+
+                    // Set module info (org, module, version) — same pattern as createRecordFunctionParam.
+                    // TypeReferenceTypeSymbol carries the module for external types (e.g. ballerina/http records).
+                    Optional<ModuleSymbol> nestedModuleOpt = Optional.empty();
+                    if (fieldTypeSymbol instanceof TypeReferenceTypeSymbol nestedTypeRef) {
+                        nestedModuleOpt = nestedTypeRef.getModule();
+                    }
+                    if (nestedModuleOpt.isEmpty()) {
+                        nestedModuleOpt = actualTypeSymbol.getModule();
+                    }
+                    nestedModuleOpt.ifPresent(moduleSymbol -> {
+                        nestedRecordParam.setRecordOrg(moduleSymbol.id().orgName());
+                        nestedRecordParam.setRecordModule(moduleSymbol.id().moduleName());
+                        nestedRecordParam.setRecordVersion(moduleSymbol.id().version());
+                    });
 
                     if (actualTypeSymbol instanceof RecordTypeSymbol nestedRecordTypeSymbol) {
                         String nestedParentPath = buildQualifiedName(parentPath, fieldName);
@@ -684,6 +704,19 @@ public class ParamFactory {
                         recordParam.setRecordName(actualParamType);
                         // Propagate parent's optionality
                         recordParam.setRequired(functionParam.isRequired());
+                        // Set module info (org, module, version) — same pattern as createRecordFunctionParam.
+                        Optional<ModuleSymbol> memberModuleOpt = Optional.empty();
+                        if (memberTypeSymbol instanceof TypeReferenceTypeSymbol memberTypeRef) {
+                            memberModuleOpt = memberTypeRef.getModule();
+                        }
+                        if (memberModuleOpt.isEmpty()) {
+                            memberModuleOpt = actualMemberTypeSymbol.getModule();
+                        }
+                        memberModuleOpt.ifPresent(moduleSymbol -> {
+                            recordParam.setRecordOrg(moduleSymbol.id().orgName());
+                            recordParam.setRecordModule(moduleSymbol.id().moduleName());
+                            recordParam.setRecordVersion(moduleSymbol.id().version());
+                        });
                         // Use original paramName as parent path for fields so they are generated as "paramName.field"
                         populateRecordFieldParams(recordParam, recordTypeSymbol, paramName, fieldBudget);
                         memberParam = recordParam;

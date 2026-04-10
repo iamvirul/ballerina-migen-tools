@@ -273,6 +273,7 @@ public class XmlPropertyWriterTest {
         RecordFunctionParam nestedRecordParam = mock(RecordFunctionParam.class);
         when(nestedRecordParam.getValue()).thenReturn("nested");
         when(nestedRecordParam.getParamType()).thenReturn("record");
+        when(nestedRecordParam.getRecordName()).thenReturn("NestedType");
 
         FunctionParam nestedField = mock(FunctionParam.class);
         when(nestedField.getValue()).thenReturn("nestedField");
@@ -287,8 +288,11 @@ public class XmlPropertyWriterTest {
         XmlPropertyWriter.writeFunctionRecordFieldProperties(nestedRecordParam, "parent", result, fieldIndexHolder);
 
         String output = result.toString();
-        Assert.assertTrue(output.contains("<property name=\"parent_param0\" value=\"nestedField\"/>"));
-        Assert.assertTrue(output.contains("<property name=\"parent_paramType0\" value=\"int\"/>"));
+        Assert.assertTrue(output.contains("<property name=\"parent_param0\" value=\"nested\"/>"));
+        Assert.assertTrue(output.contains("<property name=\"parent_paramType0\" value=\"record\"/>"));
+        Assert.assertTrue(output.contains("<property name=\"parent_param0_recordName\" value=\"NestedType\"/>"));
+        Assert.assertTrue(output.contains("<property name=\"parent_param1\" value=\"nestedField\"/>"));
+        Assert.assertTrue(output.contains("<property name=\"parent_paramType1\" value=\"int\"/>"));
     }
 
     @Test
@@ -609,6 +613,7 @@ public class XmlPropertyWriterTest {
         RecordFunctionParam nestedRecord = mock(RecordFunctionParam.class);
         when(nestedRecord.getValue()).thenReturn("nested");
         when(nestedRecord.getParamType()).thenReturn("record");
+        when(nestedRecord.getRecordName()).thenReturn("NestedType");
 
         FunctionParam innerField = mock(FunctionParam.class);
         when(innerField.getValue()).thenReturn("innerField");
@@ -623,8 +628,12 @@ public class XmlPropertyWriterTest {
                 result, fieldIndexHolder, "MemberType");
 
         String output = result.toString();
-        Assert.assertTrue(output.contains("<property name=\"CONN_parent_param0\" value=\"innerField\"/>"));
+        Assert.assertTrue(output.contains("<property name=\"CONN_parent_param0\" value=\"nested\"/>"));
+        Assert.assertTrue(output.contains("<property name=\"CONN_parent_paramType0\" value=\"record\"/>"));
+        Assert.assertTrue(output.contains("<property name=\"CONN_parent_param0_recordName\" value=\"NestedType\"/>"));
         Assert.assertTrue(output.contains("<property name=\"CONN_parent_unionMember0\" value=\"MemberType\"/>"));
+        Assert.assertTrue(output.contains("<property name=\"CONN_parent_param1\" value=\"innerField\"/>"));
+        Assert.assertTrue(output.contains("<property name=\"CONN_parent_paramType1\" value=\"string\"/>"));
     }
 
     @Test

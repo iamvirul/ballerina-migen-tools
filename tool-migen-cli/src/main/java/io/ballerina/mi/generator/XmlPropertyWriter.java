@@ -228,6 +228,30 @@ public final class XmlPropertyWriter {
                     }
                 }
             }
+        } else if (functionParam instanceof RecordFunctionParam emptyRecordParam) {
+            // RecordFunctionParam with no expanded fields (budget exhausted or opaque record).
+            // Still emit the record metadata so the runtime can construct the correct type.
+            if (!isFirst[0]) {
+                result.append("\n        ");
+            }
+            result.append(String.format("<property name=\"%s_param%d\" value=\"%s\"/>",
+                    connectionType, indexHolder[0], emptyRecordParam.getValue()));
+            result.append(String.format("\n        <property name=\"%s_paramType%d\" value=\"%s\"/>",
+                    connectionType, indexHolder[0], RECORD));
+            if (emptyRecordParam.getRecordName() != null) {
+                result.append(String.format("\n        <property name=\"%s_param%d_recordName\" value=\"%s\"/>",
+                        connectionType, indexHolder[0], emptyRecordParam.getRecordName()));
+            }
+            if (emptyRecordParam.getRecordOrg() != null) {
+                result.append(String.format("\n        <property name=\"%s_param%d_recordOrg\" value=\"%s\"/>",
+                        connectionType, indexHolder[0], emptyRecordParam.getRecordOrg()));
+            }
+            if (emptyRecordParam.getRecordModule() != null) {
+                result.append(String.format("\n        <property name=\"%s_param%d_recordModule\" value=\"%s\"/>",
+                        connectionType, indexHolder[0], emptyRecordParam.getRecordModule()));
+            }
+            isFirst[0] = false;
+            indexHolder[0]++;
         } else {
             if (!isFirst[0]) {
                 result.append("\n        ");
@@ -270,6 +294,29 @@ public final class XmlPropertyWriter {
                                                                int[] fieldIndexHolder, String unionMemberType,
                                                                java.util.Set<String> visitedTypes) {
         if (fieldParam instanceof RecordFunctionParam nestedRecordParam && !nestedRecordParam.getRecordFieldParams().isEmpty()) {
+            // Write the nested record itself first (type metadata), then expand its children.
+            result.append("\n        ");
+            result.append(String.format("<property name=\"%s_%s_param%d\" value=\"%s\"/>",
+                    connectionType, recordParamName, fieldIndexHolder[0], nestedRecordParam.getValue()));
+            result.append(String.format("\n        <property name=\"%s_%s_paramType%d\" value=\"%s\"/>",
+                    connectionType, recordParamName, fieldIndexHolder[0], RECORD));
+            if (nestedRecordParam.getRecordName() != null) {
+                result.append(String.format("\n        <property name=\"%s_%s_param%d_recordName\" value=\"%s\"/>",
+                        connectionType, recordParamName, fieldIndexHolder[0], nestedRecordParam.getRecordName()));
+            }
+            if (nestedRecordParam.getRecordOrg() != null) {
+                result.append(String.format("\n        <property name=\"%s_%s_param%d_recordOrg\" value=\"%s\"/>",
+                        connectionType, recordParamName, fieldIndexHolder[0], nestedRecordParam.getRecordOrg()));
+            }
+            if (nestedRecordParam.getRecordModule() != null) {
+                result.append(String.format("\n        <property name=\"%s_%s_param%d_recordModule\" value=\"%s\"/>",
+                        connectionType, recordParamName, fieldIndexHolder[0], nestedRecordParam.getRecordModule()));
+            }
+            if (unionMemberType != null) {
+                result.append(String.format("\n        <property name=\"%s_%s_unionMember%d\" value=\"%s\"/>",
+                        connectionType, recordParamName, fieldIndexHolder[0], unionMemberType));
+            }
+            fieldIndexHolder[0]++;
             for (FunctionParam nestedFieldParam : nestedRecordParam.getRecordFieldParams()) {
                 writeRecordFieldParamPropertiesWithUnionMember(nestedFieldParam, connectionType, recordParamName,
                         result, fieldIndexHolder, unionMemberType, visitedTypes);
@@ -319,6 +366,32 @@ public final class XmlPropertyWriter {
                     }
                 }
             }
+        } else if (fieldParam instanceof RecordFunctionParam emptyRecordParam) {
+            // RecordFunctionParam with no expanded fields (budget exhausted or opaque record).
+            // Still emit the record metadata so the runtime can construct the correct type.
+            result.append("\n        ");
+            String fieldValue = emptyRecordParam.getValue();
+            result.append(String.format("<property name=\"%s_%s_param%d\" value=\"%s\"/>",
+                    connectionType, recordParamName, fieldIndexHolder[0], fieldValue));
+            result.append(String.format("\n        <property name=\"%s_%s_paramType%d\" value=\"%s\"/>",
+                    connectionType, recordParamName, fieldIndexHolder[0], RECORD));
+            if (emptyRecordParam.getRecordName() != null) {
+                result.append(String.format("\n        <property name=\"%s_%s_param%d_recordName\" value=\"%s\"/>",
+                        connectionType, recordParamName, fieldIndexHolder[0], emptyRecordParam.getRecordName()));
+            }
+            if (emptyRecordParam.getRecordOrg() != null) {
+                result.append(String.format("\n        <property name=\"%s_%s_param%d_recordOrg\" value=\"%s\"/>",
+                        connectionType, recordParamName, fieldIndexHolder[0], emptyRecordParam.getRecordOrg()));
+            }
+            if (emptyRecordParam.getRecordModule() != null) {
+                result.append(String.format("\n        <property name=\"%s_%s_param%d_recordModule\" value=\"%s\"/>",
+                        connectionType, recordParamName, fieldIndexHolder[0], emptyRecordParam.getRecordModule()));
+            }
+            if (unionMemberType != null) {
+                result.append(String.format("\n        <property name=\"%s_%s_unionMember%d\" value=\"%s\"/>",
+                        connectionType, recordParamName, fieldIndexHolder[0], unionMemberType));
+            }
+            fieldIndexHolder[0]++;
         } else {
             result.append("\n        ");
             String fieldValue = fieldParam.getValue();
@@ -351,6 +424,24 @@ public final class XmlPropertyWriter {
     static void writeFunctionRecordFieldProperties(FunctionParam fieldParam, String recordParamName,
                                                    StringBuilder result, int[] fieldIndexHolder, java.util.Set<String> visitedTypes) {
         if (fieldParam instanceof RecordFunctionParam nestedRecordParam && !nestedRecordParam.getRecordFieldParams().isEmpty()) {
+            // Write the nested record itself first (type metadata), then expand its children.
+            result.append(String.format("\n        <property name=\"%s_param%d\" value=\"%s\"/>",
+                    recordParamName, fieldIndexHolder[0], nestedRecordParam.getValue()));
+            result.append(String.format("\n        <property name=\"%s_paramType%d\" value=\"%s\"/>",
+                    recordParamName, fieldIndexHolder[0], RECORD));
+            if (nestedRecordParam.getRecordName() != null) {
+                result.append(String.format("\n        <property name=\"%s_param%d_recordName\" value=\"%s\"/>",
+                        recordParamName, fieldIndexHolder[0], nestedRecordParam.getRecordName()));
+            }
+            if (nestedRecordParam.getRecordOrg() != null) {
+                result.append(String.format("\n        <property name=\"%s_param%d_recordOrg\" value=\"%s\"/>",
+                        recordParamName, fieldIndexHolder[0], nestedRecordParam.getRecordOrg()));
+            }
+            if (nestedRecordParam.getRecordModule() != null) {
+                result.append(String.format("\n        <property name=\"%s_param%d_recordModule\" value=\"%s\"/>",
+                        recordParamName, fieldIndexHolder[0], nestedRecordParam.getRecordModule()));
+            }
+            fieldIndexHolder[0]++;
             for (FunctionParam nestedFieldParam : nestedRecordParam.getRecordFieldParams()) {
                 writeFunctionRecordFieldProperties(nestedFieldParam, recordParamName, result, fieldIndexHolder, visitedTypes);
             }
@@ -422,6 +513,27 @@ public final class XmlPropertyWriter {
             }
 
             fieldIndexHolder[0]++;
+        } else if (fieldParam instanceof RecordFunctionParam emptyRecordParam) {
+            // RecordFunctionParam with no expanded fields (budget exhausted or opaque record).
+            // Still emit the record metadata so the runtime can construct the correct type.
+            String fieldValue = emptyRecordParam.getValue();
+            result.append(String.format("\n        <property name=\"%s_param%d\" value=\"%s\"/>",
+                    recordParamName, fieldIndexHolder[0], fieldValue));
+            result.append(String.format("\n        <property name=\"%s_paramType%d\" value=\"%s\"/>",
+                    recordParamName, fieldIndexHolder[0], RECORD));
+            if (emptyRecordParam.getRecordName() != null) {
+                result.append(String.format("\n        <property name=\"%s_param%d_recordName\" value=\"%s\"/>",
+                        recordParamName, fieldIndexHolder[0], emptyRecordParam.getRecordName()));
+            }
+            if (emptyRecordParam.getRecordOrg() != null) {
+                result.append(String.format("\n        <property name=\"%s_param%d_recordOrg\" value=\"%s\"/>",
+                        recordParamName, fieldIndexHolder[0], emptyRecordParam.getRecordOrg()));
+            }
+            if (emptyRecordParam.getRecordModule() != null) {
+                result.append(String.format("\n        <property name=\"%s_param%d_recordModule\" value=\"%s\"/>",
+                        recordParamName, fieldIndexHolder[0], emptyRecordParam.getRecordModule()));
+            }
+            fieldIndexHolder[0]++;
         } else {
             String fieldValue = fieldParam.getValue();
             result.append(String.format("\n        <property name=\"%s_param%d\" value=\"%s\"/>",
@@ -445,6 +557,28 @@ public final class XmlPropertyWriter {
                                                                   StringBuilder result, int[] fieldIndexHolder,
                                                                   String unionMemberType, java.util.Set<String> visitedTypes) {
         if (fieldParam instanceof RecordFunctionParam nestedRecordParam && !nestedRecordParam.getRecordFieldParams().isEmpty()) {
+            // Write the nested record itself first (type metadata), then expand its children.
+            result.append(String.format("\n        <property name=\"%s_param%d\" value=\"%s\"/>",
+                    recordParamName, fieldIndexHolder[0], nestedRecordParam.getValue()));
+            result.append(String.format("\n        <property name=\"%s_paramType%d\" value=\"%s\"/>",
+                    recordParamName, fieldIndexHolder[0], RECORD));
+            if (nestedRecordParam.getRecordName() != null) {
+                result.append(String.format("\n        <property name=\"%s_param%d_recordName\" value=\"%s\"/>",
+                        recordParamName, fieldIndexHolder[0], nestedRecordParam.getRecordName()));
+            }
+            if (nestedRecordParam.getRecordOrg() != null) {
+                result.append(String.format("\n        <property name=\"%s_param%d_recordOrg\" value=\"%s\"/>",
+                        recordParamName, fieldIndexHolder[0], nestedRecordParam.getRecordOrg()));
+            }
+            if (nestedRecordParam.getRecordModule() != null) {
+                result.append(String.format("\n        <property name=\"%s_param%d_recordModule\" value=\"%s\"/>",
+                        recordParamName, fieldIndexHolder[0], nestedRecordParam.getRecordModule()));
+            }
+            if (unionMemberType != null) {
+                result.append(String.format("\n        <property name=\"%s_unionMember%d\" value=\"%s\"/>",
+                        recordParamName, fieldIndexHolder[0], unionMemberType));
+            }
+            fieldIndexHolder[0]++;
             for (FunctionParam nestedFieldParam : nestedRecordParam.getRecordFieldParams()) {
                 writeFunctionRecordFieldPropertiesWithUnionMember(nestedFieldParam, recordParamName,
                         result, fieldIndexHolder, unionMemberType, visitedTypes);
@@ -491,6 +625,31 @@ public final class XmlPropertyWriter {
                     }
                 }
             }
+        } else if (fieldParam instanceof RecordFunctionParam emptyRecordParam) {
+            // RecordFunctionParam with no expanded fields (budget exhausted or opaque record).
+            // Still emit the record metadata so the runtime can construct the correct type.
+            String fieldValue = emptyRecordParam.getValue();
+            result.append(String.format("\n        <property name=\"%s_param%d\" value=\"%s\"/>",
+                    recordParamName, fieldIndexHolder[0], fieldValue));
+            result.append(String.format("\n        <property name=\"%s_paramType%d\" value=\"%s\"/>",
+                    recordParamName, fieldIndexHolder[0], RECORD));
+            if (emptyRecordParam.getRecordName() != null) {
+                result.append(String.format("\n        <property name=\"%s_param%d_recordName\" value=\"%s\"/>",
+                        recordParamName, fieldIndexHolder[0], emptyRecordParam.getRecordName()));
+            }
+            if (emptyRecordParam.getRecordOrg() != null) {
+                result.append(String.format("\n        <property name=\"%s_param%d_recordOrg\" value=\"%s\"/>",
+                        recordParamName, fieldIndexHolder[0], emptyRecordParam.getRecordOrg()));
+            }
+            if (emptyRecordParam.getRecordModule() != null) {
+                result.append(String.format("\n        <property name=\"%s_param%d_recordModule\" value=\"%s\"/>",
+                        recordParamName, fieldIndexHolder[0], emptyRecordParam.getRecordModule()));
+            }
+            if (unionMemberType != null) {
+                result.append(String.format("\n        <property name=\"%s_unionMember%d\" value=\"%s\"/>",
+                        recordParamName, fieldIndexHolder[0], unionMemberType));
+            }
+            fieldIndexHolder[0]++;
         } else {
             String fieldValue = fieldParam.getValue();
             result.append(String.format("\n        <property name=\"%s_param%d\" value=\"%s\"/>",

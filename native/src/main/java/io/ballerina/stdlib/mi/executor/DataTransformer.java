@@ -59,11 +59,20 @@ public class DataTransformer {
         if (sourceValue == null) {
             return null;
         }
-        if (targetType.getTag() == TypeTags.RECORD_TYPE_TAG && sourceValue instanceof BMap) {
-            return createTypedRecordFromGeneric((BMap<BString, Object>) sourceValue, (StructureType) targetType);
+        if (targetType.getTag() == TypeTags.RECORD_TYPE_TAG) {
+            if (sourceValue instanceof BMap) {
+                return createTypedRecordFromGeneric((BMap<BString, Object>) sourceValue, (StructureType) targetType);
+            }
+            // Source is not a BMap (e.g. Long(0) from a numeric placeholder "0" for a record-typed field).
+            // Cannot construct a record from a non-map value — return null so the field is treated as absent.
+            return null;
         }
-        if (targetType.getTag() == TypeTags.ARRAY_TAG && sourceValue instanceof BArray) {
-            return createTypedArrayFromGeneric((BArray) sourceValue, (ArrayType) targetType);
+        if (targetType.getTag() == TypeTags.ARRAY_TAG) {
+            if (sourceValue instanceof BArray) {
+                return createTypedArrayFromGeneric((BArray) sourceValue, (ArrayType) targetType);
+            }
+            // Source is not a BArray — return null so the field is treated as absent.
+            return null;
         }
         // Handle decimal type conversion - JSON parsing may produce Long/Double instead of BDecimal
         if (targetType.getTag() == TypeTags.DECIMAL_TAG) {
