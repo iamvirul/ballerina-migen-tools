@@ -113,10 +113,10 @@ public final class XmlPropertyWriter {
             case "record":
                 result.append(String.format("<property name=\"%s_param%d\" value=\"%s\"/>\n", connectionType, index, parameter.name));
                 result.append(String.format("<property name=\"%s_paramType%d\" value=\"%s\"/>\n", connectionType, index, parameter.typeName));
-                result.append(String.format("<property name=\"%s_recordName%d\" value=\"%s\"/>\n", connectionType, index, parameter.typeInfo.name));
-                result.append(String.format("<property name=\"%s_recordModule%d\" value=\"%s\"/>\n", connectionType, index, parameter.typeInfo.moduleName));
-                result.append(String.format("<property name=\"%s_recordOrg%d\" value=\"%s\"/>\n", connectionType, index, parameter.typeInfo.orgName));
-                result.append(String.format("<property name=\"%s_recordVersion%d\" value=\"%s\"/>\n", connectionType, index, parameter.typeInfo.version));
+                result.append(String.format("<property name=\"%s_param%d_recordName\" value=\"%s\"/>\n", connectionType, index, parameter.typeInfo.name));
+                result.append(String.format("<property name=\"%s_param%d_recordModule\" value=\"%s\"/>\n", connectionType, index, parameter.typeInfo.moduleName));
+                result.append(String.format("<property name=\"%s_param%d_recordOrg\" value=\"%s\"/>\n", connectionType, index, parameter.typeInfo.orgName));
+                result.append(String.format("<property name=\"%s_param%d_recordVersion\" value=\"%s\"/>\n", connectionType, index, parameter.typeInfo.version));
                 break;
             case "union":
                 result.append(String.format("<property name=\"%s_param%d\" value=\"%s\"/>\n", connectionType, index, parameter.name));
@@ -232,10 +232,33 @@ public final class XmlPropertyWriter {
             if (!isFirst[0]) {
                 result.append("\n        ");
             }
+            int currentIndex = indexHolder[0];
             result.append(String.format("<property name=\"%s_param%d\" value=\"%s\"/>",
-                    connectionType, indexHolder[0], functionParam.getValue()));
+                    connectionType, currentIndex, functionParam.getValue()));
             result.append(String.format("\n        <property name=\"%s_paramType%d\" value=\"%s\"/>",
-                    connectionType, indexHolder[0], functionParam.getParamType()));
+                    connectionType, currentIndex, functionParam.getParamType()));
+            
+            if (functionParam instanceof RecordFunctionParam recordParam) {
+                result.append(String.format("\n        <property name=\"%s_param%d_recordName\" value=\"%s\"/>",
+                        connectionType, currentIndex, recordParam.getRecordName()));
+                if (recordParam.getRecordModule() != null) {
+                    result.append(String.format("\n        <property name=\"%s_param%d_recordModule\" value=\"%s\"/>",
+                            connectionType, currentIndex, recordParam.getRecordModule()));
+                }
+                if (recordParam.getRecordOrg() != null) {
+                    result.append(String.format("\n        <property name=\"%s_param%d_recordOrg\" value=\"%s\"/>",
+                            connectionType, currentIndex, recordParam.getRecordOrg()));
+                }
+                // version is often null/empty for local modules
+                
+                // Recursively write properties for record fields
+                int[] fieldIndexHolder = {0};
+                String recordParamName = recordParam.getValue();
+                for (FunctionParam fieldParam : recordParam.getRecordFieldParams()) {
+                    writeRecordFieldParamProperties(fieldParam, connectionType, recordParamName, result, fieldIndexHolder);
+                }
+            }
+            
             isFirst[0] = false;
             indexHolder[0]++;
         }

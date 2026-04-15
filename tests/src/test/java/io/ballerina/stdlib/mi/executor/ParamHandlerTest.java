@@ -69,7 +69,7 @@ public class ParamHandlerTest {
             synapseUtilsMock.when(() -> SynapseUtils.getPropertyAsString(context, "paramType1")).thenReturn(Constants.INT);
 
             ParamHandler handler = new ParamHandler();
-            handler.setParameters(args, context);
+            handler.setParameters(args, context, null);
 
             Assert.assertEquals(args[0], bStringVal);
             Assert.assertEquals(args[1], 123L);
@@ -635,7 +635,7 @@ public class ParamHandlerTest {
             ParamHandler handler = new ParamHandler();
             Object[] args = new Object[0];
 
-            handler.setParameters(args, context);
+            handler.setParameters(args, context, null);
 
             Assert.assertEquals(args.length, 0);
         }
