@@ -111,6 +111,12 @@ public class SynapseUtils {
         if (json == null) {
             return null;
         }
+        json = json.trim();
+        // Synapse templates conventionally wrap JSON values in single quotes: '{"key":"val"}'
+        // Strip them so the JSON can be parsed by standard parsers.
+        if (json.startsWith("'") && json.endsWith("'") && json.length() >= 2) {
+            json = json.substring(1, json.length() - 1).trim();
+        }
         return json.replaceAll(",\\s*([\\]\\}])", "$1");
     }
 }
