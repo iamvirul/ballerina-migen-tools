@@ -21,11 +21,15 @@ package io.ballerina.stdlib.mi;
 import io.ballerina.runtime.api.Module;
 import io.ballerina.runtime.api.Runtime;
 import io.ballerina.runtime.api.creators.ValueCreator;
+import io.ballerina.runtime.api.types.Type;
+import io.ballerina.runtime.api.values.BArray;
 import io.ballerina.runtime.api.values.BError;
 import io.ballerina.runtime.api.values.BMap;
 import io.ballerina.runtime.api.values.BObject;
+import io.ballerina.stdlib.mi.executor.DataTransformer;
 import io.ballerina.stdlib.mi.executor.ParamHandler;
 import org.apache.synapse.MessageContext;
+import org.apache.synapse.SynapseException;
 import org.apache.synapse.SynapseConstants;
 import org.apache.synapse.mediators.template.TemplateContext;
 import org.wso2.integration.connector.core.AbstractConnector;
@@ -150,18 +154,19 @@ public class BalConnectorConfig extends AbstractConnector {
     }
 
     private void setParameters(Object[] args, MessageContext context, String connectionType) {
-        String objectTypeName = getPropertyAsString(context, connectionType + "_objectTypeName");
         for (int i = 0; i < args.length; i++) {
             Object param = paramHandler.getParameter(context, connectionType + "_param" + i, connectionType + "_paramType" + i, i);
-            
-            // For connection parameters, we use the record name to create a typed record if needed
-            if (param instanceof BMap) {
-                try {
-                    // Try to resolve type from module if it's a custom record type
-                    // The connection parameters are usually defined in a record like ConnectionConfig
-                    // Here we don't have the BObject yet, so we rely on ValueCreator fallback in convertValueToType
-                } catch (Exception e) {
-                    // ignore
+            if (param instanceof BMap || param instanceof BArray) {
+                Object recordNameObj = context.getProperty(connectionType + "_param" + i + "_recordName");
+                if (recordNameObj != null) {
+                    String recordName = recordNameObj.toString();
+                    try {
+                        Type recType = ValueCreator.createRecordValue(module, recordName).getType();
+                        param = DataTransformer.convertValueToType(param, recType);
+                    } catch (Exception e) {
+                        throw new SynapseException(
+                                "Failed to convert connection parameter " + i + " to record type '" + recordName + "': " + e.getMessage(), e);
+                    }
                 }
             }
             args[i] = param;

@@ -113,10 +113,20 @@ public final class XmlPropertyWriter {
             case "record":
                 result.append(String.format("<property name=\"%s_param%d\" value=\"%s\"/>\n", connectionType, index, parameter.name));
                 result.append(String.format("<property name=\"%s_paramType%d\" value=\"%s\"/>\n", connectionType, index, parameter.typeName));
-                result.append(String.format("<property name=\"%s_param%d_recordName\" value=\"%s\"/>\n", connectionType, index, parameter.typeInfo.name));
-                result.append(String.format("<property name=\"%s_param%d_recordModule\" value=\"%s\"/>\n", connectionType, index, parameter.typeInfo.moduleName));
-                result.append(String.format("<property name=\"%s_param%d_recordOrg\" value=\"%s\"/>\n", connectionType, index, parameter.typeInfo.orgName));
-                result.append(String.format("<property name=\"%s_param%d_recordVersion\" value=\"%s\"/>\n", connectionType, index, parameter.typeInfo.version));
+                if (parameter.typeInfo != null) {
+                    if (parameter.typeInfo.name != null) {
+                        result.append(String.format("<property name=\"%s_param%d_recordName\" value=\"%s\"/>\n", connectionType, index, parameter.typeInfo.name));
+                    }
+                    if (parameter.typeInfo.moduleName != null) {
+                        result.append(String.format("<property name=\"%s_param%d_recordModule\" value=\"%s\"/>\n", connectionType, index, parameter.typeInfo.moduleName));
+                    }
+                    if (parameter.typeInfo.orgName != null) {
+                        result.append(String.format("<property name=\"%s_param%d_recordOrg\" value=\"%s\"/>\n", connectionType, index, parameter.typeInfo.orgName));
+                    }
+                    if (parameter.typeInfo.version != null) {
+                        result.append(String.format("<property name=\"%s_param%d_recordVersion\" value=\"%s\"/>\n", connectionType, index, parameter.typeInfo.version));
+                    }
+                }
                 break;
             case "union":
                 result.append(String.format("<property name=\"%s_param%d\" value=\"%s\"/>\n", connectionType, index, parameter.name));

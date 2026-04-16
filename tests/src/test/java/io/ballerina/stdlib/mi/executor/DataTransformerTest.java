@@ -399,7 +399,7 @@ public class DataTransformerTest {
              MockedStatic<StringUtils> stringUtilsMock = Mockito.mockStatic(StringUtils.class)) {
 
             BMap<BString, Object> sourceMap = mock(BMap.class);
-            StructureType targetType = mock(StructureType.class);
+            RecordType targetType = mock(RecordType.class);
             Field field = mock(Field.class);
 
             io.ballerina.runtime.api.Module module = mock(io.ballerina.runtime.api.Module.class);
@@ -410,33 +410,33 @@ public class DataTransformerTest {
             fields.put("known", field);
             when(targetType.getFields()).thenReturn(fields);
             when(field.getFieldName()).thenReturn("known");
-            
-            Type stringType = mock(Type.class);
-            when(stringType.getTag()).thenReturn(TypeTags.STRING_TAG);
-            when(field.getFieldType()).thenReturn(stringType);
+
+            // Closed record: no rest field type
+            when(targetType.getRestFieldType()).thenReturn(null);
 
             BString bKnown = mock(BString.class);
             BString bUnknown = mock(BString.class);
+            when(bKnown.getValue()).thenReturn("known");
+            when(bUnknown.getValue()).thenReturn("unknown");
             stringUtilsMock.when(() -> StringUtils.fromString("known")).thenReturn(bKnown);
             stringUtilsMock.when(() -> StringUtils.fromString("unknown")).thenReturn(bUnknown);
 
-            // Source has extra field
-            when(sourceMap.containsKey(bKnown)).thenReturn(true);
-            when(sourceMap.get(bKnown)).thenReturn("val");
-            // We don't need to mock containsKey for 'unknown' as it shouldn't be checked for a closed record
-            // because createTypedRecordFromGeneric iterates over targetType fields.
+            // Source map contains both a declared field ("known") and an extra field ("unknown")
+            when(sourceMap.getKeys()).thenReturn(new BString[]{bKnown, bUnknown});
+            when(sourceMap.isEmpty()).thenReturn(false);
 
             BMap<BString, Object> typedRecord = mock(BMap.class);
             valueCreatorMock.when(() -> ValueCreator.createRecordValue(module, "ClosedRecord"))
                     .thenReturn(typedRecord);
 
-            BString bVal = mock(BString.class);
-            stringUtilsMock.when(() -> StringUtils.fromString("val")).thenReturn(bVal);
-
-            DataTransformer.createTypedRecordFromGeneric(sourceMap, targetType);
-
-            Mockito.verify(typedRecord).put(bKnown, bVal);
-            Mockito.verify(typedRecord, Mockito.never()).put(eq(bUnknown), any());
+            // Strict mode must reject the extra "unknown" field for a closed record
+            try {
+                DataTransformer.createTypedRecordFromGeneric(sourceMap, targetType, true);
+                Assert.fail("Expected SynapseException for extra field in closed record");
+            } catch (SynapseException e) {
+                Assert.assertTrue(e.getMessage().contains("unknown"),
+                        "Exception should mention the offending field name");
+            }
         }
     }
 

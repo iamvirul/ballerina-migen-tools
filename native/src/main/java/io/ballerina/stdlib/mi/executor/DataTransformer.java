@@ -89,8 +89,13 @@ public class DataTransformer {
         // Handle numeric and basic type conversions to prevent InherentTypeViolation
         switch (tag) {
             case TypeTags.INT_TAG:
-                if (sourceValue instanceof Number) {
-                    return ((Number) sourceValue).longValue();
+                if (sourceValue instanceof Number num) {
+                    double d = num.doubleValue();
+                    if (Double.isInfinite(d) || Double.isNaN(d) || d != Math.floor(d)) {
+                        throw new SynapseException(
+                                "Cannot convert fractional value '" + sourceValue + "' to Ballerina int: lossy narrowing");
+                    }
+                    return num.longValue();
                 }
                 break;
             case TypeTags.FLOAT_TAG:
@@ -154,11 +159,17 @@ public class DataTransformer {
                         if (memberTag == TypeTags.STRING_TAG && (sourceValue instanceof String || sourceValue instanceof BString)) {
                             return sourceValue instanceof BString ? sourceValue : StringUtils.fromString(sourceValue.toString());
                         }
-                        if (memberTag == TypeTags.INT_TAG && sourceValue instanceof Number) {
-                            return ((Number) sourceValue).longValue();
+                        if (memberTag == TypeTags.INT_TAG && sourceValue instanceof Number num) {
+                            double d = num.doubleValue();
+                            if (!Double.isInfinite(d) && !Double.isNaN(d) && d == Math.floor(d)) {
+                                return num.longValue();
+                            }
                         }
                         if (memberTag == TypeTags.FLOAT_TAG && sourceValue instanceof Number) {
                             return ((Number) sourceValue).doubleValue();
+                        }
+                        if (memberTag == TypeTags.DECIMAL_TAG && sourceValue instanceof Number) {
+                            return ValueCreator.createDecimalValue(new java.math.BigDecimal(sourceValue.toString()));
                         }
                         if (memberTag == TypeTags.BOOLEAN_TAG && sourceValue instanceof Boolean) {
                             return sourceValue;
@@ -228,6 +239,23 @@ public class DataTransformer {
         // 2. Ensure at least one field matched if the input map is not empty and we are in strict mode
         if (strict && !genericMap.isEmpty() && matchCount == 0 && !fields.isEmpty()) {
             throw new SynapseException("Record mismatch: no fields matched for " + targetType.getName());
+        }
+
+        // 3. For open records, copy undeclared keys as rest fields
+        if (targetType instanceof RecordType recordType) {
+            Type restFieldType = recordType.getRestFieldType();
+            boolean isOpen = restFieldType != null
+                    && restFieldType.getTag() != TypeTags.NULL_TAG
+                    && restFieldType.getTag() != TypeTags.NEVER_TAG;
+            if (isOpen) {
+                for (BString key : genericMap.getKeys()) {
+                    if (!fields.containsKey(key.getValue())) {
+                        Object genericValue = genericMap.get(key);
+                        Object convertedValue = convertValueToType(genericValue, restFieldType);
+                        typedRecord.put(key, convertedValue);
+                    }
+                }
+            }
         }
 
         return typedRecord;
@@ -395,7 +423,9 @@ public class DataTransformer {
                 try {
                     return convertValueToType(reconstructedBMap, recType);
                 } catch (Exception e) {
-                    log.error("Failed to convert reconstructed BMap to typed record: " + e.getMessage(), e);
+                    log.error("Failed to convert reconstructed BMap to typed record '" + recordName + "': " + e.getMessage(), e);
+                    throw new SynapseException(
+                            "Failed to convert record '" + recordName + "' to its Ballerina type: " + e.getMessage(), e);
                 }
             }
 
@@ -432,7 +462,9 @@ public class DataTransformer {
                     Object parseResult = JsonUtils.parse(jsonString);
                     return convertValueToType(parseResult, recType);
                 } catch (Exception deepEx) {
-                    log.error("Manual conversion from JSON failed: " + deepEx.getMessage(), deepEx);
+                    log.error("Manual conversion from JSON failed for record '" + recordName + "': " + deepEx.getMessage(), deepEx);
+                    throw new SynapseException(
+                            "Failed to convert JSON to record type '" + recordName + "': " + deepEx.getMessage(), deepEx);
                 }
             }
         }
