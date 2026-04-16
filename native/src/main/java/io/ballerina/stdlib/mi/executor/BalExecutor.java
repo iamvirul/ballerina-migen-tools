@@ -64,7 +64,6 @@ public class BalExecutor {
             Object result;
             if (callable instanceof Module) {
                 String functionName = SynapseUtils.getPropertyAsString(context, Constants.FUNCTION_NAME);
-                log.info("Calling Ballerina function: " + functionName + " with " + args.length + " args");
                 result = rt.callFunction((Module) callable, functionName, null, args);
             } else if (callable instanceof BObject) {
                 String functionType = SynapseUtils.getPropertyAsString(context, Constants.FUNCTION_TYPE);
@@ -76,19 +75,19 @@ public class BalExecutor {
                     if (jvmMethodName == null || jvmMethodName.isEmpty()) {
                         jvmMethodName = SynapseUtils.getPropertyAsString(context, FUNCTION_NAME);
                     }
+                    if (jvmMethodName == null || jvmMethodName.isEmpty()) {
+                        throw new SynapseException("Neither jvmMethodName nor paramFunctionName is available for resource function invocation");
+                    }
                     Object[] argsWithPathParams = paramHandler.prependPathParams(args, context);
-                    log.info("Calling Ballerina resource function: " + jvmMethodName + " with " + argsWithPathParams.length + " total args");
                     result = invokeResourceFunction((BObject) callable, rt, jvmMethodName, argsWithPathParams);
                 } else {
                     String functionName = SynapseUtils.getPropertyAsString(context, Constants.FUNCTION_NAME);
-                    log.info("Calling Ballerina remote/method: " + functionName + " with " + args.length + " args");
                     result = rt.callMethod((BObject) callable, functionName, null, args);
                 }
             } else {
                 throw new SynapseException("Unsupported callable type: " + callable.getClass().getName());
             }
 
-            log.info("Ballerina call successful. Result type: " + (result != null ? result.getClass().getName() : "null"));
             if (result instanceof BError bError) {
                 log.error("Ballerina call returned error: " + bError.getMessage());
                 throw new BallerinaExecutionException(bError.getMessage(), bError.fillInStackTrace());

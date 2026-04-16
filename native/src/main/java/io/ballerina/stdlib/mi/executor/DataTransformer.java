@@ -63,19 +63,16 @@ public class DataTransformer {
         }
 
         int tag = targetType.getTag();
-        log.info("Converting value to type: " + targetType + " (tag: " + tag + ")");
 
         // Handle Intersection types (e.g. readonly records) by unwrapping to effective type
         if (tag == TypeTags.INTERSECTION_TAG) {
             Type effectiveType = ((IntersectionType) targetType).getEffectiveType();
-            log.info("Unwrapping intersection type to effective type: " + effectiveType);
             return convertValueToType(sourceValue, effectiveType);
         }
 
         // Handle Type Reference types by unwrapping to referred type
         if (tag == TypeTags.TYPE_REFERENCED_TYPE_TAG) {
             Type referredType = TypeUtils.getReferredType(targetType);
-            log.info("Unwrapping type reference '" + targetType.getName() + "' to referred type: " + referredType);
             return convertValueToType(sourceValue, referredType);
         }
 
@@ -121,7 +118,6 @@ public class DataTransformer {
                 break;
             case TypeTags.UNION_TAG:
                 if (targetType instanceof UnionType unionType) {
-                    log.info("Attempting conversion to union members: " + unionType.getMemberTypes());
                     
                     // Pass 1: Try structured types (Records, Arrays, Maps)
                     for (Type memberType : unionType.getMemberTypes()) {
@@ -129,8 +125,7 @@ public class DataTransformer {
                         int memberTag = effectiveMemberType.getTag();
                         if (memberTag == TypeTags.RECORD_TYPE_TAG && sourceValue instanceof BMap) {
                             try {
-                                Object converted = createTypedRecordFromGeneric((BMap<BString, Object>) sourceValue, (StructureType) effectiveMemberType);
-                                log.info("Successfully converted to union member record: " + effectiveMemberType);
+                                Object converted = createTypedRecordFromGeneric((BMap<BString, Object>) sourceValue, (StructureType) effectiveMemberType, true);
                                 return converted;
                             } catch (Exception e) {
                                 // Ignore and try next member
@@ -138,7 +133,6 @@ public class DataTransformer {
                         } else if (memberTag == TypeTags.ARRAY_TAG && sourceValue instanceof BArray) {
                             try {
                                 Object converted = createTypedArrayFromGeneric((BArray) sourceValue, (ArrayType) effectiveMemberType);
-                                log.info("Successfully converted to union member array: " + effectiveMemberType);
                                 return converted;
                             } catch (Exception e) {
                                 // Ignore and try next member
@@ -146,7 +140,6 @@ public class DataTransformer {
                         } else if (memberTag == TypeTags.MAP_TAG && sourceValue instanceof BMap) {
                             try {
                                 Object converted = createTypedMapFromGeneric((BMap<BString, Object>) sourceValue, (MapType) effectiveMemberType);
-                                log.info("Successfully converted to union member map: " + effectiveMemberType);
                                 return converted;
                             } catch (Exception e) {
                                 // Ignore and try next member
@@ -199,16 +192,44 @@ public class DataTransformer {
     }
 
     public static BMap<BString, Object> createTypedRecordFromGeneric(BMap<BString, Object> genericMap, StructureType targetType) {
+        return createTypedRecordFromGeneric(genericMap, targetType, false);
+    }
+
+    public static BMap<BString, Object> createTypedRecordFromGeneric(BMap<BString, Object> genericMap, StructureType targetType, boolean strict) {
         BMap<BString, Object> typedRecord = ValueCreator.createRecordValue(targetType.getPackage(), targetType.getName());
-        for (Field field : targetType.getFields().values()) {
+        Map<String, Field> fields = targetType.getFields();
+
+        // Strict validation for Union resolution:
+        // 1. If the record is closed, ensure no extra fields are present in the input
+        if (strict && targetType instanceof RecordType recordType) {
+            Type restFieldType = recordType.getRestFieldType();
+            boolean isClosed = (restFieldType == null || restFieldType.getTag() == TypeTags.NULL_TAG || restFieldType.getTag() == TypeTags.NEVER_TAG);
+            if (isClosed) {
+                for (BString key : genericMap.getKeys()) {
+                    if (!fields.containsKey(key.getValue())) {
+                        throw new SynapseException("Record mismatch: extra field '" + key.getValue() + "' for closed record " + targetType.getName());
+                    }
+                }
+            }
+        }
+
+        int matchCount = 0;
+        for (Field field : fields.values()) {
             String fieldName = field.getFieldName();
             BString bFieldName = StringUtils.fromString(fieldName);
             if (genericMap.containsKey(bFieldName)) {
                 Object genericValue = genericMap.get(bFieldName);
                 Object convertedValue = convertValueToType(genericValue, field.getFieldType());
                 typedRecord.put(bFieldName, convertedValue);
+                matchCount++;
             }
         }
+
+        // 2. Ensure at least one field matched if the input map is not empty and we are in strict mode
+        if (strict && !genericMap.isEmpty() && matchCount == 0 && !fields.isEmpty()) {
+            throw new SynapseException("Record mismatch: no fields matched for " + targetType.getName());
+        }
+
         return typedRecord;
     }
 
@@ -277,7 +298,6 @@ public class DataTransformer {
 
         Type expectedType = getMethodParameterType(bObject, methodName, paramIndex);
         if (expectedType == null) {
-            log.info("Could not determine expected type for " + methodName + "[" + paramIndex + "], using value as-is");
             return value;
         }
 
@@ -325,7 +345,6 @@ public class DataTransformer {
      */
     public static Object createRecordValue(String jsonString, String paramName, MessageContext context,
                                            int paramIndex, String recordTypeHint) {
-        log.info("Creating record value for parameter '" + paramName + "' (index: " + paramIndex + ", hint: " + recordTypeHint + ")");
         if (jsonString == null) {
             String recordParamName = paramName;
             String connectionType = SynapseUtils.findConnectionTypeForParam(context, recordParamName);
@@ -351,7 +370,6 @@ public class DataTransformer {
             Object recordNameObj = context.getProperty(recordNamePropertyKey);
             String recordName = recordNameObj != null ? recordNameObj.toString() : recordTypeHint;
             Module recordModule = getRecordModule(context, recordOrgPropertyKey, recordModulePropertyKey, recordVersionPropertyKey);
-            log.info("Reconstructing record '" + recordName + "' from prefix '" + propertyPrefix + "' in module " + recordModule);
 
             // First, try to create a typed record to see if it's possible
             boolean canCreateTypedRecord = false;
@@ -361,7 +379,6 @@ public class DataTransformer {
                     BMap<BString, Object> recValue = ValueCreator.createRecordValue(recordModule, recordName);
                     recType = recValue.getType();
                     canCreateTypedRecord = true;
-                    log.info("Successfully loaded record type: " + recType);
                 } catch (Exception e) {
                     log.warn("Record type '" + recordName + "' not loadable in module " + recordModule + ": " + e.getMessage());
                 }
@@ -375,7 +392,6 @@ public class DataTransformer {
             }
 
             if (recType != null) {
-                log.info("Converting reconstructed generic BMap to typed record " + recordName);
                 try {
                     return convertValueToType(reconstructedBMap, recType);
                 } catch (Exception e) {
@@ -403,7 +419,6 @@ public class DataTransformer {
             Module recordModule = getRecordModule(context, "param" + paramIndex + "_recordOrg", 
                 "param" + paramIndex + "_recordModule", "param" + paramIndex + "_recordVersion");
 
-            log.info("Creating typed record from JSON for '" + recordName + "' in module " + recordModule);
             BString jsonBString = StringUtils.fromString(jsonString);
             Type recType = null;
             try {
@@ -458,7 +473,6 @@ public class DataTransformer {
     public static Object reconstructRecordFromFields(String propertyPrefix, MessageContext context,
                                                      boolean setDefaultsForMissingFields,
                                                      boolean isDirectUnionMemberRecord) {
-        log.info("Reconstructing record from fields with prefix: " + propertyPrefix);
         com.google.gson.JsonObject recordJson = new com.google.gson.JsonObject();
         Map<String, String> unionFieldSelectedTypes = new HashMap<>();
         
@@ -478,7 +492,6 @@ public class DataTransformer {
                     Object selectedTypeObj = SynapseUtils.lookupTemplateParameter(context, dataTypeParamNameObj.toString());
                     if (selectedTypeObj != null) {
                         unionFieldSelectedTypes.put(fieldNameObj.toString(), selectedTypeObj.toString());
-                        log.info("Union field '" + fieldNameObj + "' selected type: " + selectedTypeObj);
                     }
                 }
             }
@@ -518,7 +531,6 @@ public class DataTransformer {
                     String unionJsonKey = (isDirectUnionMemberRecord && unionMemberType != null && fieldPath.contains("."))
                             ? fieldPath.substring(fieldPath.indexOf('.') + 1)
                             : fieldPath;
-                     log.info("Adding union field: " + unionJsonKey + " = " + unionValue);
                      setNestedField(recordJson, unionJsonKey, unionValue, fieldType, context, propertyPrefix, fieldIndex);
                      fieldIndex++;
                      continue;
@@ -558,7 +570,6 @@ public class DataTransformer {
                                 Object jsonFieldValue = SynapseUtils.lookupTemplateParameter(context, jsonFieldObj.toString());
                                 if (jsonFieldValue != null && !jsonFieldValue.toString().isEmpty()) {
                                     fieldValue = jsonFieldValue;
-                                    log.info("Using JSON mode for array field: " + fieldPath);
                                 }
                             }
                         }
@@ -580,17 +591,14 @@ public class DataTransformer {
                     fieldIndex++;
                     continue;
                 }
-                log.info("Adding field: " + jsonKey + " (type: " + fieldType + ") = " + fieldValue);
                 setNestedField(recordJson, jsonKey, fieldValue, fieldType, context, propertyPrefix, fieldIndex);
             } else if (setDefaultsForMissingFields && (DECIMAL.equals(fieldType) || INT.equals(fieldType))) {
-                log.info("Adding default 0 for missing numeric field: " + jsonKey);
                 setNestedField(recordJson, jsonKey, "0", fieldType, context, propertyPrefix, fieldIndex);
             }
             fieldIndex++;
         }
 
         String jsonStr = recordJson.toString();
-        log.info("Reconstructed JSON: " + jsonStr);
 
         Object parseResult = JsonUtils.parse(jsonStr);
         if (parseResult instanceof BError bError) {
@@ -674,7 +682,6 @@ public class DataTransformer {
             if (DECIMAL.equals(fieldType) && currentValue != null && !(currentValue instanceof io.ballerina.runtime.api.values.BDecimal)) {
                 Object newValue = ValueCreator.createDecimalValue(new java.math.BigDecimal(currentValue.toString()));
                 currentMap.put(bFieldName, newValue);
-                log.info("Converted nested " + fieldPath + " to BDecimal: " + newValue);
             }
         }
     }
