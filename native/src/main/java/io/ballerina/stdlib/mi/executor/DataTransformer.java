@@ -45,8 +45,10 @@ import org.ballerinalang.langlib.value.FromJsonStringWithType;
 import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
@@ -507,7 +509,9 @@ public class DataTransformer {
                                                      boolean isDirectUnionMemberRecord) {
         com.google.gson.JsonObject recordJson = new com.google.gson.JsonObject();
         Map<String, String> unionFieldSelectedTypes = new HashMap<>();
-        
+        Set<String> checkedPrefixes = new HashSet<>();
+        Set<String> disabledPrefixes = new HashSet<>();
+
         int tempIndex = 0;
         while (true) {
             String fieldNameKey = propertyPrefix + "_param" + tempIndex;
@@ -527,6 +531,24 @@ public class DataTransformer {
                     }
                 }
             }
+
+            // Collect disabled path prefixes by checking enable_* flags for each unique path segment
+            String fieldPath = fieldNameObj.toString();
+            String[] pathParts = fieldPath.split("\\.");
+            StringBuilder prefixBuilder = new StringBuilder();
+            for (int i = 0; i < pathParts.length; i++) {
+                if (i > 0) prefixBuilder.append(".");
+                prefixBuilder.append(pathParts[i]);
+                String prefix = prefixBuilder.toString();
+                if (checkedPrefixes.add(prefix)) {
+                    String enableKey = "enable_" + prefix.replace(".", "_");
+                    Object enableValue = SynapseUtils.lookupTemplateParameter(context, enableKey);
+                    if ("false".equals(enableValue != null ? enableValue.toString() : null)) {
+                        disabledPrefixes.add(prefix);
+                    }
+                }
+            }
+
             tempIndex++;
         }
 
@@ -557,6 +579,10 @@ public class DataTransformer {
                         }
                     }
                 }
+                if (isFieldPathDisabled(fieldPath, disabledPrefixes)) {
+                    fieldIndex++;
+                    continue;
+                }
                 String sanitizedFieldPath = fieldPath.replace(".", "_");
                 Object unionValue = SynapseUtils.lookupTemplateParameter(context, sanitizedFieldPath);
                 if (unionValue != null) {
@@ -580,6 +606,11 @@ public class DataTransformer {
                         continue;
                     }
                 }
+            }
+
+            if (isFieldPathDisabled(fieldPath, disabledPrefixes)) {
+                fieldIndex++;
+                continue;
             }
 
             String sanitizedFieldPath = fieldPath.replace(".", "_");
@@ -651,6 +682,27 @@ public class DataTransformer {
      * This is needed because JsonUtils.parse() may produce Long/Double for numeric values,
      * but Ballerina expects specific types like BDecimal for decimal fields.
      */
+
+    /**
+     * Returns true if the given fieldPath (dot-notation) should be excluded because one of its
+     * path segments has been explicitly disabled via an {@code enable_<sanitizedPath>} flag.
+     */
+    private static boolean isFieldPathDisabled(String fieldPath, Set<String> disabledPrefixes) {
+        if (disabledPrefixes.isEmpty()) {
+            return false;
+        }
+        String[] parts = fieldPath.split("\\.");
+        StringBuilder prefix = new StringBuilder();
+        for (int i = 0; i < parts.length; i++) {
+            if (i > 0) prefix.append(".");
+            prefix.append(parts[i]);
+            if (disabledPrefixes.contains(prefix.toString())) {
+                return true;
+            }
+        }
+        return false;
+    }
+
     private static void convertFieldTypes(BMap<BString, Object> map, String propertyPrefix, MessageContext context) {
         int fieldIndex = 0;
         while (true) {
