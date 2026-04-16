@@ -1,6 +1,6 @@
 {
   "connectorName": "project7",
-  "operationName": "postUsersMessagesImportByUserId",
+  "operationName": "postUsersMessages_importByUserId",
   "title": "post users messages import by user id",
   "help": "",
   "elements": [

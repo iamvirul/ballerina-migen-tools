@@ -22,7 +22,7 @@
     <parameter name="expectedType" description=""/>
     <sequence>
         <property name="param0" value="expectedType"/>
-        <property name="paramType0" value="string"/>
+        <property name="paramType0" value="typedesc"/>
         <property name="paramSize" value="1"/>
         <property name="paramFunctionName" value="processTypedescString"/>
         <property name="returnType" value="string"/>

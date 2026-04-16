@@ -23,9 +23,11 @@
     {{{writeFunctionRecordXmlParameters this}}}
 {{~else ~}}{{#eq paramType "union"}}
     <parameter name="{{sanitizeParamName value}}DataType" description="Select the data type for '{{value}}' parameter"/>
+{{~#unless typeDescriptor}}
 {{~#each unionMemberParams}}
     <parameter name="{{sanitizeParamName value}}" description="{{description}}"/>
 {{~/each}}
+{{~/unless}}
 {{~else}}{{#eq paramType "array"}}{{#if (isDualModeArray this)}}
     <parameter name="{{sanitizeParamName value}}InputMode" description="Input mode for {{value}}: Table or JSON"/>
     <parameter name="{{sanitizeParamName value}}Json" description="JSON array input for {{value}}"/>
@@ -34,7 +36,7 @@
 {{~/eq}}{{~/eq}}{{/each}}
     <sequence>
         {{#each functionParams ~}}
-        <property name="param{{@index}}" value="{{sanitizeParamName value}}"/>
+        <property name="param{{@index}}" value="{{#if typeDescriptor}}{{#eq paramType "union"}}{{sanitizeParamName value}}DataType{{else}}{{sanitizeParamName value}}{{/eq}}{{else}}{{sanitizeParamName value}}{{/if}}"/>
         <property name="paramType{{@index}}" value="{{#if typeDescriptor}}typedesc{{else}}{{paramType}}{{/if}}"/>
         {{~#if typeDescriptor}}{{#if defaultValue}}
         <property name="param{{@index}}_typedescDefault" value="{{defaultValue}}"/>
@@ -66,11 +68,11 @@
         <property name="param{{@index}}_recordVersion" value="{{recordVersion}}" />
         {{~/if}}{{{writeFunctionRecordXmlProperties this @index}}}
         {{~/eq}}
-        {{~#eq paramType "union"}}
+        {{~#eq paramType "union"}}{{~#unless typeDescriptor}}
         {{~#each unionMemberParams}}
-        <property name="param{{@../index}}Union{{capitalize displayTypeName}}" value="{{#if ../typeDescriptor}}{{sanitizeParamName ../value}}DataType{{else}}{{sanitizeParamName value}}{{/if}}"/>
+        <property name="param{{@../index}}Union{{capitalize displayTypeName}}" value="{{sanitizeParamName value}}"/>
         {{~/each}}
-        {{~/eq}}
+        {{~/unless}}{{~/eq}}
         {{/each ~}}
         {{~#each params ~}}
         <property name="{{key}}" value="{{value}}"/>
