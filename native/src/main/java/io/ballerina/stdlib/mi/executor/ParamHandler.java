@@ -183,6 +183,7 @@ public class ParamHandler {
                 case MAP -> DataTransformer.getMapParameter(param, context, value);
                 case UNION -> getUnionParameter(paramName, context, index, paramPrefix);
                 case TYPEDESC -> getTypedescValueWithFallback((String) param, paramName, context, index);
+                case ENUM -> StringUtils.fromString((String) param);
                 default -> null;
             };
             return result;
