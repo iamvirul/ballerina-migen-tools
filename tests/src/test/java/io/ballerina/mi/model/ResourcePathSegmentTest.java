@@ -163,4 +163,16 @@ public class ResourcePathSegmentTest {
         ResourcePathSegment segment2 = new ResourcePathSegment("prefs/externalMembers");
         Assert.assertEquals(segment2.toJvmMethodNameComponent(), "$prefs&0047externalMembers");
     }
+
+    @Test
+    public void testAtSignEscapingInJvmMethodName() {
+        // Discord-style @me path segment: Ballerina compiler returns \@me as the segment signature.
+        // The backslash escape should be stripped, leaving @me which is not JVM-reserved.
+        ResourcePathSegment segment = new ResourcePathSegment("\\@me");
+        Assert.assertEquals(segment.toJvmMethodNameComponent(), "$@me");
+
+        // Nested path segment with @me
+        ResourcePathSegment segment2 = new ResourcePathSegment("\\@me$connections");
+        Assert.assertEquals(segment2.toJvmMethodNameComponent(), "$@me$connections");
+    }
 }

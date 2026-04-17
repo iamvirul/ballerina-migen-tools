@@ -21,7 +21,7 @@
         {{#each components ~}}
         <component name="{{name}}">
             <displayName>{{displayName}}</displayName>
-            <file>{{originalName}}.xml</file>
+            <file>{{originalFileName}}.xml</file>
             <description>{{documentation}}</description>
         </component>
         {{/each ~}}

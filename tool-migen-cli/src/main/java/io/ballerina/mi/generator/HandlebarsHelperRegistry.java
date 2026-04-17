@@ -187,7 +187,7 @@ public final class HandlebarsHelperRegistry {
             boolean[] isFirst = {true};
             Set<String> processedParams = new HashSet<>();
             for (FunctionParam functionParam : functionParams) {
-                XmlPropertyWriter.writeXmlParameterElements(functionParam, result, isFirst, processedParams);
+                XmlPropertyWriter.writeXmlParameterElements(functionParam, result, isFirst, processedParams, true);
             }
             String output = result.toString();
             if (output.endsWith("\n    ")) {
@@ -208,7 +208,7 @@ public final class HandlebarsHelperRegistry {
                 if (connection.getInitComponent() != null) {
                     List<FunctionParam> functionParams = connection.getInitComponent().getFunctionParams();
                     for (FunctionParam functionParam : functionParams) {
-                        XmlPropertyWriter.writeXmlParameterElements(functionParam, result, isFirst, processedParams);
+                        XmlPropertyWriter.writeXmlParameterElements(functionParam, result, isFirst, processedParams, true);
                     }
                 }
             }

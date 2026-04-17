@@ -388,7 +388,7 @@ public class ConnectorSerializer {
      * Optionally converts to PascalCase for function files (not config files).
      * Preserves the directory path structure.
      */
-    static String sanitizeFileName(String filePath, boolean isConfigFile) {
+    public static String sanitizeFileName(String filePath, boolean isConfigFile) {
         if (filePath == null || filePath.isEmpty()) {
             return filePath;
         }

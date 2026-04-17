@@ -83,6 +83,24 @@ public class Component extends ModelElement {
         return name;
     }
 
+    /**
+     * Get the sanitized file name for this component.
+     * This matches the actual filename written to disk by the serializer,
+     * ensuring component.xml file references are consistent with generated files.
+     */
+    public String getFileName() {
+        return ConnectorSerializer.sanitizeFileName(this.name, false);
+    }
+
+    /**
+     * Get the sanitized file name based on the original (unprefixed) name.
+     * Used for multi-client connectors where originalName is the per-client operation name.
+     */
+    public String getOriginalFileName() {
+        String nameToSanitize = (this.originalName != null) ? this.originalName : this.name;
+        return ConnectorSerializer.sanitizeFileName(nameToSanitize, false);
+    }
+
     public void setName(String name) {
         this.name = name;
     }

@@ -20,12 +20,14 @@ package io.ballerina.mi.generator;
 
 import io.ballerina.mi.model.param.ArrayFunctionParam;
 import io.ballerina.mi.model.param.FunctionParam;
+import io.ballerina.mi.model.param.MapFunctionParam;
 import io.ballerina.mi.model.param.RecordFunctionParam;
 import io.ballerina.mi.model.param.UnionFunctionParam;
 import io.ballerina.mi.util.Utils;
 import org.ballerinalang.diagramutil.connector.models.connector.Type;
 import org.ballerinalang.diagramutil.connector.models.connector.types.PathParamType;
 
+import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
 import java.util.stream.Collectors;
@@ -546,11 +548,17 @@ public final class XmlPropertyWriter {
      */
     static void writeXmlParameterElements(FunctionParam functionParam, StringBuilder result,
                                           boolean[] isFirst, Set<String> processedParams) {
-        writeXmlParameterElements(functionParam, result, isFirst, processedParams, new java.util.HashSet<>());
+        writeXmlParameterElements(functionParam, result, isFirst, processedParams, new HashSet<>(), false);
     }
 
     static void writeXmlParameterElements(FunctionParam functionParam, StringBuilder result,
-                                          boolean[] isFirst, Set<String> processedParams, java.util.Set<String> visitedTypes) {
+                                          boolean[] isFirst, Set<String> processedParams, boolean isConfigContext) {
+        writeXmlParameterElements(functionParam, result, isFirst, processedParams, new HashSet<>(), isConfigContext);
+    }
+
+    static void writeXmlParameterElements(FunctionParam functionParam, StringBuilder result,
+                                          boolean[] isFirst, Set<String> processedParams, Set<String> visitedTypes,
+                                          boolean isConfigContext) {
         if (functionParam instanceof RecordFunctionParam recordParam && !recordParam.getRecordFieldParams().isEmpty()) {
             String typeKey = recordParam.getDisplayTypeName();
             if (typeKey == null || typeKey.isEmpty()) {
@@ -562,9 +570,20 @@ public final class XmlPropertyWriter {
             if (typeKey != null) {
                 visitedTypes.add(typeKey);
             }
+            // For optional records in config context, add enable_ checkbox parameter
+            if (isConfigContext && !recordParam.isRequired()) {
+                String sanitizedParamName = Utils.sanitizeParamName(recordParam.getValue());
+                String enableParamName = "enable_" + sanitizedParamName;
+                if (!processedParams.contains(enableParamName)) {
+                    if (!isFirst[0]) result.append("\n    ");
+                    result.append(String.format("<parameter name=\"%s\" description=\"\"/>", enableParamName));
+                    isFirst[0] = false;
+                    processedParams.add(enableParamName);
+                }
+            }
             // Expand record fields as separate parameters
             for (FunctionParam fieldParam : recordParam.getRecordFieldParams()) {
-                writeXmlParameterElements(fieldParam, result, isFirst, processedParams, visitedTypes);
+                writeXmlParameterElements(fieldParam, result, isFirst, processedParams, visitedTypes, isConfigContext);
             }
             if (typeKey != null) {
                 visitedTypes.remove(typeKey);
@@ -588,7 +607,7 @@ public final class XmlPropertyWriter {
 
             // Expand all union members properties
             for (FunctionParam member : unionParam.getUnionMemberParams()) {
-                writeXmlParameterElements(member, result, isFirst, processedParams, visitedTypes);
+                writeXmlParameterElements(member, result, isFirst, processedParams, visitedTypes, isConfigContext);
             }
         } else if (functionParam instanceof ArrayFunctionParam arrayParam) {
             // Handle array fields - add dual mode parameters if supported
@@ -597,6 +616,17 @@ public final class XmlPropertyWriter {
             // Deduplicate: Don't write if already written
             if (processedParams.contains(sanitizedParamName)) {
                 return;
+            }
+
+            // For optional renderAsTable arrays in config context, add enable_ checkbox parameter
+            if (isConfigContext && !arrayParam.isRequired() && arrayParam.isRenderAsTable()) {
+                String enableParamName = "enable_" + sanitizedParamName;
+                if (!processedParams.contains(enableParamName)) {
+                    if (!isFirst[0]) result.append("\n    ");
+                    result.append(String.format("<parameter name=\"%s\" description=\"\"/>", enableParamName));
+                    isFirst[0] = false;
+                    processedParams.add(enableParamName);
+                }
             }
 
             // Add InputMode and Json parameters for dual mode arrays (record arrays)
@@ -637,12 +667,24 @@ public final class XmlPropertyWriter {
             isFirst[0] = false;
             processedParams.add(sanitizedParamName);
         } else {
-            // Generate single parameter element
+            // Generate single parameter element (covers MapFunctionParam and plain FunctionParam)
             String sanitizedParamName = Utils.sanitizeParamName(functionParam.getValue());
 
             // Deduplicate: Don't write if already written
             if (processedParams.contains(sanitizedParamName)) {
                 return;
+            }
+
+            // For optional renderAsTable maps in config context, add enable_ checkbox parameter
+            if (isConfigContext && !functionParam.isRequired()
+                    && functionParam instanceof MapFunctionParam mapParam && mapParam.isRenderAsTable()) {
+                String enableParamName = "enable_" + sanitizedParamName;
+                if (!processedParams.contains(enableParamName)) {
+                    if (!isFirst[0]) result.append("\n    ");
+                    result.append(String.format("<parameter name=\"%s\" description=\"\"/>", enableParamName));
+                    isFirst[0] = false;
+                    processedParams.add(enableParamName);
+                }
             }
 
             String description = functionParam.getDescription() != null ? functionParam.getDescription() : "";

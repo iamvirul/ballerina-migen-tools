@@ -156,7 +156,8 @@ public class ResourcePathSegment {
 
     private static boolean isIdentifierSingleEscape(char c) {
         return c == '.' || c == '/' || c == ':' || c == ';'
-                || c == '<' || c == '>' || c == '[' || c == ']' || c == '\\';
+                || c == '<' || c == '>' || c == '[' || c == ']' || c == '\\'
+                || c == '@';
     }
 
     private static String getJvmReservedCharEncoding(char c) {
