@@ -32,4 +32,4 @@ EXAMPLES
        $ bal migen module
        $ bal migen module --path ./my-project -o ./output
        $ bal migen module --package ballerinax/crypto
-       $ bal migen module --package ballerinax/twilio:1.0.0 --output ./mi-out
+       $ bal migen module --package ballerinax/crypto:1.0.0 --output ./mi-out
