@@ -61,7 +61,8 @@ afterEvaluate {
 
 
 def projects = ['project2', 'project3', 'arrayProject', 'recordProject', 'jsonProject', 'mapProject',
-                'primitiveTypeProject', 'unionProject', 'overwriteBodyProject', 'tableProject', 'multiClientProject']
+                'primitiveTypeProject', 'unionProject', 'overwriteBodyProject', 'tableProject', 'multiClientProject',
+                'noAnnotationProject']
 def toolVersion = stripBallerinaExtensionVersion("${project.version}")
 // Define balCommand to use the test-specific distribution
 ext.balCommand = Os.isFamily(Os.FAMILY_WINDOWS)
@@ -326,7 +327,7 @@ tasks.register("generateExpectedArtifacts", JavaExec) {
 
     doFirst {
         if (!project.hasProperty("artifactTarget")) {
-            throw new GradleException("Provide -PartifactTarget=project1|project2|project3|project4|project5|project6|project7|unionProject|nestedRecordConflictProject|tableProject|typedescProject|multiClientProject|unsupportedProject|central")
+            throw new GradleException("Provide -PartifactTarget=project1|project2|project3|project4|project5|project6|project7|unionProject|nestedRecordConflictProject|tableProject|typedescProject|multiClientProject|unsupportedProject|noAnnotationProject|central")
         }
         args project.property("artifactTarget")
         if (project.hasProperty("centralPackage")) {
@@ -340,7 +341,7 @@ tasks.register("generateExpectedArtifacts", JavaExec) {
 def allArtifactTargets = [
     'project1', 'project2', 'project3', 'project4', 'project5', 'project6', 'project7',
     'unionProject', 'nestedRecordConflictProject', 'tableProject', 'typedescProject',
-    'multiClientProject', 'unsupportedProject','central'
+    'multiClientProject', 'unsupportedProject', 'noAnnotationProject', 'central'
 ]
 
 tasks.register("regenerateAllArtifacts") {
