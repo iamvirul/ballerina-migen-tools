@@ -143,6 +143,92 @@ public class MigenSubcommandTest {
     }
 
     @Test
+    public void testModuleCmdWithPackageId() throws Exception {
+        try (MockedStatic<MigenExecutor> mockedMigenExecutor = mockStatic(MigenExecutor.class);
+             MockedStatic<io.ballerina.mi.util.CentralPackagePuller> mockedPuller = mockStatic(io.ballerina.mi.util.CentralPackagePuller.class)) {
+
+            ModuleCmd moduleCmd = new ModuleCmd();
+            String testPackageId = "wso2/some_module:1.0.0";
+            String testTargetPath = "/tmp/generatedModuleArtifacts";
+
+            setField(moduleCmd, "packageId", testPackageId);
+            setField(moduleCmd, "targetPath", testTargetPath);
+
+            Path mockExtractedPath = Path.of("/tmp/dummy-extracted-bala");
+            mockedPuller.when(() -> io.ballerina.mi.util.CentralPackagePuller.pullAndExtractPackage(
+                    eq("wso2"), eq("some_module"), eq("1.0.0"), any(Path.class)))
+                .thenReturn(mockExtractedPath);
+
+            ByteArrayOutputStream outContent = new ByteArrayOutputStream();
+            PrintStream originalOut = System.out;
+            System.setOut(new PrintStream(outContent));
+
+            try {
+                moduleCmd.execute();
+            } finally {
+                System.setOut(originalOut);
+            }
+
+            mockedMigenExecutor.verify(() ->
+                MigenExecutor.executeGeneration(eq(mockExtractedPath.toString()), eq(testTargetPath), any(PrintStream.class), eq(false)),
+                times(1)
+            );
+        }
+    }
+
+    @Test
+    public void testModuleCmdWithPackageIdNoVersion() throws Exception {
+        try (MockedStatic<MigenExecutor> mockedMigenExecutor = mockStatic(MigenExecutor.class);
+             MockedStatic<io.ballerina.mi.util.CentralPackagePuller> mockedPuller = mockStatic(io.ballerina.mi.util.CentralPackagePuller.class)) {
+
+            ModuleCmd moduleCmd = new ModuleCmd();
+            String testPackageId = "wso2/some_module";
+            String testTargetPath = "/tmp/generatedModuleArtifacts";
+
+            setField(moduleCmd, "packageId", testPackageId);
+            setField(moduleCmd, "targetPath", testTargetPath);
+
+            Path mockExtractedPath = Path.of("/tmp/dummy-extracted-bala");
+            mockedPuller.when(() -> io.ballerina.mi.util.CentralPackagePuller.pullAndExtractPackage(
+                    eq("wso2"), eq("some_module"), isNull(), any(Path.class)))
+                .thenReturn(mockExtractedPath);
+
+            ByteArrayOutputStream outContent = new ByteArrayOutputStream();
+            PrintStream originalOut = System.out;
+            System.setOut(new PrintStream(outContent));
+
+            try {
+                moduleCmd.execute();
+            } finally {
+                System.setOut(originalOut);
+            }
+
+            mockedMigenExecutor.verify(() ->
+                MigenExecutor.executeGeneration(eq(mockExtractedPath.toString()), eq(testTargetPath), any(PrintStream.class), eq(false)),
+                times(1)
+            );
+        }
+    }
+
+    @Test
+    public void testModuleCmdInvalidPackageFormat() throws Exception {
+        ByteArrayOutputStream outContent = new ByteArrayOutputStream();
+        PrintStream originalOut = System.out;
+        System.setOut(new PrintStream(outContent));
+
+        try {
+            // ModuleCmd captures System.out at construction — must construct after redirect
+            ModuleCmd moduleCmd = new ModuleCmd();
+            setField(moduleCmd, "packageId", "invalidformat");
+            moduleCmd.execute();
+        } finally {
+            System.setOut(originalOut);
+        }
+
+        Assert.assertTrue(outContent.toString().contains("ERROR: Invalid package format"));
+    }
+
+    @Test
     public void testConnectorCmdWithPackageIdNoVersion() throws Exception {
         try (MockedStatic<MigenExecutor> mockedMigenExecutor = mockStatic(MigenExecutor.class);
              MockedStatic<io.ballerina.mi.util.CentralPackagePuller> mockedPuller = mockStatic(io.ballerina.mi.util.CentralPackagePuller.class)) {
