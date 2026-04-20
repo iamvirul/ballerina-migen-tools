@@ -7,6 +7,11 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- Added fallback generation mode to the `bal migen module` command: when a Ballerina module contains no `@mi:Operation` annotations, MI artifacts are now generated for all public module-level functions automatically. Private functions are excluded. This allows third-party and Ballerina Central packages to be used as MI modules without modification. ([#4841](https://github.com/wso2/product-integrator-mi/issues/4841))
+
+## [1.0.2] - 2026-04-20
+
 ### Fixed
 - Fixed `NullPointerException` at runtime when invoking connector functions with enum-typed parameters. `ParamHandler` now handles the `ENUM` type case by converting the string value to a `BString`. ([#4829](https://github.com/wso2/product-integrator-mi/issues/4829))
 - Fixed `ClassCastException` when passing `map` or `record` typed parameters from Synapse templates that wrap JSON values in single quotes. `cleanupJsonString` now strips surrounding single quotes before parsing. ([#4830](https://github.com/wso2/product-integrator-mi/issues/4830))
