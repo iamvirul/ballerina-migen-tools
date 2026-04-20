@@ -20,7 +20,9 @@
     <parameter name="name" description="Unique name the connection is identified by"/>
     <parameter name="connectionType" description="Connection type"/>
     <parameter name="baseUrl" description=""/>
+    <parameter name="enable_defaultHeaders" description=""/>
     <parameter name="defaultHeaders" description=""/>
+    <parameter name="enable_allowedOrigins" description=""/>
     <parameter name="allowedOrigins" description=""/>
     <sequence>
         <property name="TABLEPROJECT_TABLECLIENT_objectTypeName" value="TableClient"/>
