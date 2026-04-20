@@ -5,7 +5,7 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [1.0.2] - 2026-04-20
 
 ### Fixed
 - Fixed `NullPointerException` at runtime when invoking connector functions with enum-typed parameters. `ParamHandler` now handles the `ENUM` type case by converting the string value to a `BString`. ([#4829](https://github.com/wso2/product-integrator-mi/issues/4829))
