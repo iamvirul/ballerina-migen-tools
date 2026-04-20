@@ -103,16 +103,17 @@ public class BalModuleAnalyzerTest {
     }
 
     @Test
-    public void testAnalyze_FunctionWithoutOperationAnnotation() {
+    public void testAnalyze_FunctionWithoutOperationAnnotation_NonPublic() {
         BalModuleAnalyzer analyzer = new BalModuleAnalyzer();
 
         io.ballerina.projects.Package mockPackage = createMockPackage("testModule", "wso2", "1.0.0");
         SemanticModel mockSemanticModel = mock(SemanticModel.class);
 
-        // Create a function symbol without @mi:Operation annotation
+        // Non-public function with no annotations: fallback mode activates but skips non-public functions
         FunctionSymbol mockFunction = mock(FunctionSymbol.class);
         when(mockFunction.kind()).thenReturn(SymbolKind.FUNCTION);
         when(mockFunction.annotations()).thenReturn(Collections.emptyList());
+        when(mockFunction.qualifiers()).thenReturn(Collections.emptyList());
 
         when(mockSemanticModel.moduleSymbols()).thenReturn(Collections.singletonList(mockFunction));
 
@@ -124,8 +125,68 @@ public class BalModuleAnalyzerTest {
 
         Connector connector = Connector.getConnector();
         Assert.assertNotNull(connector);
-        // No connections should be added since no @mi:Operation annotation
         Assert.assertTrue(connector.getConnections().isEmpty());
+    }
+
+    @Test
+    public void testAnalyze_FallbackMode_PublicFunctionProcessed() {
+        BalModuleAnalyzer analyzer = new BalModuleAnalyzer();
+
+        io.ballerina.projects.Package mockPackage = createMockPackage("testModule", "wso2", "1.0.0");
+        SemanticModel mockSemanticModel = mock(SemanticModel.class);
+
+        // Public function with no @mi:Operation annotation: fallback mode should process it
+        FunctionSymbol mockFunction = mock(FunctionSymbol.class);
+        when(mockFunction.kind()).thenReturn(SymbolKind.FUNCTION);
+        when(mockFunction.annotations()).thenReturn(Collections.emptyList());
+        when(mockFunction.qualifiers()).thenReturn(Collections.singletonList(Qualifier.PUBLIC));
+        when(mockFunction.getName()).thenReturn(Optional.of("publicFallbackFunction"));
+        when(mockFunction.documentation()).thenReturn(Optional.empty());
+
+        FunctionTypeSymbol functionTypeSymbol = mock(FunctionTypeSymbol.class);
+        when(functionTypeSymbol.params()).thenReturn(Optional.empty());
+        when(functionTypeSymbol.returnTypeDescriptor()).thenReturn(Optional.empty());
+        when(mockFunction.typeDescriptor()).thenReturn(functionTypeSymbol);
+
+        when(mockSemanticModel.moduleSymbols()).thenReturn(Collections.singletonList(mockFunction));
+
+        PackageCompilation mockCompilation = mock(PackageCompilation.class);
+        when(mockCompilation.getSemanticModel(any())).thenReturn(mockSemanticModel);
+        when(mockPackage.getCompilation()).thenReturn(mockCompilation);
+
+        analyzer.analyze(mockPackage);
+
+        Connector connector = Connector.getConnector();
+        Assert.assertNotNull(connector);
+        Assert.assertFalse(connector.getConnections().isEmpty());
+    }
+
+    @Test
+    public void testAnalyze_FallbackMode_AnnotationPresentSkipsNonAnnotated() {
+        BalModuleAnalyzer analyzer = new BalModuleAnalyzer();
+
+        io.ballerina.projects.Package mockPackage = createMockPackage("testModule", "wso2", "1.0.0");
+        SemanticModel mockSemanticModel = mock(SemanticModel.class);
+
+        // One annotated function and one public-but-unannotated function: only annotated one should be processed
+        FunctionSymbol annotatedFunction = createMockFunctionWithOperationAnnotation("annotatedFn");
+
+        FunctionSymbol publicUnannotatedFunction = mock(FunctionSymbol.class);
+        when(publicUnannotatedFunction.kind()).thenReturn(SymbolKind.FUNCTION);
+        when(publicUnannotatedFunction.annotations()).thenReturn(Collections.emptyList());
+        when(publicUnannotatedFunction.qualifiers()).thenReturn(Collections.singletonList(Qualifier.PUBLIC));
+
+        when(mockSemanticModel.moduleSymbols()).thenReturn(Arrays.asList(annotatedFunction, publicUnannotatedFunction));
+
+        PackageCompilation mockCompilation = mock(PackageCompilation.class);
+        when(mockCompilation.getSemanticModel(any())).thenReturn(mockSemanticModel);
+        when(mockPackage.getCompilation()).thenReturn(mockCompilation);
+
+        analyzer.analyze(mockPackage);
+
+        Connector connector = Connector.getConnector();
+        Assert.assertNotNull(connector);
+        Assert.assertEquals(connector.getConnections().size(), 1);
     }
 
     @Test
