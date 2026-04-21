@@ -65,7 +65,7 @@
         </component>
         <component name="postUsersMessages_importByUserId">
             <displayName>post users messages import by user id</displayName>
-            <file>postUsersMessages_importByUserId.xml</file>
+            <file>postusersmessages_Importbyuserid.xml</file>
             <description></description>
         </component>
         </subComponents>
