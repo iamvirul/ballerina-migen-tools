@@ -792,6 +792,11 @@ public class BalConnectorAnalyzer implements Analyzer {
         if ("()".equals(rawDefault)) {
             return "";
         }
+        // Strip module qualifier (e.g. "http:KEEPALIVE_AUTO" → "KEEPALIVE_AUTO")
+        int colonIdx = rawDefault.lastIndexOf(':');
+        if (colonIdx >= 0) {
+            rawDefault = rawDefault.substring(colonIdx + 1).trim();
+        }
         // Value is already a clean enum member — return as-is
         if (enumParam.getEnumValues().contains(rawDefault)) {
             return rawDefault;
