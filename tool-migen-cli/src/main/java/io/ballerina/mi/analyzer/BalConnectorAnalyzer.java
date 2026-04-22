@@ -635,6 +635,12 @@ public class BalConnectorAnalyzer implements Analyzer {
                 if (rawDefault == null || rawDefault.isEmpty()) {
                     if (dependencyDefaults == null) {
                         dependencyDefaults = extractFieldDefaultsFromDependencies(recordParam);
+                        if (!dependencyDefaults.isEmpty()) {
+                            Map<String, String> merged = new HashMap<>(fieldDefaults);
+                            dependencyDefaults.forEach(merged::putIfAbsent);
+                            fieldDefaults = merged;
+                            recordFieldDefaults.put(recordTypeName, fieldDefaults);
+                        }
                     }
                     rawDefault = dependencyDefaults.get(fieldName);
                 }
