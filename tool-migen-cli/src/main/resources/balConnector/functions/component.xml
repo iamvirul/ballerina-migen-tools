@@ -23,7 +23,7 @@
         <component name="{{name}}">
             <displayName>{{displayName}}</displayName>
             <file>{{fileName}}.xml</file>
-            <description>{{documentation}}</description>
+            <description>{{escapeXmlText shortDescription}}</description>
         </component>
         {{/each ~}}
         {{/each ~}}

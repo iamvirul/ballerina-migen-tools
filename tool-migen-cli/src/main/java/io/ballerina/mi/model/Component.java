@@ -145,6 +145,28 @@ public class Component extends ModelElement {
         return documentation;
     }
 
+    /**
+     * Single-line summary of the component's documentation for use in
+     * {@code component.xml &lt;description&gt;} elements.
+     *
+     * <p>Ballerina doc comments typically start with a one-line summary followed
+     * by a markdown code-fence example. The MI UI shows the description as a
+     * single-line label, so only the first non-empty line is meaningful —
+     * dumping the full doc comment leaks code examples and their special
+     * characters into the XML.
+     */
+    public String getShortDescription() {
+        if (documentation == null) {
+            return "";
+        }
+        String trimmed = documentation.trim();
+        if (trimmed.isEmpty()) {
+            return "";
+        }
+        int newlineIndex = trimmed.indexOf('\n');
+        return newlineIndex > 0 ? trimmed.substring(0, newlineIndex).trim() : trimmed;
+    }
+
     public String getReturnType() {
         return returnType;
     }
