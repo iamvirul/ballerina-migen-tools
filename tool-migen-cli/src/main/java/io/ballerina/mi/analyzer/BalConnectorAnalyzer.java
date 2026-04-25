@@ -731,6 +731,10 @@ public class BalConnectorAnalyzer implements Analyzer {
             // Use typeDescriptor() without unwrapping — TypeReferenceTypeSymbol retains module info.
             io.ballerina.compiler.api.symbols.TypeSymbol fieldType = fieldSymbol.typeDescriptor();
             String fieldTypeName = fieldType.getName().orElse("");
+            // Without a type token the fallback pattern (\b<fieldName>\s*=\s*(.+?)\s*[;,])
+            // matches local variables, record literals, and function bodies anywhere in the
+            // .bal files and returns the wrong value. Bail out instead.
+            if (fieldTypeName.isEmpty()) return Optional.empty();
 
             Optional<io.ballerina.compiler.api.symbols.ModuleSymbol> modOpt = fieldType.getModule();
             if (modOpt.isEmpty()) return Optional.empty();
@@ -741,17 +745,12 @@ public class BalConnectorAnalyzer implements Analyzer {
             String version    = modId.version();
             String pkgName    = moduleName.contains(".") ? moduleName.split("\\.")[0] : moduleName;
 
-            String homeDir = System.getProperty("user.home");
-            List<java.nio.file.Path> repoRoots = List.of(
-                java.nio.file.Paths.get(homeDir, ".ballerina", "repositories", "central.ballerina.io", "bala", orgName, pkgName, version),
-                java.nio.file.Paths.get(homeDir, ".ballerina", "repositories", "local", "bala", orgName, pkgName, version)
-            );
+            List<java.nio.file.Path> repoRoots = buildBalaRepoRoots(orgName, pkgName, version);
 
             // Pattern: optional whitespace, the type name, whitespace, the field name, optional whitespace, =
             // Handles both "CredentialBearer credentialBearer = AUTH_HEADER_BEARER;" and variants.
-            java.util.regex.Pattern pattern = fieldTypeName.isEmpty()
-                    ? java.util.regex.Pattern.compile("\\b" + java.util.regex.Pattern.quote(fieldName) + "\\s*=\\s*(.+?)\\s*[;,]")
-                    : java.util.regex.Pattern.compile("\\b" + java.util.regex.Pattern.quote(fieldTypeName)
+            java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(
+                    "\\b" + java.util.regex.Pattern.quote(fieldTypeName)
                             + "\\s+" + java.util.regex.Pattern.quote(fieldName) + "\\s*=\\s*(.+?)\\s*[;,]");
 
             for (java.nio.file.Path root : repoRoots) {
@@ -784,10 +783,40 @@ public class BalConnectorAnalyzer implements Analyzer {
     }
 
     /**
-     * Reads a specific line from a {@code .bal} file and extracts the default expression.
+     * Builds the ordered list of bala repository roots to search for a given module
+     * ({@code orgName/pkgName:version}), mirroring the Ballerina dependency-resolution order:
+     * distribution cache first, then the central cache, then the local repository.
      *
-     * <p>Expected line format: {@code TypeName fieldName = DEFAULT_EXPR;}  <br/>
-     * Also handles qualified names: {@code TypeName fieldName = pkg:CONST;}
+     * <p>The distribution cache lives at {@code <BALLERINA_HOME>/repo/bala}; its location is
+     * resolved from the {@code ballerina.home} system property (set by the Ballerina launcher
+     * when running as a tool) and falls back to the {@code BALLERINA_HOME} environment variable.
+     */
+    private static List<java.nio.file.Path> buildBalaRepoRoots(String orgName, String pkgName, String version) {
+        List<java.nio.file.Path> repoRoots = new java.util.ArrayList<>();
+        String ballerinaHome = resolveBallerinaHome();
+        if (ballerinaHome != null) {
+            repoRoots.add(java.nio.file.Paths.get(ballerinaHome, "repo", "bala", orgName, pkgName, version));
+        }
+        String homeDir = System.getProperty("user.home");
+        repoRoots.add(java.nio.file.Paths.get(homeDir, ".ballerina", "repositories",
+                "central.ballerina.io", "bala", orgName, pkgName, version));
+        repoRoots.add(java.nio.file.Paths.get(homeDir, ".ballerina", "repositories",
+                "local", "bala", orgName, pkgName, version));
+        return repoRoots;
+    }
+
+    private static String resolveBallerinaHome() {
+        String sysProp = System.getProperty("ballerina.home");
+        if (sysProp != null && !sysProp.isEmpty()) {
+            return sysProp;
+        }
+        String env = System.getenv("BALLERINA_HOME");
+        if (env != null && !env.isEmpty()) {
+            return env;
+        }
+        return null;
+    }
+
     /** Strips quotes / resolves identifiers from a raw default-value expression for an enum field. */
     private String cleanEnumDefault(String rawDefault,
                                     io.ballerina.mi.model.param.EnumFunctionParam enumParam,
