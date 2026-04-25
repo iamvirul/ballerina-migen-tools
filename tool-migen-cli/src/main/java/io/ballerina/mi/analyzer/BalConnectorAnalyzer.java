@@ -34,6 +34,7 @@ import io.ballerina.mi.model.param.FunctionParam;
 import io.ballerina.mi.model.param.Param;
 import io.ballerina.mi.model.param.RecordFunctionParam;
 import io.ballerina.mi.model.param.ResourcePathSegment;
+import io.ballerina.mi.model.param.UnionFunctionParam;
 import io.ballerina.mi.util.Constants;
 import io.ballerina.mi.util.Utils;
 import io.ballerina.projects.*;
@@ -52,6 +53,14 @@ public class BalConnectorAnalyzer implements Analyzer {
     private static final String QUERY_PARAM_SIZE = "QueryParamSize";
 
     private final PrintStream printStream = System.out;
+
+    /**
+     * Per-module cache of all {@code .bal} file lines, keyed by {@code org/pkg:version}.
+     * Populated lazily on first access from {@link #resolveFieldDefaultFromBalaSource} so the
+     * same module's bala is walked and read at most once per analyzer instance, regardless of
+     * how many fields from that module need a default-value lookup.
+     */
+    private final Map<String, List<String>> balaLinesCache = new HashMap<>();
 
     @Override
     public void analyze(Package compilePackage) {
@@ -601,32 +610,35 @@ public class BalConnectorAnalyzer implements Analyzer {
                                         SemanticModel semanticModel) {
         // Union members (e.g. OAuth2ClientCredentialsGrantConfig inside an auth union) are stored
         // in getUnionMemberParams(), not getRecordFieldParams(), so we must recurse into them too.
-        if (param instanceof io.ballerina.mi.model.param.UnionFunctionParam unionParam) {
+        if (param instanceof UnionFunctionParam unionParam) {
             for (FunctionParam memberParam : unionParam.getUnionMemberParams()) {
                 applyEnumFieldDefaults(memberParam, recordFieldDefaults, semanticModel);
             }
             return;
         }
-        if (!(param instanceof io.ballerina.mi.model.param.RecordFunctionParam recordParam)) {
+        if (!(param instanceof RecordFunctionParam recordParam)) {
             return;
         }
         String recordTypeName = recordParam.getRecordName();
         Map<String, String> fieldDefaults = recordFieldDefaults.get(recordTypeName);
-
-        // If not in the current-module map, resolve from the bala source (external dependency).
-        // Always cache the result (even if empty) to avoid repeated file scans for the same type.
-        if (fieldDefaults == null) {
-            fieldDefaults = extractFieldDefaultsFromDependencies(recordParam);
-            recordFieldDefaults.put(recordTypeName, fieldDefaults);
-        }
 
         // Lazy-loaded bala defaults for fields introduced by record inclusion (*SomeType).
         // These are NOT present in the local fieldDefaults map because extractAllDefaults only
         // scans direct RecordFieldWithDefaultValueNode declarations, not included type fields.
         Map<String, String> dependencyDefaults = null;
 
+        // If not in the current-module map, resolve from the bala source (external dependency)
+        // and seed dependencyDefaults so the lazy fallback below reuses the result instead of
+        // re-scanning the bala for the same record. Always cache (even if empty) to avoid
+        // repeated file scans for the same type on subsequent calls.
+        if (fieldDefaults == null) {
+            fieldDefaults = extractFieldDefaultsFromDependencies(recordParam);
+            recordFieldDefaults.put(recordTypeName, fieldDefaults);
+            dependencyDefaults = fieldDefaults;
+        }
+
         for (FunctionParam fieldParam : recordParam.getRecordFieldParams()) {
-            if (fieldParam instanceof io.ballerina.mi.model.param.EnumFunctionParam enumField
+            if (fieldParam instanceof EnumFunctionParam enumField
                     && (enumField.getDefaultValue() == null || enumField.getDefaultValue().isEmpty())) {
                 String fieldName = lastPathSegment(enumField.getValue());
                 String rawDefault = fieldDefaults.get(fieldName);
@@ -662,8 +674,7 @@ public class BalConnectorAnalyzer implements Analyzer {
      * <p>For each field with {@code hasDefaultValue() == true}, reads the bala source file
      * directly to get the exact default expression at the declared line.
      */
-    private Map<String, String> extractFieldDefaultsFromDependencies(
-            io.ballerina.mi.model.param.RecordFunctionParam recordParam) {
+    private Map<String, String> extractFieldDefaultsFromDependencies(RecordFunctionParam recordParam) {
 
         io.ballerina.compiler.api.symbols.TypeSymbol typeSymbol = recordParam.getTypeSymbol();
         if (typeSymbol == null) {
@@ -745,41 +756,63 @@ public class BalConnectorAnalyzer implements Analyzer {
             String version    = modId.version();
             String pkgName    = moduleName.contains(".") ? moduleName.split("\\.")[0] : moduleName;
 
-            List<java.nio.file.Path> repoRoots = buildBalaRepoRoots(orgName, pkgName, version);
-
-            // Pattern: optional whitespace, the type name, whitespace, the field name, optional whitespace, =
-            // Handles both "CredentialBearer credentialBearer = AUTH_HEADER_BEARER;" and variants.
+            // Pattern: the type name (optionally nil-typed with "?"), whitespace, the field name,
+            // optional whitespace, "=", then capture the default expression up to ";" or ",".
+            // Handles "CredentialBearer credentialBearer = AUTH_HEADER_BEARER;" and
+            // nullable-typed variants like "CredentialBearer? credentialBearer = ...;".
             java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(
                     "\\b" + java.util.regex.Pattern.quote(fieldTypeName)
-                            + "\\s+" + java.util.regex.Pattern.quote(fieldName) + "\\s*=\\s*(.+?)\\s*[;,]");
+                            + "\\??\\s+" + java.util.regex.Pattern.quote(fieldName) + "\\s*=\\s*(.+?)\\s*[;,]");
 
-            for (java.nio.file.Path root : repoRoots) {
-                if (!java.nio.file.Files.exists(root)) continue;
-                try (java.util.stream.Stream<java.nio.file.Path> pathStream = java.nio.file.Files.walk(root)) {
-                    List<java.nio.file.Path> balFiles = pathStream
-                            .filter(p -> !java.nio.file.Files.isDirectory(p) && p.toString().endsWith(".bal"))
-                            .toList();
-                    for (java.nio.file.Path balFile : balFiles) {
-                        for (String line : java.nio.file.Files.readAllLines(balFile)) {
-                            java.util.regex.Matcher m = pattern.matcher(line);
-                            if (m.find()) {
-                                String rawVal = m.group(1).trim();
-                                // Strip module qualifier: "pkg:CONST" -> "CONST"
-                                int colonIdx = rawVal.lastIndexOf(':');
-                                if (colonIdx >= 0) rawVal = rawVal.substring(colonIdx + 1).trim();
-                                // Strip inline comments
-                                int commentIdx = rawVal.indexOf("//");
-                                if (commentIdx >= 0) rawVal = rawVal.substring(0, commentIdx).trim();
-                                if (!rawVal.isEmpty()) return Optional.of(rawVal);
-                            }
-                        }
-                    }
+            String cacheKey = orgName + "/" + pkgName + ":" + version;
+            List<String> allLines = balaLinesCache.computeIfAbsent(cacheKey,
+                    k -> loadBalaModuleLines(buildBalaRepoRoots(orgName, pkgName, version)));
+            for (String line : allLines) {
+                java.util.regex.Matcher m = pattern.matcher(line);
+                if (m.find()) {
+                    String rawVal = m.group(1).trim();
+                    // Strip module qualifier: "pkg:CONST" -> "CONST"
+                    int colonIdx = rawVal.lastIndexOf(':');
+                    if (colonIdx >= 0) rawVal = rawVal.substring(colonIdx + 1).trim();
+                    // Strip inline comments
+                    int commentIdx = rawVal.indexOf("//");
+                    if (commentIdx >= 0) rawVal = rawVal.substring(0, commentIdx).trim();
+                    if (!rawVal.isEmpty()) return Optional.of(rawVal);
                 }
             }
         } catch (Exception e) {
             // Fall through
         }
         return Optional.empty();
+    }
+
+    /**
+     * Reads every {@code .bal} file under the first existing bala repo root into a flat line
+     * list. Picking only the first matching root mirrors Ballerina's dependency-resolution order
+     * (distribution → central → local) and keeps the returned lines scoped to a single copy of
+     * the module, which is important because the regex scan returns the first match.
+     */
+    private static List<String> loadBalaModuleLines(List<java.nio.file.Path> repoRoots) {
+        for (java.nio.file.Path root : repoRoots) {
+            if (!java.nio.file.Files.exists(root)) continue;
+            List<String> lines = new java.util.ArrayList<>();
+            try (java.util.stream.Stream<java.nio.file.Path> pathStream = java.nio.file.Files.walk(root)) {
+                List<java.nio.file.Path> balFiles = pathStream
+                        .filter(p -> !java.nio.file.Files.isDirectory(p) && p.toString().endsWith(".bal"))
+                        .toList();
+                for (java.nio.file.Path balFile : balFiles) {
+                    try {
+                        lines.addAll(java.nio.file.Files.readAllLines(balFile));
+                    } catch (java.io.IOException ignored) {
+                        // Skip unreadable file and continue scanning the rest of the module.
+                    }
+                }
+                return lines;
+            } catch (java.io.IOException ignored) {
+                // Try the next root.
+            }
+        }
+        return List.of();
     }
 
     /**
@@ -819,7 +852,7 @@ public class BalConnectorAnalyzer implements Analyzer {
 
     /** Strips quotes / resolves identifiers from a raw default-value expression for an enum field. */
     private String cleanEnumDefault(String rawDefault,
-                                    io.ballerina.mi.model.param.EnumFunctionParam enumParam,
+                                    EnumFunctionParam enumParam,
                                     SemanticModel semanticModel) {
         if (rawDefault.startsWith("\"") && rawDefault.endsWith("\"") && rawDefault.length() >= 2) {
             return rawDefault.substring(1, rawDefault.length() - 1);
