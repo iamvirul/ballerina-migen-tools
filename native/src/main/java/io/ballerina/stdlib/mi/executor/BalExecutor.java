@@ -137,7 +137,7 @@ public class BalExecutor {
             }
         }
         Object[] args = new Object[size];
-        paramHandler.setParameters(args, context);
+        paramHandler.setParameters(args, context, callable);
 
         try {
             Object result;
