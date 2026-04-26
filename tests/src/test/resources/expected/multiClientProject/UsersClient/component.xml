@@ -21,14 +21,12 @@
         <component name="UsersClient_createUser">
             <displayName>create user</displayName>
             <file>createUser.xml</file>
-            <description>Create a new user.
-</description>
+            <description>Create a new user.</description>
         </component>
         <component name="UsersClient_getUser">
             <displayName>get user</displayName>
             <file>getUser.xml</file>
-            <description>Get a user by ID.
-</description>
+            <description>Get a user by ID.</description>
         </component>
         </subComponents>
 </component>

@@ -312,8 +312,7 @@ public isolated client class Client {
 
 | Tool Version | wso2/mi Connector | Ballerina Version | Java Version | WSO2 MI Version |
 |--------------|-------------------|-------------------|--------------|-----------------|
-| 0.9.x | 1.0.x             | 2201.10.x | >=17 | >= 4.4.0 |
-| 1.x.x | 1.1.x             | 2201.13.x | >=21 | >= 4.4.0 |
+| 1.x.x        | 1.1.x | 2201.13.x | >=21 | >= 4.4.0 |
 
 ---
 

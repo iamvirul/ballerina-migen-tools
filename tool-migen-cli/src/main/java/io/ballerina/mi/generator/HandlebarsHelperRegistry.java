@@ -145,6 +145,15 @@ public final class HandlebarsHelperRegistry {
             String moduleName = context.toString();
             return new Handlebars.SafeString(moduleName.replace(".", "_"));
         }));
+        // Escapes XML text content using only the 5 standard XML entities.
+        // Bypasses Handlebars' default HTML encoder, which hex-escapes characters
+        // like `, ", >, = into &#x60;/&quot;/&gt;/&#x3D; and corrupts descriptions.
+        handlebar.registerHelper("escapeXmlText", (context, options) -> {
+            if (context == null) {
+                return new Handlebars.SafeString("");
+            }
+            return new Handlebars.SafeString(XmlPropertyWriter.escapeXml(context.toString()));
+        });
     }
 
     // ─── XML Property/Parameter Helpers ───────────────────────────────────────
@@ -187,7 +196,7 @@ public final class HandlebarsHelperRegistry {
             boolean[] isFirst = {true};
             Set<String> processedParams = new HashSet<>();
             for (FunctionParam functionParam : functionParams) {
-                XmlPropertyWriter.writeXmlParameterElements(functionParam, result, isFirst, processedParams);
+                XmlPropertyWriter.writeXmlParameterElements(functionParam, result, isFirst, processedParams, true);
             }
             String output = result.toString();
             if (output.endsWith("\n    ")) {
@@ -208,7 +217,7 @@ public final class HandlebarsHelperRegistry {
                 if (connection.getInitComponent() != null) {
                     List<FunctionParam> functionParams = connection.getInitComponent().getFunctionParams();
                     for (FunctionParam functionParam : functionParams) {
-                        XmlPropertyWriter.writeXmlParameterElements(functionParam, result, isFirst, processedParams);
+                        XmlPropertyWriter.writeXmlParameterElements(functionParam, result, isFirst, processedParams, true);
                     }
                 }
             }

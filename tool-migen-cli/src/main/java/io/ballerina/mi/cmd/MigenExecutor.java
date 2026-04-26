@@ -75,16 +75,13 @@ public class MigenExecutor {
             printStream.println("ERROR: Expected a Ballerina connector (Bala) project for 'connector' command, but found a source project.");
             return;
         }
-        if (!isConnector && !isBuildProject) {
-            printStream.println("ERROR: Expected a Ballerina source project for 'module' command, but found a Bala project.");
-            return;
-        }
         // Deterministic lifecycle management
         ResourceLifecycleManager lifecycle = new ResourceLifecycleManager();
 
+        String artifactLabel = isConnector ? "connector" : "module";
         try {
             // Generate MI artifacts
-            boolean artifactsGenerated = generateMIArtifacts(executablePathRef[0], miArtifactsPath, isBuildProject, printStream);
+            boolean artifactsGenerated = generateMIArtifacts(executablePathRef[0], miArtifactsPath, !isConnector, printStream);
             if (!artifactsGenerated) {
                 return;
             }
@@ -93,18 +90,15 @@ public class MigenExecutor {
 
             boolean isValid = ConnectorValidator.validateConnector(miArtifactsPath);
             if (!isValid) {
-                printStream.println("ERROR: MI " + (isBuildProject ? "module" : "connector") + 
-                        " generation failed due to validation errors.");
+                printStream.println("ERROR: MI " + artifactLabel + " generation failed due to validation errors.");
                 try {
                     Utils.deleteDirectory(miArtifactsPath);
                 } catch (IOException e) {
-                    printStream.println("ERROR: Failed to delete invalid MI " + (isBuildProject ?
-                            "module" : "connector") + " artifacts at: " + miArtifactsPath);
+                    printStream.println("ERROR: Failed to delete invalid MI " + artifactLabel + " artifacts at: " + miArtifactsPath);
                 }
                 return;
             }
-            printStream.println("MI " + (isBuildProject ? "module" : "connector") + 
-                    " generation completed successfully.");
+            printStream.println("MI " + artifactLabel + " generation completed successfully.");
         } finally {
             // Deterministic cleanup
             lifecycle.cleanup();
@@ -137,18 +131,15 @@ public class MigenExecutor {
             return null;
         }
 
-        Analyzer balAnalyzer;
+        Analyzer balAnalyzer = isConnector ? new BalConnectorAnalyzer() : new BalModuleAnalyzer();
         if (project instanceof BalaProject) {
-            balAnalyzer = new BalConnectorAnalyzer();
             Path miConnectorCache = miArtifactsPath.resolve("BalConnectors");
             executablePathRef[0] = miConnectorCache.resolve(compilePkg.descriptor().org().value() +
                     CONNECTOR_NAME_SEPARATOR + compilePkg.descriptor().name().value() +
-                    CONNECTOR_NAME_SEPARATOR + compilePkg.descriptor().version().toString() + ".jar" );
+                    CONNECTOR_NAME_SEPARATOR + compilePkg.descriptor().version().toString() + ".jar");
 
             Files.createDirectories(miConnectorCache);
             System.setProperty(Constants.CONNECTOR_TARGET_PATH, executablePathRef[0].toString());
-        } else {
-            balAnalyzer = new BalModuleAnalyzer();
         }
 
         PackageCompilation packageCompilation = compilePkg.getCompilation();

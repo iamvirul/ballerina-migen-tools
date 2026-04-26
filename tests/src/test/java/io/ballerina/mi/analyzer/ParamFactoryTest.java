@@ -778,6 +778,7 @@ public class ParamFactoryTest {
         when(paramSymbol.paramKind()).thenReturn(ParameterKind.REQUIRED);
         when(recordTypeSymbol.typeKind()).thenReturn(TypeDescKind.RECORD);
         when(recordTypeSymbol.getName()).thenReturn(Optional.of("Config"));
+        when(recordTypeSymbol.signature()).thenReturn("Config");
 
         // Nested record field
         when(nestedRecordFieldSymbol.typeDescriptor()).thenReturn(nestedRecordType);
@@ -786,6 +787,7 @@ public class ParamFactoryTest {
         when(nestedRecordFieldSymbol.documentation()).thenReturn(Optional.empty());
         when(nestedRecordType.typeKind()).thenReturn(TypeDescKind.RECORD);
         when(nestedRecordType.getName()).thenReturn(Optional.of("AuthConfig"));
+        when(nestedRecordType.signature()).thenReturn("AuthConfig");
 
         // Inner field
         when(innerFieldSymbol.typeDescriptor()).thenReturn(innerFieldTypeSymbol);

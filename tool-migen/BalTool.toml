@@ -2,4 +2,4 @@
 id = "migen"
 
 [[dependency]]
-path = "../tool-migen-cli/build/libs/tool-migen-cli-0.9.1-SNAPSHOT.jar"
+path = "../tool-migen-cli/build/libs/tool-migen-cli-1.2.0-SNAPSHOT.jar"

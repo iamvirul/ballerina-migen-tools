@@ -107,7 +107,7 @@ public class PathSegmentSynapseNameGenerator implements SynapseNameGenerator {
         if (segment == null || segment.isEmpty()) {
             return "";
         }
-        String[] parts = segment.split("[-_\\s]+");
+        String[] parts = segment.split("[-_.\\s]+");
         StringBuilder sb = new StringBuilder();
         for (String part : parts) {
             if (part.isEmpty()) {

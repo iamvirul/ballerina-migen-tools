@@ -196,6 +196,14 @@ public class UtilsTest {
         Assert.assertEquals(Utils.sanitizeParamName("'config.value"), "config_value");
         Assert.assertEquals(Utils.sanitizeParamName(null), "");
         Assert.assertEquals(Utils.sanitizeParamName("simple"), "simple");
+        Assert.assertEquals(Utils.sanitizeParamName("prefs/externalMembersDisabled"),
+                "prefs_externalMembersDisabled");
+        Assert.assertEquals(Utils.sanitizeParamName("prefs/boardVisibilityRestrict/private"),
+                "prefs_boardVisibilityRestrict_private");
+        Assert.assertEquals(Utils.sanitizeParamName("prefs\\/externalMembersDisabled"),
+                "prefs_externalMembersDisabled");
+        Assert.assertEquals(Utils.sanitizeParamName("prefs\\/boardVisibilityRestrict\\/private"),
+                "prefs_boardVisibilityRestrict_private");
     }
 
     @Test
@@ -272,9 +280,9 @@ public class UtilsTest {
         Assert.assertEquals(Utils.sanitizeXmlName(null), "resource");
         Assert.assertEquals(Utils.sanitizeXmlName(""), "resource");
 
-        // Hyphens and periods are valid
+        // Hyphens are valid
         Assert.assertEquals(Utils.sanitizeXmlName("name-test"), "name-test");
-        Assert.assertEquals(Utils.sanitizeXmlName("name.test"), "name.test");
+        Assert.assertEquals(Utils.sanitizeXmlName("name.test"), "name_test");
     }
 
     @Test
