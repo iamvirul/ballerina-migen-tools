@@ -27,6 +27,8 @@
         <property name="param0" value="request"/>
         <property name="paramType0" value="record"/>
         <property name="param0_recordName" value="QueryRequest" />
+        <property name="param0_recordOrg" value="ballerinax" />
+        <property name="param0_recordModule" value="milvus" />
         <property name="request_param0" value="collectionName"/>
         <property name="request_paramType0" value="string"/>
         <property name="request_param1" value="partitionName"/>
@@ -35,6 +37,7 @@
         <property name="request_paramType2" value="string"/>
         <property name="request_param3" value="outputFields"/>
         <property name="request_paramType3" value="array"/>
+        <property name="request_arrayElementType3" value="string"/>
         <property name="paramSize" value="1"/>
         <property name="paramFunctionName" value="query"/>
         <property name="returnType" value="union"/>

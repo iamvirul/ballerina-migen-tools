@@ -1,20 +1,29 @@
 NAME
-       bal migen module - Generate MI module artifacts from @mi:Operation functions
+       bal migen module - Generate MI module artifacts from Ballerina functions
 
 SYNOPSIS
        bal migen module [OPTIONS]
 
 DESCRIPTION
-       Generate WSO2 Micro Integrator artifacts from Ballerina functions annotated with @mi:Operation.
-       This command scans the Ballerina project for functions with @mi:Operation annotation
-       and generates the corresponding MI artifacts.
+       Generate WSO2 Micro Integrator artifacts from a Ballerina module.
+
+       When @mi:Operation annotations are present, only annotated functions are included.
+       When no annotations are present, all public module-level functions are included automatically.
+
+       Use --package to pull a package directly from Ballerina Central without a local checkout.
+       --package and --path are mutually exclusive.
 
 OPTIONS
+       --package <org/name:version>
+           Ballerina Central package to generate from. Version is optional (defaults to latest).
+           Mutually exclusive with --path.
+
        --path <path>
            Path to the Ballerina project. Defaults to the current directory if omitted.
+           Mutually exclusive with --package.
 
        -o, --output <path>
-           Output directory. Defaults to target/mi/
+           Output directory. Defaults to <path>/target/mi/ for --path, or ./target/mi/ for --package.
 
        -h, --help
            Display this help message.
@@ -22,3 +31,5 @@ OPTIONS
 EXAMPLES
        $ bal migen module
        $ bal migen module --path ./my-project -o ./output
+       $ bal migen module --package ballerinax/crypto
+       $ bal migen module --package ballerinax/crypto:1.0.0 --output ./mi-out

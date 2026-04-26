@@ -49,6 +49,7 @@ public class TestArtifactGenerationUtil {
             case "typedescProject" -> generateTypedescProjectExpectedArtifacts();
             case "multiClientProject" -> generateBalaProjectExpectedArtifacts("multiClientProject");
             case "unsupportedProject" -> generateBalaProjectExpectedArtifacts("unsupportedProject");
+            case "noAnnotationProject" -> generateNoAnnotationProjectExpectedArtifacts();
             case "central" -> generateCentralExpectedArtifacts(resolveCentralPackages());
             default -> printUsageAndExit();
         }
@@ -63,6 +64,13 @@ public class TestArtifactGenerationUtil {
         String projectName = "project1";
         ArtifactGenerationUtil.generateExpectedArtifacts(projectPath, projectName);
         System.out.println("Expected artifacts for project1 generated successfully.");
+    }
+
+    public static void generateNoAnnotationProjectExpectedArtifacts() throws Exception {
+        String projectPath = "src/test/resources/ballerina/noAnnotationProject";
+        String projectName = "noAnnotationProject";
+        ArtifactGenerationUtil.generateExpectedArtifacts(projectPath, projectName);
+        System.out.println("Expected artifacts for noAnnotationProject generated successfully.");
     }
 
     public static void generateProject2ExpectedArtifacts() throws Exception {
@@ -408,7 +416,8 @@ public class TestArtifactGenerationUtil {
     private static void printUsageAndExit() {
         System.err.println("Usage: gradle :mi-tests:generateExpectedArtifacts "
                 + "-PartifactTarget=<project1|project2|project3|project4|project5|project6|project7|unionProject|"
-                + "nestedRecordConflictProject|tableProject|multiClientProject|typedescProject|unsupportedProject|central> "
+                + "nestedRecordConflictProject|tableProject|multiClientProject|typedescProject|unsupportedProject|"
+                + "noAnnotationProject|central> "
                 + "[-PcentralPackage=<org/name:version,org2/name2:version2,...>]");
         System.exit(1);
     }

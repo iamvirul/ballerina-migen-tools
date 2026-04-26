@@ -275,28 +275,25 @@ public class Utils {
     }
 
     /**
-     * Get the actual TypeDescKind by resolving type references recursively.
+     * Get the actual TypeDescKind by resolving type references and intersections recursively.
      */
     public static TypeDescKind getActualTypeKind(TypeSymbol typeSymbol) {
-        TypeDescKind typeKind = typeSymbol.typeKind();
-        // System.err.println("DEBUG: getActualTypeKind: " + typeKind + " for symbol: " + typeSymbol.getName().orElse("anon"));
-        if (typeKind == TypeDescKind.TYPE_REFERENCE) {
-            if (typeSymbol instanceof io.ballerina.compiler.api.symbols.TypeReferenceTypeSymbol typeRef) {
-                TypeDescKind resolved = getActualTypeKind(typeRef.typeDescriptor());
-                // System.err.println("DEBUG: Resolved TYPE_REFERENCE to: " + resolved);
-                return resolved;
-            }
-        }
-        return typeKind;
+        TypeSymbol actualSymbol = getActualTypeSymbol(typeSymbol);
+        return actualSymbol.typeKind();
     }
 
     /**
-     * Get the actual TypeSymbol by resolving type references recursively.
+     * Get the actual TypeSymbol by resolving type references and intersections recursively.
      */
     public static TypeSymbol getActualTypeSymbol(TypeSymbol typeSymbol) {
         if (typeSymbol.typeKind() == TypeDescKind.TYPE_REFERENCE) {
             if (typeSymbol instanceof io.ballerina.compiler.api.symbols.TypeReferenceTypeSymbol typeRef) {
                 return getActualTypeSymbol(typeRef.typeDescriptor());
+            }
+        }
+        if (typeSymbol.typeKind() == TypeDescKind.INTERSECTION) {
+            if (typeSymbol instanceof io.ballerina.compiler.api.symbols.IntersectionTypeSymbol intersection) {
+                return getActualTypeSymbol(intersection.effectiveTypeDescriptor());
             }
         }
         return typeSymbol;
@@ -791,9 +788,13 @@ public static String sanitizeParamName(String paramName) {
     while (sanitized.startsWith("'")) {
         sanitized = sanitized.substring(1);
     }
-    // Replace dots with underscores for Synapse template parameter compatibility
+    // Replace dots and forward slashes with underscores for Synapse template parameter compatibility
     // Synapse/MI cannot correctly handle parameter names with dots (e.g., auth.token)
+    // or forward slashes (e.g., prefs/externalMembersDisabled) as they are invalid in XML
     sanitized = sanitized.replace(".", "_");
+    sanitized = sanitized.replace("\\/", "_");
+    sanitized = sanitized.replace("/", "_");
+    sanitized = sanitized.replace("\\", "_");
     // If the name is empty after sanitization, use a default
     if (sanitized.isEmpty()) {
         sanitized = "param";
@@ -806,8 +807,8 @@ public static String sanitizeParamName(String paramName) {
             return "";
         }
 
-        // Handle hyphenated or underscore-separated words
-        String[] parts = str.split("[-_\\s]+");
+        // Handle hyphenated, underscore-separated, or dot-separated words
+        String[] parts = str.split("[-_.\\s]+");
         StringBuilder result = new StringBuilder();
 
         for (String part : parts) {
@@ -825,8 +826,8 @@ public static String sanitizeParamName(String paramName) {
     }
 
     /**
-     * Sanitize a string to be a valid XML name.
-     * XML names must start with a letter or underscore, and contain only letters, digits, underscores, hyphens, and periods.
+     * Sanitize a string to be a valid XML/Synapse template name.
+     * Names must start with a letter or underscore, and contain only letters, digits, underscores, and hyphens.
      */
     public static String sanitizeXmlName(String name) {
         if (name == null || name.isEmpty()) {
@@ -849,8 +850,9 @@ public static String sanitizeParamName(String paramName) {
                 }
                 // Skip invalid first characters
             } else {
-                // Subsequent characters can be letters, digits, underscores, hyphens, periods
-                if (Character.isLetterOrDigit(c) || c == '_' || c == '-' || c == '.') {
+                // Subsequent characters can be letters, digits, underscores, hyphens
+                // Dots are NOT allowed as they cause issues in Synapse template/component names
+                if (Character.isLetterOrDigit(c) || c == '_' || c == '-') {
                     sanitized.append(c);
                 } else {
                     // Replace invalid characters with underscore

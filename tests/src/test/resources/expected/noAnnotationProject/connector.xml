@@ -16,16 +16,12 @@
   ~ specific language governing permissions and limitations
   ~ under the License.
   -->
-<component name="functions" type="synapse/template">
-    <subComponents>
-        {{#each connections ~}}
-        {{#each components ~}}
-        <component name="{{name}}">
-            <displayName>{{displayName}}</displayName>
-            <file>{{fileName}}.xml</file>
-            <description>{{escapeXmlText shortDescription}}</description>
-        </component>
-        {{/each ~}}
-        {{/each ~}}
-    </subComponents>
-</component>
+<connector>
+    <component name="noAnnotationProject" package="io.ballerina.stdlib.mi">
+        
+        <dependency component="functions"/>
+        <description>helps to connect with external systems</description>
+    </component>
+    <icon>icon/icon-small.png</icon>
+    <displayName>noAnnotationProject</displayName>
+</connector>

@@ -26,6 +26,8 @@
         <property name="param0" value="request"/>
         <property name="paramType0" value="record"/>
         <property name="param0_recordName" value="CreateCollectionRequest" />
+        <property name="param0_recordOrg" value="ballerinax" />
+        <property name="param0_recordModule" value="milvus" />
         <property name="request_param0" value="collectionName"/>
         <property name="request_paramType0" value="string"/>
         <property name="request_param1" value="primaryFieldName"/>

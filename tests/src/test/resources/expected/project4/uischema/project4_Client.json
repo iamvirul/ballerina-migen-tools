@@ -105,7 +105,7 @@
                             "ALWAYS",
                             "NEVER"
                           ],
-                          "defaultValue": "AUTO",
+                          "defaultValue": "KEEPALIVE_AUTO",
                           "required": "false",
                           "helpTip": "Specifies whether to reuse a connection for multiple requests",
                           "enableCondition": [
@@ -130,7 +130,7 @@
                             "ALWAYS",
                             "NEVER"
                           ],
-                          "defaultValue": "AUTO",
+                          "defaultValue": "CHUNKING_AUTO",
                           "required": "false",
                           "helpTip": "The chunking behaviour of the request",
                           "enableCondition": [

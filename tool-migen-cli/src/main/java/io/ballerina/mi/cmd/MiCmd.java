@@ -21,12 +21,7 @@ package io.ballerina.mi.cmd;
 import io.ballerina.cli.BLauncherCmd;
 import picocli.CommandLine;
 
-import java.io.BufferedReader;
-import java.io.InputStream;
-import java.io.InputStreamReader;
 import java.io.PrintStream;
-import java.nio.charset.StandardCharsets;
-import java.util.stream.Collectors;
 
 @CommandLine.Command(name = "migen", description = "Generate WSO2 MI artifacts",
 
@@ -45,21 +40,8 @@ public class MiCmd implements BLauncherCmd {
 
     @Override
     public void execute() {
-        String commandUsageInfo = getHelpContent("cli-help/ballerina-migen.help");
+        String commandUsageInfo = BLauncherCmd.getCommandUsageInfo(CMD_NAME);
         printStream.println(commandUsageInfo);
-    }
-
-    private String getHelpContent(String resourcePath) {
-        try (InputStream is = getClass().getClassLoader().getResourceAsStream(resourcePath)) {
-            if (is == null) {
-                return "Help content not available.";
-            }
-            try (BufferedReader reader = new BufferedReader(new InputStreamReader(is, StandardCharsets.UTF_8))) {
-                return reader.lines().collect(Collectors.joining(System.lineSeparator()));
-            }
-        } catch (Exception e) {
-            return "Error loading help: " + e.getMessage();
-        }
     }
 
     @Override

@@ -1,7 +1,7 @@
 {
-  "connectorName": "project7",
-  "operationName": "postUsersMessagesImportByUserId",
-  "title": "post users messages import by user id",
+  "connectorName": "noAnnotationProject",
+  "operationName": "add",
+  "title": "add",
   "help": "",
   "elements": [
     {
@@ -10,21 +10,6 @@
         "groupName": "General",
         "elements": [
           {
-            "type": "attribute",
-            "value": {
-              "name": "configRef",
-              "displayName": "Connection",
-              "inputType": "connection",
-              "allowedConnectionTypes": [
-                "project7_GmailMockClient"
-              ],
-              "defaultType": "connection.project7_GmailMockClient",
-              "defaultValue": "",
-              "required": "true",
-              "helpTip": "Connection to be used"
-            }
-          },
-          {
             "type": "attributeGroup",
             "value": {
               "groupName": "Input Variables",
@@ -32,53 +17,27 @@
                 {
                   "type": "attribute",
                   "value": {
-                    "name": "userId",
-                    "displayName": "userId",
+                    "name": "a",
+                    "displayName": "a",
                     "inputType": "stringOrExpression",
                     "defaultValue": "",
                     "required": true,
                     "helpTip": "",
-                    "validateType": "",
-                    "matchPattern": ""
+                    "validateType": "regex",
+                    "matchPattern": "^(-?\\d+|\\$\\{.+\\})$"
                   }
                 },
                 {
                   "type": "attribute",
                   "value": {
-                    "name": "id",
-                    "displayName": "id",
+                    "name": "b",
+                    "displayName": "b",
                     "inputType": "stringOrExpression",
                     "defaultValue": "",
                     "required": true,
                     "helpTip": "",
-                    "validateType": "",
-                    "matchPattern": ""
-                  }
-                },
-                {
-                  "type": "attribute",
-                  "value": {
-                    "name": "threadId",
-                    "displayName": "threadId",
-                    "inputType": "stringOrExpression",
-                    "defaultValue": "",
-                    "required": true,
-                    "helpTip": "",
-                    "validateType": "",
-                    "matchPattern": ""
-                  }
-                },
-                {
-                  "type": "attribute",
-                  "value": {
-                    "name": "snippet",
-                    "displayName": "snippet",
-                    "inputType": "stringOrExpression",
-                    "defaultValue": "",
-                    "required": true,
-                    "helpTip": "",
-                    "validateType": "",
-                    "matchPattern": ""
+                    "validateType": "regex",
+                    "matchPattern": "^(-?\\d+|\\$\\{.+\\})$"
                   }
                 }
               ]

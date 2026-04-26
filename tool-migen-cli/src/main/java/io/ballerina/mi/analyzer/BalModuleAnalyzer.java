@@ -55,32 +55,35 @@ public class BalModuleAnalyzer implements Analyzer {
         GenerationReport.ClientReport clientReport = new GenerationReport.ClientReport(
                 descriptor.name().value(), null);
 
-        // Get all symbols from the module and filter for functions
-        Collection<Symbol> allSymbols = compilePackage.getCompilation().getSemanticModel(compilePackage.getDefaultModule().moduleId()).moduleSymbols();
-        for (Symbol symbol : allSymbols) {
-            if (symbol.kind() == SymbolKind.FUNCTION && symbol instanceof FunctionSymbol functionSymbol) {
-                analyzeFunctionForMIOperation(functionSymbol, connector, clientReport);
+        Collection<Symbol> allSymbols = compilePackage.getCompilation()
+                .getSemanticModel(compilePackage.getDefaultModule().moduleId()).moduleSymbols();
+
+        List<FunctionSymbol> functionSymbols = allSymbols.stream()
+                .filter(s -> s.kind() == SymbolKind.FUNCTION && s instanceof FunctionSymbol)
+                .map(s -> (FunctionSymbol) s)
+                .toList();
+
+        boolean hasAnnotations = functionSymbols.stream().anyMatch(this::hasOperationAnnotation);
+
+        for (FunctionSymbol functionSymbol : functionSymbols) {
+            if (hasAnnotations) {
+                analyzeFunctionForMIOperation(functionSymbol, connector, clientReport, true);
+            } else if (functionSymbol.qualifiers().contains(Qualifier.PUBLIC)) {
+                analyzeFunctionForMIOperation(functionSymbol, connector, clientReport, false);
             }
         }
 
         connector.getGenerationReport().addClientReport(clientReport);
     }
 
+    private boolean hasOperationAnnotation(FunctionSymbol functionSymbol) {
+        return functionSymbol.annotations().stream()
+                .anyMatch(a -> a.getName().filter("Operation"::equals).isPresent());
+    }
+
     private void analyzeFunctionForMIOperation(FunctionSymbol functionSymbol, Connector connector,
-                                               GenerationReport.ClientReport clientReport) {
-        // Check if function has @mi:Operation annotation
-        List<AnnotationSymbol> annotations = functionSymbol.annotations();
-
-        boolean hasOperationAnnotation = false;
-        for (AnnotationSymbol annotationSymbol : annotations) {
-            Optional<String> annotationName = annotationSymbol.getName();
-            if (annotationName.isPresent() && annotationName.get().equals("Operation")) {
-                hasOperationAnnotation = true;
-                break;
-            }
-        }
-
-        if (!hasOperationAnnotation) {
+                                               GenerationReport.ClientReport clientReport, boolean requireAnnotation) {
+        if (requireAnnotation && !hasOperationAnnotation(functionSymbol)) {
             return;
         }
 

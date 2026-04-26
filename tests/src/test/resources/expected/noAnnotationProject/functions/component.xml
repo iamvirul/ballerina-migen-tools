@@ -18,14 +18,15 @@
   -->
 <component name="functions" type="synapse/template">
     <subComponents>
-        {{#each connections ~}}
-        {{#each components ~}}
-        <component name="{{name}}">
-            <displayName>{{displayName}}</displayName>
-            <file>{{fileName}}.xml</file>
-            <description>{{escapeXmlText shortDescription}}</description>
+        <component name="add">
+            <displayName>add</displayName>
+            <file>add.xml</file>
+            <description></description>
         </component>
-        {{/each ~}}
-        {{/each ~}}
-    </subComponents>
+        <component name="greet">
+            <displayName>greet</displayName>
+            <file>greet.xml</file>
+            <description></description>
+        </component>
+        </subComponents>
 </component>
