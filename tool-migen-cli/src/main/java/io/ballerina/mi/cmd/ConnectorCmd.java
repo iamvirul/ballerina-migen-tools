@@ -19,6 +19,7 @@
 package io.ballerina.mi.cmd;
 
 import io.ballerina.cli.BLauncherCmd;
+import io.ballerina.mi.util.Utils;
 import picocli.CommandLine;
 
 import java.io.PrintStream;
@@ -53,7 +54,7 @@ public class ConnectorCmd implements BLauncherCmd {
     @Override
     public void execute() {
         if (helpFlag) {
-            String commandUsageInfo = BLauncherCmd.getCommandUsageInfo("migen-connector");
+            String commandUsageInfo = Utils.readCommandUsageInfo("migen-connector");
             printStream.println(commandUsageInfo);
             return;
         }

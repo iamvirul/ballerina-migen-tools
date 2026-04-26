@@ -44,6 +44,26 @@ public class Utils {
             .setPrettyPrinting().disableHtmlEscaping().create();
 
     /**
+     * Reads a CLI help file from the tool's own classpath. Ballerina 2201.10's
+     * single-arg {@code BLauncherCmd.getCommandUsageInfo(name)} resolves resources
+     * via Ballerina-CLI's own ClassLoader, which cannot see help files bundled in
+     * this tool's jar — yielding a {@link NullPointerException} when the help flag
+     * is invoked. This helper reads {@code cli-help/ballerina-<cmd>.help} directly
+     * from this tool's resources instead.
+     */
+    public static String readCommandUsageInfo(String cmdName) {
+        String resourcePath = "cli-help/ballerina-" + cmdName + ".help";
+        try (InputStream in = Utils.class.getClassLoader().getResourceAsStream(resourcePath)) {
+            if (in == null) {
+                return "Help text not found for command: " + cmdName;
+            }
+            return new String(in.readAllBytes(), StandardCharsets.UTF_8);
+        } catch (IOException e) {
+            return "Error reading help for " + cmdName + ": " + e.getMessage();
+        }
+    }
+
+    /**
      * These are utility functions used when generating XML and JSON content
      */
     public static String readFile(String fileName) throws IOException {
