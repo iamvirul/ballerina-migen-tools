@@ -41,9 +41,28 @@ public class ParamHandler {
 
     private static final Log log = LogFactory.getLog(ParamHandler.class);
 
-    public void setParameters(Object[] args, MessageContext context) {
+    public void setParameters(Object[] args, MessageContext context, Object callable) {
+        String functionName = SynapseUtils.getPropertyAsString(context, Constants.FUNCTION_NAME);
         for (int i = 0; i < args.length; i++) {
             Object param = getParameter(context, "param" + i, "paramType" + i, i);
+            
+            // Try to convert to expected type at runtime to prevent InherentTypeViolation
+            if (param instanceof BMap || param instanceof BArray) {
+                Type expectedType = null;
+                if (callable instanceof BObject bObject) {
+                    expectedType = DataTransformer.getMethodParameterType(bObject, functionName, i);
+                } else if (callable instanceof io.ballerina.runtime.api.Module module) {
+                    expectedType = DataTransformer.getFunctionParameterType(module, functionName, i);
+                }
+                
+                if (expectedType != null) {
+                    try {
+                        param = DataTransformer.convertValueToType(param, expectedType);
+                    } catch (Exception e) {
+                        log.warn("Failed to convert parameter " + i + " to expected type: " + e.getMessage());
+                    }
+                }
+            }
             args[i] = param;
         }
     }
@@ -164,6 +183,7 @@ public class ParamHandler {
                 case MAP -> DataTransformer.getMapParameter(param, context, value);
                 case UNION -> getUnionParameter(paramName, context, index, paramPrefix);
                 case TYPEDESC -> getTypedescValueWithFallback((String) param, paramName, context, index);
+                case ENUM -> StringUtils.fromString((String) param);
                 default -> null;
             };
             return result;
