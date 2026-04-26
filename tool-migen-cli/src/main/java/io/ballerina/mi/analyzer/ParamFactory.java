@@ -289,8 +289,8 @@ public class ParamFactory {
 
         // Simplify single-member union to a plain FunctionParam
         if (unionParam.getUnionMemberParams().size() == 1
-                && !(unionParam.getUnionMemberParams().getFirst() instanceof UnionFunctionParam)) {
-            FunctionParam single = unionParam.getUnionMemberParams().getFirst();
+                && !(unionParam.getUnionMemberParams().get(0) instanceof UnionFunctionParam)) {
+            FunctionParam single = unionParam.getUnionMemberParams().get(0);
             FunctionParam simplified = new FunctionParam(Integer.toString(index), paramName, single.getParamType());
             simplified.setParamKind(paramKind);
             simplified.setTypeSymbol(rawTypeSymbol);
@@ -476,8 +476,8 @@ public class ParamFactory {
                             continue;
                         }
                         // If there's only one non-nil member, convert to a regular FunctionParam instead of UnionFunctionParam
-                        if (unionFieldParam.getUnionMemberParams().size() == 1 && !(unionFieldParam.getUnionMemberParams().getFirst() instanceof UnionFunctionParam)) {
-                            FunctionParam singleMember = unionFieldParam.getUnionMemberParams().getFirst();
+                        if (unionFieldParam.getUnionMemberParams().size() == 1 && !(unionFieldParam.getUnionMemberParams().get(0) instanceof UnionFunctionParam)) {
+                            FunctionParam singleMember = unionFieldParam.getUnionMemberParams().get(0);
                             fieldParam = new FunctionParam(Integer.toString(fieldIndex), qualifiedFieldName, singleMember.getParamType());
                             fieldParam.setTypeSymbol(singleMember.getTypeSymbol());
                             fieldParam.setRequired(unionFieldParam.isRequired());
@@ -620,8 +620,8 @@ public class ParamFactory {
         // If there's only one non-nil member, return it as a regular FunctionParam instead of a UnionFunctionParam
         // This avoids generating a pointless combobox with a single selectable value (e.g., for optional types like string?)
         // However, if the single member is itself a UnionFunctionParam, we must NOT simplify it to a generic FunctionParam.
-        if (functionParam.getUnionMemberParams().size() == 1 && !(functionParam.getUnionMemberParams().getFirst() instanceof UnionFunctionParam)) {
-            FunctionParam singleMember = functionParam.getUnionMemberParams().getFirst();
+        if (functionParam.getUnionMemberParams().size() == 1 && !(functionParam.getUnionMemberParams().get(0) instanceof UnionFunctionParam)) {
+            FunctionParam singleMember = functionParam.getUnionMemberParams().get(0);
             // Create a new function param with the original parameter's properties
             FunctionParam simplifiedParam = new FunctionParam(Integer.toString(index), paramName, singleMember.getParamType());
             simplifiedParam.setParamKind(parameterSymbol.paramKind());
