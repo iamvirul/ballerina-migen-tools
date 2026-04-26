@@ -24,6 +24,7 @@ import io.ballerina.runtime.api.utils.StringUtils;
 import io.ballerina.runtime.api.values.BArray;
 import io.ballerina.runtime.api.values.BDecimal;
 import io.ballerina.runtime.api.values.BMap;
+import io.ballerina.runtime.api.values.BObject;
 import io.ballerina.runtime.api.values.BString;
 import io.ballerina.runtime.api.values.BXml;
 import io.ballerina.stdlib.mi.Constants;
@@ -69,10 +70,43 @@ public class ParamHandlerTest {
             synapseUtilsMock.when(() -> SynapseUtils.getPropertyAsString(context, "paramType1")).thenReturn(Constants.INT);
 
             ParamHandler handler = new ParamHandler();
-            handler.setParameters(args, context);
+            handler.setParameters(args, context, null);
 
             Assert.assertEquals(args[0], bStringVal);
             Assert.assertEquals(args[1], 123L);
+        }
+    }
+
+    @Test
+    public void testSetParameters_WithBObjectCallable() {
+        try (MockedStatic<SynapseUtils> synapseUtilsMock = Mockito.mockStatic(SynapseUtils.class);
+             MockedStatic<DataTransformer> dataTransformerMock = Mockito.mockStatic(DataTransformer.class)) {
+
+            MessageContext context = mock(MessageContext.class);
+            BObject callable = mock(BObject.class);
+            Object[] args = new Object[1];
+
+            // param0 returns a BMap (simulating an untyped record)
+            BMap<BString, Object> rawMap = mock(BMap.class);
+            synapseUtilsMock.when(() -> SynapseUtils.getPropertyAsString(context, "param0")).thenReturn("p0Name");
+            synapseUtilsMock.when(() -> SynapseUtils.getPropertyAsString(context, "paramType0")).thenReturn(Constants.RECORD);
+            synapseUtilsMock.when(() -> SynapseUtils.getPropertyAsString(context, Constants.FUNCTION_NAME)).thenReturn("testFn");
+            dataTransformerMock.when(() -> DataTransformer.createRecordValue(null, "p0Name", context, 0)).thenReturn(rawMap);
+
+            // The BObject callable provides the expected type for param 0
+            io.ballerina.runtime.api.types.Type expectedType = mock(io.ballerina.runtime.api.types.Type.class);
+            dataTransformerMock.when(() -> DataTransformer.getMethodParameterType(callable, "testFn", 0))
+                    .thenReturn(expectedType);
+
+            BMap<BString, Object> typedMap = mock(BMap.class);
+            dataTransformerMock.when(() -> DataTransformer.convertValueToType(rawMap, expectedType))
+                    .thenReturn(typedMap);
+
+            ParamHandler handler = new ParamHandler();
+            handler.setParameters(args, context, callable);
+
+            // The parameter should have been converted to the typed value via the BObject callable path
+            Assert.assertEquals(args[0], typedMap);
         }
     }
 
@@ -635,7 +669,7 @@ public class ParamHandlerTest {
             ParamHandler handler = new ParamHandler();
             Object[] args = new Object[0];
 
-            handler.setParameters(args, context);
+            handler.setParameters(args, context, null);
 
             Assert.assertEquals(args.length, 0);
         }

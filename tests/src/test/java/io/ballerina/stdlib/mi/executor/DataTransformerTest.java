@@ -18,7 +18,6 @@
 
 package io.ballerina.stdlib.mi.executor;
 
-import io.ballerina.runtime.api.TypeTags;
 import io.ballerina.runtime.api.creators.ValueCreator;
 import io.ballerina.runtime.api.types.*;
 import io.ballerina.runtime.api.utils.JsonUtils;
@@ -143,7 +142,7 @@ public class DataTransformerTest {
 
             Object result = DataTransformer.reconstructRecordFromFields(prefix, context);
 
-            Assert.assertSame(result, expectedBallerinaRecord);
+            Assert.assertEquals(result, expectedBallerinaRecord);
         }
     }
 
@@ -226,7 +225,7 @@ public class DataTransformerTest {
 
             Object result = DataTransformer.createRecordValue(jsonString, "param0", context, 0);
 
-            Assert.assertSame(result, parsedParams);
+            Assert.assertEquals(result, parsedParams);
         }
     }
 
@@ -238,7 +237,7 @@ public class DataTransformerTest {
             jsonUtilsMock.when(() -> JsonUtils.parse(jsonString)).thenReturn(expectedResult);
 
             Object result = DataTransformer.getJsonParameter(jsonString);
-            Assert.assertSame(result, expectedResult);
+            Assert.assertEquals(result, expectedResult);
         }
     }
 
@@ -251,7 +250,7 @@ public class DataTransformerTest {
             jsonUtilsMock.when(() -> JsonUtils.parse(unquotedJson)).thenReturn(expectedResult);
 
             Object result = DataTransformer.getJsonParameter(quotedJson);
-            Assert.assertSame(result, expectedResult);
+            Assert.assertEquals(result, expectedResult);
         }
     }
 
@@ -268,7 +267,7 @@ public class DataTransformerTest {
             jsonUtilsMock.when(() -> JsonUtils.parse("{\"key\":123}")).thenReturn(expectedResult);
 
             Object result = DataTransformer.getJsonParameter(input);
-            Assert.assertSame(result, expectedResult);
+            Assert.assertEquals(result, expectedResult);
         }
     }
 
@@ -311,7 +310,141 @@ public class DataTransformerTest {
             synapseUtilsMock.when(() -> SynapseUtils.cleanupJsonString(anyString())).thenAnswer(i -> i.getArgument(0));
 
             Object result = DataTransformer.reconstructRecordFromFields(prefix, context);
-            Assert.assertSame(result, expectedBallerinaRecord);
+            Assert.assertEquals(result, expectedBallerinaRecord);
+        }
+    }
+
+    @Test
+    public void testConvertValueToType_PrimitiveTypes() {
+        try (MockedStatic<StringUtils> stringUtilsMock = Mockito.mockStatic(StringUtils.class)) {
+            // Test INT — whole-number double converts correctly
+            Type intType = mock(Type.class);
+            when(intType.getTag()).thenReturn(TypeTags.INT_TAG);
+            Assert.assertEquals(DataTransformer.convertValueToType(123.0, intType), 123L);
+
+            // Fractional input must be rejected (lossy narrowing)
+            try {
+                DataTransformer.convertValueToType(123.45, intType);
+                Assert.fail("Expected SynapseException for fractional-to-int conversion");
+            } catch (SynapseException e) {
+                Assert.assertTrue(e.getMessage().contains("123.45"));
+            }
+
+            // Test FLOAT
+            Type floatType = mock(Type.class);
+            when(floatType.getTag()).thenReturn(TypeTags.FLOAT_TAG);
+            Assert.assertEquals(DataTransformer.convertValueToType(123, floatType), 123.0);
+
+            // Test BOOLEAN
+            Type booleanType = mock(Type.class);
+            when(booleanType.getTag()).thenReturn(TypeTags.BOOLEAN_TAG);
+            Assert.assertEquals(DataTransformer.convertValueToType("true", booleanType), true);
+
+            // Test STRING
+            Type stringType = mock(Type.class);
+            when(stringType.getTag()).thenReturn(TypeTags.STRING_TAG);
+            BString bString = mock(BString.class);
+            stringUtilsMock.when(() -> StringUtils.fromString("hello")).thenReturn(bString);
+            Assert.assertEquals(DataTransformer.convertValueToType("hello", stringType), bString);
+        }
+    }
+
+    @Test
+    public void testCreateTypedRecordFromGeneric_OptionalFields() {
+        try (MockedStatic<ValueCreator> valueCreatorMock = Mockito.mockStatic(ValueCreator.class);
+             MockedStatic<StringUtils> stringUtilsMock = Mockito.mockStatic(StringUtils.class)) {
+
+            BMap<BString, Object> sourceMap = mock(BMap.class);
+            StructureType targetType = mock(StructureType.class);
+            
+            Field field1 = mock(Field.class);
+            Field field2 = mock(Field.class);
+
+            io.ballerina.runtime.api.Module module = mock(io.ballerina.runtime.api.Module.class);
+            when(targetType.getPackage()).thenReturn(module);
+            when(targetType.getName()).thenReturn("TestRecord");
+
+            Map<String, Field> fields = new HashMap<>();
+            fields.put("required", field1);
+            fields.put("optional", field2);
+            when(targetType.getFields()).thenReturn(fields);
+            
+            when(field1.getFieldName()).thenReturn("required");
+            Type stringType = mock(Type.class);
+            when(stringType.getTag()).thenReturn(TypeTags.STRING_TAG);
+            when(field1.getFieldType()).thenReturn(stringType);
+
+            when(field2.getFieldName()).thenReturn("optional");
+            when(field2.getFieldType()).thenReturn(stringType);
+
+            BString bField1 = mock(BString.class);
+            BString bField2 = mock(BString.class);
+            stringUtilsMock.when(() -> StringUtils.fromString("required")).thenReturn(bField1);
+            stringUtilsMock.when(() -> StringUtils.fromString("optional")).thenReturn(bField2);
+            
+            // Only 'required' is present in source
+            when(sourceMap.containsKey(bField1)).thenReturn(true);
+            when(sourceMap.get(bField1)).thenReturn("val1");
+            when(sourceMap.containsKey(bField2)).thenReturn(false);
+
+            BMap<BString, Object> typedRecord = mock(BMap.class);
+            valueCreatorMock.when(() -> ValueCreator.createRecordValue(module, "TestRecord"))
+                    .thenReturn(typedRecord);
+
+            BString bVal1 = mock(BString.class);
+            stringUtilsMock.when(() -> StringUtils.fromString("val1")).thenReturn(bVal1);
+
+            DataTransformer.createTypedRecordFromGeneric(sourceMap, targetType);
+            
+            Mockito.verify(typedRecord).put(bField1, bVal1);
+            Mockito.verify(typedRecord, Mockito.never()).put(eq(bField2), any());
+        }
+    }
+
+    @Test
+    public void testCreateTypedRecordFromGeneric_ClosedRecord() {
+        try (MockedStatic<ValueCreator> valueCreatorMock = Mockito.mockStatic(ValueCreator.class);
+             MockedStatic<StringUtils> stringUtilsMock = Mockito.mockStatic(StringUtils.class)) {
+
+            BMap<BString, Object> sourceMap = mock(BMap.class);
+            RecordType targetType = mock(RecordType.class);
+            Field field = mock(Field.class);
+
+            io.ballerina.runtime.api.Module module = mock(io.ballerina.runtime.api.Module.class);
+            when(targetType.getPackage()).thenReturn(module);
+            when(targetType.getName()).thenReturn("ClosedRecord");
+
+            Map<String, Field> fields = new HashMap<>();
+            fields.put("known", field);
+            when(targetType.getFields()).thenReturn(fields);
+            when(field.getFieldName()).thenReturn("known");
+
+            // Closed record: no rest field type
+            when(targetType.getRestFieldType()).thenReturn(null);
+
+            BString bKnown = mock(BString.class);
+            BString bUnknown = mock(BString.class);
+            when(bKnown.getValue()).thenReturn("known");
+            when(bUnknown.getValue()).thenReturn("unknown");
+            stringUtilsMock.when(() -> StringUtils.fromString("known")).thenReturn(bKnown);
+            stringUtilsMock.when(() -> StringUtils.fromString("unknown")).thenReturn(bUnknown);
+
+            // Source map contains both a declared field ("known") and an extra field ("unknown")
+            when(sourceMap.getKeys()).thenReturn(new BString[]{bKnown, bUnknown});
+            when(sourceMap.isEmpty()).thenReturn(false);
+
+            BMap<BString, Object> typedRecord = mock(BMap.class);
+            valueCreatorMock.when(() -> ValueCreator.createRecordValue(module, "ClosedRecord"))
+                    .thenReturn(typedRecord);
+
+            // Strict mode must reject the extra "unknown" field for a closed record
+            try {
+                DataTransformer.createTypedRecordFromGeneric(sourceMap, targetType, true);
+                Assert.fail("Expected SynapseException for extra field in closed record");
+            } catch (SynapseException e) {
+                Assert.assertTrue(e.getMessage().contains("unknown"),
+                        "Exception should mention the offending field name");
+            }
         }
     }
 
@@ -323,12 +456,17 @@ public class DataTransformerTest {
 
     @Test
     public void testConvertValueToType_SimpleType() {
-        Type simpleType = mock(Type.class);
-        when(simpleType.getTag()).thenReturn(TypeTags.STRING_TAG);
+        try (MockedStatic<StringUtils> stringUtilsMock = Mockito.mockStatic(StringUtils.class)) {
+            Type simpleType = mock(Type.class);
+            when(simpleType.getTag()).thenReturn(TypeTags.STRING_TAG);
 
-        String sourceValue = "hello";
-        Object result = DataTransformer.convertValueToType(sourceValue, simpleType);
-        Assert.assertEquals(result, "hello");
+            BString bString = mock(BString.class);
+            stringUtilsMock.when(() -> StringUtils.fromString("hello")).thenReturn(bString);
+
+            String sourceValue = "hello";
+            Object result = DataTransformer.convertValueToType(sourceValue, simpleType);
+            Assert.assertEquals(result, bString);
+        }
     }
 
     @Test
@@ -421,7 +559,7 @@ public class DataTransformerTest {
             jsonUtilsMock.when(() -> JsonUtils.parse(jsonStr)).thenReturn(parsedMap);
 
             BMap result = DataTransformer.getMapParameter(jsonStr, context, "val");
-            Assert.assertSame(result, parsedMap);
+            Assert.assertEquals(result, parsedMap);
         }
     }
 
@@ -442,7 +580,7 @@ public class DataTransformerTest {
             valueCreatorMock.when(ValueCreator::createMapValue).thenReturn(emptyMap);
 
             BMap result = DataTransformer.getMapParameter("[]", context, "val");
-            Assert.assertSame(result, emptyMap);
+            Assert.assertEquals(result, emptyMap);
         }
     }
 
@@ -477,7 +615,7 @@ public class DataTransformerTest {
             jsonUtilsMock.when(() -> JsonUtils.parse(unquotedJson)).thenReturn(parsedMap);
 
             BMap result = DataTransformer.getMapParameter(quotedJson, context, "val");
-            Assert.assertSame(result, parsedMap);
+            Assert.assertEquals(result, parsedMap);
         }
     }
 
@@ -502,7 +640,7 @@ public class DataTransformerTest {
             jsonUtilsMock.when(() -> JsonUtils.parse(anyString())).thenReturn(expectedBallerinaRecord);
 
             Object result = DataTransformer.reconstructRecordFromFields(prefix, context);
-            Assert.assertSame(result, expectedBallerinaRecord);
+            Assert.assertEquals(result, expectedBallerinaRecord);
         }
     }
 
@@ -527,7 +665,7 @@ public class DataTransformerTest {
             jsonUtilsMock.when(() -> JsonUtils.parse(anyString())).thenReturn(expectedBallerinaRecord);
 
             Object result = DataTransformer.reconstructRecordFromFields(prefix, context);
-            Assert.assertSame(result, expectedBallerinaRecord);
+            Assert.assertEquals(result, expectedBallerinaRecord);
         }
     }
 
@@ -552,7 +690,7 @@ public class DataTransformerTest {
             jsonUtilsMock.when(() -> JsonUtils.parse(anyString())).thenReturn(expectedBallerinaRecord);
 
             Object result = DataTransformer.reconstructRecordFromFields(prefix, context);
-            Assert.assertSame(result, expectedBallerinaRecord);
+            Assert.assertEquals(result, expectedBallerinaRecord);
         }
     }
 
@@ -577,7 +715,7 @@ public class DataTransformerTest {
             jsonUtilsMock.when(() -> JsonUtils.parse(anyString())).thenReturn(expectedBallerinaRecord);
 
             Object result = DataTransformer.reconstructRecordFromFields(prefix, context);
-            Assert.assertSame(result, expectedBallerinaRecord);
+            Assert.assertEquals(result, expectedBallerinaRecord);
         }
     }
 
@@ -600,7 +738,7 @@ public class DataTransformerTest {
             jsonUtilsMock.when(() -> JsonUtils.parse(anyString())).thenReturn(expectedBallerinaRecord);
 
             Object result = DataTransformer.reconstructRecordFromFields(prefix, context);
-            Assert.assertSame(result, expectedBallerinaRecord);
+            Assert.assertEquals(result, expectedBallerinaRecord);
         }
     }
 
@@ -623,7 +761,7 @@ public class DataTransformerTest {
             jsonUtilsMock.when(() -> JsonUtils.parse(anyString())).thenReturn(expectedBallerinaRecord);
 
             Object result = DataTransformer.reconstructRecordFromFields(prefix, context);
-            Assert.assertSame(result, expectedBallerinaRecord);
+            Assert.assertEquals(result, expectedBallerinaRecord);
         }
     }
 
@@ -648,7 +786,7 @@ public class DataTransformerTest {
             jsonUtilsMock.when(() -> JsonUtils.parse(anyString())).thenReturn(expectedBallerinaRecord);
 
             Object result = DataTransformer.reconstructRecordFromFields(prefix, context);
-            Assert.assertSame(result, expectedBallerinaRecord);
+            Assert.assertEquals(result, expectedBallerinaRecord);
         }
     }
 
@@ -664,7 +802,7 @@ public class DataTransformerTest {
             when(context.getProperty("param0_recordName")).thenReturn(null);
 
             Object result = DataTransformer.createRecordValue(quotedJson, "param0", context, 0);
-            Assert.assertSame(result, parsedResult);
+            Assert.assertEquals(result, parsedResult);
         }
     }
 
@@ -686,7 +824,7 @@ public class DataTransformerTest {
             jsonUtilsMock.when(() -> JsonUtils.parse("{\"a\":1}")).thenReturn(parsedMap);
 
             BMap result = DataTransformer.getMapParameter(param, context, "val");
-            Assert.assertSame(result, parsedMap);
+            Assert.assertEquals(result, parsedMap);
         }
     }
 
@@ -891,7 +1029,7 @@ public class DataTransformerTest {
                     .thenReturn(typedRecord);
 
             Object result = DataTransformer.convertValueToType(sourceMap, targetType);
-            Assert.assertSame(result, typedRecord);
+            Assert.assertEquals(result, typedRecord);
         }
     }
 
@@ -907,8 +1045,12 @@ public class DataTransformerTest {
             when(targetType.getElementType()).thenReturn(elementType);
             when(sourceArray.size()).thenReturn(0);
 
+            BArray typedArray = mock(BArray.class);
+            valueCreatorMock.when(() -> ValueCreator.createArrayValue(targetType))
+                    .thenReturn(typedArray);
+
             Object result = DataTransformer.convertValueToType(sourceArray, targetType);
-            Assert.assertSame(result, sourceArray);
+            Assert.assertEquals(result, typedArray);
         }
     }
 
@@ -948,7 +1090,7 @@ public class DataTransformerTest {
             valueCreatorMock.when(ValueCreator::createMapValue).thenReturn(resultMap);
 
             BMap result = DataTransformer.getMapParameter("[{\"key\":\"myKey\",\"value\":\"myValue\"}]", context, "param0");
-            Assert.assertSame(result, resultMap);
+            Assert.assertEquals(result, resultMap);
         }
     }
 
@@ -1106,7 +1248,7 @@ public class DataTransformerTest {
             when(context.getProperty("mapRecordFields0")).thenReturn(null);
 
             BMap result = DataTransformer.getMapParameter("[[\"myKey\",\"myValue\"]]", context, "param0");
-            Assert.assertSame(result, resultMap);
+            Assert.assertEquals(result, resultMap);
         }
     }
 
@@ -1172,7 +1314,7 @@ public class DataTransformerTest {
             when(context.getProperty("mapRecordFields0")).thenReturn("fieldA,fieldB");
 
             BMap result = DataTransformer.getMapParameter("[[\"myKey\",\"value1\",\"value2\"]]", context, "param0");
-            Assert.assertSame(result, resultMap);
+            Assert.assertEquals(result, resultMap);
         }
     }
 
@@ -1223,7 +1365,7 @@ public class DataTransformerTest {
             valueCreatorMock.when(ValueCreator::createMapValue).thenReturn(resultMap, recordValue);
 
             BMap result = DataTransformer.getMapParameter("{}", context, "param0");
-            Assert.assertSame(result, resultMap);
+            Assert.assertEquals(result, resultMap);
         }
     }
 
@@ -1255,7 +1397,7 @@ public class DataTransformerTest {
             when(context.getProperty("mapRecordFields0")).thenReturn(null);
 
             BMap result = DataTransformer.getMapParameter("[[]]", context, "param0");
-            Assert.assertSame(result, resultMap);
+            Assert.assertEquals(result, resultMap);
         }
     }
 
@@ -1288,7 +1430,7 @@ public class DataTransformerTest {
             jsonUtilsMock.when(() -> JsonUtils.parse(anyString())).thenReturn(expectedBallerinaRecord);
 
             Object result = DataTransformer.reconstructRecordFromFields(prefix, context);
-            Assert.assertSame(result, expectedBallerinaRecord);
+            Assert.assertEquals(result, expectedBallerinaRecord);
         }
     }
 
@@ -1313,7 +1455,7 @@ public class DataTransformerTest {
             jsonUtilsMock.when(() -> JsonUtils.parse(anyString())).thenReturn(expectedBallerinaRecord);
 
             Object result = DataTransformer.reconstructRecordFromFields(prefix, context);
-            Assert.assertSame(result, expectedBallerinaRecord);
+            Assert.assertEquals(result, expectedBallerinaRecord);
         }
     }
 
@@ -1336,7 +1478,7 @@ public class DataTransformerTest {
             jsonUtilsMock.when(() -> JsonUtils.parse(anyString())).thenReturn(expectedBallerinaRecord);
 
             Object result = DataTransformer.reconstructRecordFromFields(prefix, context);
-            Assert.assertSame(result, expectedBallerinaRecord);
+            Assert.assertEquals(result, expectedBallerinaRecord);
         }
     }
 
@@ -1367,7 +1509,7 @@ public class DataTransformerTest {
             jsonUtilsMock.when(() -> JsonUtils.parse(anyString())).thenReturn(expectedBallerinaRecord);
 
             Object result = DataTransformer.reconstructRecordFromFields(prefix, context);
-            Assert.assertSame(result, expectedBallerinaRecord);
+            Assert.assertEquals(result, expectedBallerinaRecord);
         }
     }
 
@@ -1396,7 +1538,7 @@ public class DataTransformerTest {
             jsonUtilsMock.when(() -> JsonUtils.parse(anyString())).thenReturn(expectedBallerinaRecord);
 
             Object result = DataTransformer.reconstructRecordFromFields(prefix, context);
-            Assert.assertSame(result, expectedBallerinaRecord);
+            Assert.assertEquals(result, expectedBallerinaRecord);
         }
     }
 
@@ -1433,12 +1575,17 @@ public class DataTransformerTest {
             when(sourceMap.containsKey(bFieldName)).thenReturn(true);
             when(sourceMap.get(bFieldName)).thenReturn(sourceArray);
 
+            BArray typedArray = mock(BArray.class);
+            valueCreatorMock.when(() -> ValueCreator.createArrayValue(arrayType))
+                    .thenReturn(typedArray);
+
             BMap<BString, Object> typedRecord = mock(BMap.class);
             valueCreatorMock.when(() -> ValueCreator.createRecordValue(module, "TestRecord"))
                     .thenReturn(typedRecord);
 
             Object result = DataTransformer.convertValueToType(sourceMap, targetType);
-            Assert.assertSame(result, typedRecord);
+            Assert.assertEquals(result, typedRecord);
+            Mockito.verify(typedRecord).put(bFieldName, typedArray);
         }
     }
 
@@ -1474,7 +1621,7 @@ public class DataTransformerTest {
                     .thenReturn(typedRecord);
 
             Object result = DataTransformer.convertValueToType(sourceMap, targetType);
-            Assert.assertSame(result, typedRecord);
+            Assert.assertEquals(result, typedRecord);
         }
     }
 
@@ -1504,8 +1651,13 @@ public class DataTransformerTest {
             valueCreatorMock.when(() -> ValueCreator.createRecordValue(module, "ItemRecord"))
                     .thenReturn(typedElement);
 
+            BArray typedArray = mock(BArray.class);
+            valueCreatorMock.when(() -> ValueCreator.createArrayValue(targetType))
+                    .thenReturn(typedArray);
+
             BArray result = DataTransformer.createTypedArrayFromGeneric(sourceArray, targetType);
-            Assert.assertSame(result, sourceArray);
+            Assert.assertEquals(result, typedArray);
+            Mockito.verify(typedArray).add(0L, typedElement);
         }
     }
 
@@ -1549,7 +1701,7 @@ public class DataTransformerTest {
             valueCreatorMock.when(ValueCreator::createMapValue).thenReturn(resultMap);
 
             BMap result = DataTransformer.getMapParameter("{}", context, "param0");
-            Assert.assertSame(result, resultMap);
+            Assert.assertEquals(result, resultMap);
         }
     }
 
@@ -1587,7 +1739,7 @@ public class DataTransformerTest {
             when(context.getProperty("mapRecordFields0")).thenReturn(null);
 
             BMap result = DataTransformer.getMapParameter("[[\"key\",\"value\"]]", context, "param0");
-            Assert.assertSame(result, resultMap);
+            Assert.assertEquals(result, resultMap);
         }
     }
 
@@ -1615,15 +1767,13 @@ public class DataTransformerTest {
         }
     }
 
-    @Test
-    public void testCreateTypedArrayFromGeneric_AddFailure_IsHandled() {
+    @Test(expectedExceptions = RuntimeException.class, expectedExceptionsMessageRegExp = "cannot mutate")
+    public void testCreateTypedArrayFromGeneric_AddFailure_ThrowsException() {
         try (MockedStatic<ValueCreator> valueCreatorMock = Mockito.mockStatic(ValueCreator.class)) {
             BArray genericArray = mock(BArray.class);
             when(genericArray.size()).thenReturn(1);
             BMap<BString, Object> sourceMap = mock(BMap.class);
             when(genericArray.get(0)).thenReturn(sourceMap);
-            Mockito.doThrow(new RuntimeException("cannot mutate"))
-                    .when(genericArray).add(eq(0L), (Object) any());
 
             ArrayType arrayType = mock(ArrayType.class);
             StructureType elementType = mock(StructureType.class);
@@ -1631,12 +1781,18 @@ public class DataTransformerTest {
             when(elementType.getTag()).thenReturn(TypeTags.RECORD_TYPE_TAG);
             when(elementType.getFields()).thenReturn(new HashMap<>());
             when(elementType.getName()).thenReturn("Rec");
+            
             BMap<BString, Object> emptyRecord = mock(BMap.class);
             valueCreatorMock.when(() -> ValueCreator.createRecordValue(any(), Mockito.eq("Rec")))
                     .thenReturn(emptyRecord);
 
-            BArray result = DataTransformer.createTypedArrayFromGeneric(genericArray, arrayType);
-            Assert.assertSame(result, genericArray);
+            BArray typedArray = mock(BArray.class);
+            valueCreatorMock.when(() -> ValueCreator.createArrayValue(arrayType))
+                    .thenReturn(typedArray);
+            Mockito.doThrow(new RuntimeException("cannot mutate"))
+                    .when(typedArray).add(eq(0L), (Object) any());
+
+            DataTransformer.createTypedArrayFromGeneric(genericArray, arrayType);
         }
     }
 
@@ -1649,8 +1805,11 @@ public class DataTransformerTest {
             MessageContext context = mock(MessageContext.class);
             synapseUtilsMock.when(() -> SynapseUtils.findConnectionTypeForParam(context, "param0"))
                     .thenReturn("http");
+            
+            BError bError = mock(BError.class);
             dataTransformerMock.when(() -> DataTransformer.reconstructRecordFromFields(eq("http_param0"), eq(context), anyBoolean(), anyBoolean()))
-                    .thenReturn("not-a-map");
+                    .thenReturn(bError);
+            
             when(context.getProperty("http_param0_recordName")).thenReturn("Rec");
             BMap<BString, Object> record = mock(BMap.class);
             Type recordType = mock(Type.class);
@@ -1662,31 +1821,30 @@ public class DataTransformerTest {
     }
 
     @Test
-    public void testCreateRecordValue_WithRecordName_DeepConversionFails_FallsBackToParse() {
+    public void testCreateRecordValue_WithRecordName_DeepConversionFails_ThrowsSynapseException() {
         try (MockedStatic<JsonUtils> jsonUtilsMock = Mockito.mockStatic(JsonUtils.class);
-             MockedStatic<FromJsonStringWithType> fromJsonMock = Mockito.mockStatic(FromJsonStringWithType.class);
              MockedStatic<ValueCreator> valueCreatorMock = Mockito.mockStatic(ValueCreator.class)) {
             MessageContext context = mock(MessageContext.class);
             when(context.getProperty("param0_recordName")).thenReturn("Rec");
 
-            // Ensure recType is non-null so the inner fallback path (JsonUtils.parse +
-            // convertValueToType) is exercised before falling through to the outer parse.
+            // recType is non-null so the JSON-parse + convertValueToType path is exercised
             BMap<BString, Object> recValue = mock(BMap.class);
             Type recType = mock(Type.class);
             when(recValue.getType()).thenReturn(recType);
             valueCreatorMock.when(() -> ValueCreator.createRecordValue(any(), eq("Rec"))).thenReturn(recValue);
 
-            fromJsonMock.when(() -> FromJsonStringWithType.fromJsonStringWithType(any(), any()))
-                    .thenThrow(new RuntimeException("fromJson fail"));
-
-            Object expected = new Object();
-            // First call hits the inner fallback (fails); second call is the outer parse (succeeds).
+            // JsonUtils.parse fails — convertValueToType path throws, which must now propagate
+            // as SynapseException rather than silently falling back to a second parse attempt
             jsonUtilsMock.when(() -> JsonUtils.parse("{\"id\":1}"))
-                    .thenThrow(new RuntimeException("deep parse fail"))
-                    .thenReturn(expected);
+                    .thenThrow(new RuntimeException("deep parse fail"));
 
-            Object result = DataTransformer.createRecordValue("{\"id\":1}", "param0", context, 0);
-            Assert.assertSame(result, expected);
+            try {
+                DataTransformer.createRecordValue("{\"id\":1}", "param0", context, 0);
+                Assert.fail("Expected SynapseException when JSON-to-typed-record conversion fails");
+            } catch (SynapseException e) {
+                Assert.assertTrue(e.getMessage().contains("Rec"),
+                        "Exception should name the target record type");
+            }
         }
     }
 
@@ -1737,7 +1895,7 @@ public class DataTransformerTest {
             jsonUtilsMock.when(() -> JsonUtils.parse(anyString())).thenReturn(expected);
 
             Object result = DataTransformer.reconstructRecordFromFields(prefix, context);
-            Assert.assertSame(result, expected);
+            Assert.assertEquals(result, expected);
         }
     }
 
@@ -1770,7 +1928,7 @@ public class DataTransformerTest {
             });
 
             Object result = DataTransformer.reconstructRecordFromFields(prefix, context);
-            Assert.assertSame(result, expected);
+            Assert.assertEquals(result, expected);
         }
     }
 
@@ -1822,7 +1980,7 @@ public class DataTransformerTest {
 
             BMap actual = DataTransformer.getMapParameter("[[\"id1\",\"v1\",\"v2\"]]", context,
                     "param999999999999999999999");
-            Assert.assertSame(actual, resultMap);
+            Assert.assertEquals(actual, resultMap);
         }
     }
 
@@ -1876,31 +2034,30 @@ public class DataTransformerTest {
         try (MockedStatic<DataTransformer> dataTransformerMock =
                      Mockito.mockStatic(DataTransformer.class, Mockito.CALLS_REAL_METHODS);
              MockedStatic<ValueCreator> valueCreatorMock = Mockito.mockStatic(ValueCreator.class);
-             MockedStatic<FromJsonStringWithType> fromJsonMock = Mockito.mockStatic(FromJsonStringWithType.class)) {
+             MockedStatic<StringUtils> stringUtilsMock = Mockito.mockStatic(StringUtils.class)) {
             MessageContext context = mock(MessageContext.class);
-            MapValueImpl<?, ?> reconstructed = mock(MapValueImpl.class);
-            BMap record = mock(BMap.class);
+            BMap<BString, Object> reconstructed = mock(BMap.class);
+            BMap<BString, Object> record = mock(BMap.class);
             Type recordType = mock(Type.class);
             Object typedValue = new Object();
 
             when(context.getProperty("param0_recordName")).thenReturn("Rec");
             when(record.getType()).thenReturn(recordType);
-            when(reconstructed.getJSONString()).thenReturn("{\"id\":1}");
 
-            dataTransformerMock.when(() -> DataTransformer.reconstructRecordFromFields("param0", context))
+            dataTransformerMock.when(() -> DataTransformer.reconstructRecordFromFields(eq("param0"), eq(context), anyBoolean(), anyBoolean()))
                     .thenReturn(reconstructed);
             valueCreatorMock.when(() -> ValueCreator.createRecordValue(any(), eq("Rec"))).thenReturn(record);
-            fromJsonMock.when(() -> FromJsonStringWithType.fromJsonStringWithType(any(), any())).thenReturn(typedValue);
+            dataTransformerMock.when(() -> DataTransformer.convertValueToType(reconstructed, recordType)).thenReturn(typedValue);
 
             Object result = DataTransformer.createRecordValue(null, "param0", context, 0);
-            Assert.assertSame(result, typedValue);
+            Assert.assertEquals(result, typedValue);
         }
     }
 
     @Test
     public void testCreateRecordValue_WithRecordName_FromJsonWithTypeSuccess() {
         try (MockedStatic<ValueCreator> valueCreatorMock = Mockito.mockStatic(ValueCreator.class);
-             MockedStatic<FromJsonStringWithType> fromJsonMock = Mockito.mockStatic(FromJsonStringWithType.class)) {
+             MockedStatic<DataTransformer> dataTransformerMock = Mockito.mockStatic(DataTransformer.class, Mockito.CALLS_REAL_METHODS)) {
             MessageContext context = mock(MessageContext.class);
             BMap record = mock(BMap.class);
             Type recordType = mock(Type.class);
@@ -1910,10 +2067,10 @@ public class DataTransformerTest {
             when(record.getType()).thenReturn(recordType);
 
             valueCreatorMock.when(() -> ValueCreator.createRecordValue(any(), eq("Rec"))).thenReturn(record);
-            fromJsonMock.when(() -> FromJsonStringWithType.fromJsonStringWithType(any(), any())).thenReturn(typedValue);
+            dataTransformerMock.when(() -> DataTransformer.convertValueToType(any(), eq(recordType))).thenReturn(typedValue);
 
             Object result = DataTransformer.createRecordValue("{\"id\":1}", "param0", context, 0);
-            Assert.assertSame(result, typedValue);
+            Assert.assertEquals(result, typedValue);
         }
     }
 }
