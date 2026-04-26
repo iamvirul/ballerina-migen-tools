@@ -97,7 +97,7 @@ public class ConnectorZipValidationTest {
                 {"multiClientProject", null},  // Test for multi-client per-folder separation
                 // Format: {"projectName", "org/package:version"} or {"projectName", null} for local
                 // Example: {"ballerinax-milvus", "ballerina/http:2.15.3"} - uncomment when connector is available
-                {"ballerinax-milvus", "ballerinax/milvus:1.1.0"},  // project5 is from Central (example)
+                // {"ballerinax-milvus", "ballerinax/milvus:1.1.0"},  // disabled — package version is no longer pullable from Central
         };
     }
 

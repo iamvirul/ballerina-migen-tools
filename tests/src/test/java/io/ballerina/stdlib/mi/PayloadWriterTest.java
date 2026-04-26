@@ -47,14 +47,23 @@ public class PayloadWriterTest {
 
     @Test
     public void testOverwriteBody_NullPayload() throws AxisFault {
-        Axis2MessageContext synCtx = mock(Axis2MessageContext.class);
-        org.apache.axis2.context.MessageContext axis2MsgCtx = mock(org.apache.axis2.context.MessageContext.class);
+        try (MockedStatic<JsonUtil> jsonUtilMock = Mockito.mockStatic(JsonUtil.class)) {
+            Axis2MessageContext synCtx = mock(Axis2MessageContext.class);
+            org.apache.axis2.context.MessageContext axis2MsgCtx = mock(org.apache.axis2.context.MessageContext.class);
+            when(synCtx.getAxis2MessageContext()).thenReturn(axis2MsgCtx);
 
-        PayloadWriter.overwriteBody(synCtx, null);
+            SOAPEnvelope envelope = mock(SOAPEnvelope.class);
+            SOAPBody body = mock(SOAPBody.class);
+            when(axis2MsgCtx.getEnvelope()).thenReturn(envelope);
+            when(envelope.getBody()).thenReturn(body);
+            when(body.getFirstElement()).thenReturn(null);
 
-        // Verify no interactions when payload is null - method returns early
-        verifyNoInteractions(synCtx);
-        verifyNoInteractions(axis2MsgCtx);
+            PayloadWriter.overwriteBody(synCtx, null);
+
+            // Verify body is cleared and NO_ENTITY_BODY is set when payload is null
+            jsonUtilMock.verify(() -> JsonUtil.removeJsonPayload(axis2MsgCtx));
+            verify(axis2MsgCtx).setProperty("NO_ENTITY_BODY", Boolean.TRUE);
+        }
     }
 
     @Test
