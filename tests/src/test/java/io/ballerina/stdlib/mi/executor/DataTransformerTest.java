@@ -18,6 +18,7 @@
 
 package io.ballerina.stdlib.mi.executor;
 
+import io.ballerina.runtime.api.TypeTags;
 import io.ballerina.runtime.api.creators.ValueCreator;
 import io.ballerina.runtime.api.types.*;
 import io.ballerina.runtime.api.utils.JsonUtils;
