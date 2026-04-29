@@ -359,7 +359,8 @@ public class ConnectorSerializer {
                                                  String outputName, ModelElement element,
                                                  String extension) {
         try {
-            String templateFileName = String.format("%s/%s.%s", templatePath, templateName, extension);
+            String templateFileName = String.format("%s/%s.%s", templatePath, templateName, extension)
+                    .replace("\\", "/");
             Template template = getConnectorTemplate(templateFileName);
             String output = template.apply(element);
 

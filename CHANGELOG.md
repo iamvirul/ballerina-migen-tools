@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added fallback generation mode to the `bal migen module` command: when a Ballerina module contains no `@mi:Operation` annotations, MI artifacts are now generated for all public module-level functions automatically. Private functions are excluded. This allows third-party and Ballerina Central packages to be used as MI modules without modification. ([#4841](https://github.com/wso2/product-integrator-mi/issues/4841))
 ### Fixed
 - Fixed enum-typed combo box fields in the generated UI schema always defaulting to the first enum value instead of the declared Ballerina default. `BalConnectorAnalyzer` now traverses `UnionFunctionParam` members, applies a per-field lazy fallback for fields inherited via record inclusion, and resolves defaults through a regex text-scan of the field type's module bala source files. ([#4847](https://github.com/wso2/product-integrator-mi/issues/4847))
+- Fixed connector artifact generation failing on Windows due to mixed path separators in classpath template paths. `File.separator` (`\`) combined with hardcoded `/` produced paths like `balConnector\functions/functions_template.xml` that `ClassPathTemplateLoader` could not resolve. The template path is now normalised to forward slashes before classpath lookup. ([#1461](https://github.com/wso2/mi-vscode/issues/1461))
 
 ## [1.0.2] - 2026-04-20
 
