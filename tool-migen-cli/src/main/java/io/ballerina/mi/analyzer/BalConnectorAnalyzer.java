@@ -34,6 +34,7 @@ import io.ballerina.mi.model.param.FunctionParam;
 import io.ballerina.mi.model.param.Param;
 import io.ballerina.mi.model.param.RecordFunctionParam;
 import io.ballerina.mi.model.param.ResourcePathSegment;
+import io.ballerina.mi.model.param.UnionFunctionParam;
 import io.ballerina.mi.util.Constants;
 import io.ballerina.mi.util.Utils;
 import io.ballerina.projects.*;
@@ -52,6 +53,14 @@ public class BalConnectorAnalyzer implements Analyzer {
     private static final String QUERY_PARAM_SIZE = "QueryParamSize";
 
     private final PrintStream printStream = System.out;
+
+    /**
+     * Per-module cache of all {@code .bal} file lines, keyed by {@code org/pkg:version}.
+     * Populated lazily on first access from {@link #resolveFieldDefaultFromBalaSource} so the
+     * same module's bala is walked and read at most once per analyzer instance, regardless of
+     * how many fields from that module need a default-value lookup.
+     */
+    private final Map<String, List<String>> balaLinesCache = new HashMap<>();
 
     @Override
     public void analyze(Package compilePackage) {
@@ -106,23 +115,32 @@ public class BalConnectorAnalyzer implements Analyzer {
         List<Symbol> moduleSymbols = semanticModel.moduleSymbols();
         List<Symbol> classSymbols = moduleSymbols.stream().filter((s) -> s instanceof BallerinaClassSymbol).toList();
 
-        // Extract default values from syntax trees
-        Map<String, Map<String, Map<String, String>>> classMethodDefaultValues = extractDefaultValues(module);
+        // Extract class-method param defaults AND record-field defaults in a single syntax tree pass
+        Map<String, Map<String, Map<String, String>>> classMethodDefaultValues = new HashMap<>();
+        Map<String, Map<String, String>> recordFieldDefaults = new HashMap<>();
+        extractAllDefaults(module, semanticModel, classMethodDefaultValues, recordFieldDefaults);
 
         for (Symbol classSymbol : classSymbols) {
             String className = classSymbol.getName().orElse("");
             Map<String, Map<String, String>> methodDefaultValues = classMethodDefaultValues.getOrDefault(className, Map.of());
-            analyzeClass(compilePackage, module, (ClassSymbol) classSymbol, methodDefaultValues);
+            analyzeClass(compilePackage, module, (ClassSymbol) classSymbol, methodDefaultValues, recordFieldDefaults);
         }
     }
 
     /**
-     * Extracts default values for all method parameters from the module's syntax trees.
-     * Returns a map of className -> (functionName -> (paramName -> defaultValue))
+     * Single-pass extraction over the module's syntax trees.
+     * Populates both:
+     *  - classMethodDefaults: className → functionName → paramName → rawDefaultValue
+     *  - recordFieldDefaults: recordTypeName → fieldName → resolvedDefaultValue
+     *
+     * Record field defaults are resolved immediately via the semantic model so that
+     * qualified constant references (e.g. {@code http:HTTP_2_0}) are stored as their
+     * actual string values (e.g. {@code "2.0"}) rather than as raw source text.
      */
-    private Map<String, Map<String, Map<String, String>>> extractDefaultValues(Module module) {
-        Map<String, Map<String, Map<String, String>>> result = new HashMap<>();
-
+    private void extractAllDefaults(Module module,
+                                    SemanticModel semanticModel,
+                                    Map<String, Map<String, Map<String, String>>> classMethodDefaults,
+                                    Map<String, Map<String, String>> recordFieldDefaults) {
         for (DocumentId docId : module.documentIds()) {
             Document document = module.document(docId);
             SyntaxTree syntaxTree = document.syntaxTree();
@@ -136,7 +154,6 @@ public class BalConnectorAnalyzer implements Analyzer {
                     for (Node classMember : classNode.members()) {
                         if (classMember instanceof FunctionDefinitionNode funcNode) {
                             String functionName = funcNode.functionName().text();
-                            // Normalize init method name to match Constants.INIT_FUNCTION_NAME
                             if (functionName.equals(Constants.INIT_FUNCTION_NAME)) {
                                 functionName = Constants.INIT_FUNCTION_NAME;
                             }
@@ -149,13 +166,67 @@ public class BalConnectorAnalyzer implements Analyzer {
                     }
 
                     if (!functionDefaults.isEmpty()) {
-                        result.put(className, functionDefaults);
+                        classMethodDefaults.put(className, functionDefaults);
+                    }
+                } else if (member instanceof TypeDefinitionNode typeDefNode) {
+                    Node typeDescNode = typeDefNode.typeDescriptor();
+                    if (!(typeDescNode instanceof RecordTypeDescriptorNode recordTypeDesc)) {
+                        continue;
+                    }
+                    String typeName = typeDefNode.typeName().text();
+                    Map<String, String> fieldDefaults = new HashMap<>();
+                    for (Node fieldNode : recordTypeDesc.fields()) {
+                        if (fieldNode instanceof RecordFieldWithDefaultValueNode fieldWithDefault) {
+                            String fieldName = fieldWithDefault.fieldName().text();
+                            ExpressionNode exprNode = fieldWithDefault.expression();
+                            String resolvedDefault = resolveExpressionToString(semanticModel, exprNode);
+                            fieldDefaults.put(fieldName, resolvedDefault);
+                        }
+                    }
+                    if (!fieldDefaults.isEmpty()) {
+                        recordFieldDefaults.put(typeName, fieldDefaults);
                     }
                 }
             }
         }
+    }
 
-        return result;
+    /**
+     * Resolves a default-value expression to a clean string suitable for use as a combo default.
+     * <p>
+     * Resolution order:
+     * <ol>
+     *   <li>Try {@code semanticModel.symbol(node)} — handles qualified references like
+     *       {@code http:HTTP_2_0} which live in external modules.</li>
+     *   <li>Fall back to the raw source text, then strip enclosing quotes if present.</li>
+     * </ol>
+     */
+    private String resolveExpressionToString(SemanticModel semanticModel, ExpressionNode exprNode) {
+        try {
+            Optional<Symbol> symbolOpt = semanticModel.symbol(exprNode);
+            if (symbolOpt.isPresent() && symbolOpt.get() instanceof ConstantSymbol constSym) {
+                Optional<String> resolvedOpt = constSym.resolvedValue();
+                if (resolvedOpt.isPresent()) {
+                    String val = resolvedOpt.get().trim();
+                    if (val.startsWith("\"") && val.endsWith("\"") && val.length() >= 2) {
+                        return val.substring(1, val.length() - 1);
+                    }
+                    return val;
+                }
+                Object constVal = constSym.constValue();
+                if (constVal != null) {
+                    return constVal.toString();
+                }
+            }
+        } catch (Exception e) {
+            // Semantic model resolution failed — fall through to raw source
+        }
+        // Raw source fallback: strip surrounding quotes for string literals
+        String raw = exprNode.toSourceCode().trim();
+        if (raw.startsWith("\"") && raw.endsWith("\"") && raw.length() >= 2) {
+            return raw.substring(1, raw.length() - 1);
+        }
+        return raw;
     }
 
     /**
@@ -176,7 +247,8 @@ public class BalConnectorAnalyzer implements Analyzer {
     }
 
     private void analyzeClass(Package compilePackage, Module module, ClassSymbol classSymbol,
-                              Map<String, Map<String, String>> defaultValues) {
+                              Map<String, Map<String, String>> defaultValues,
+                              Map<String, Map<String, String>> recordFieldDefaults) {
         SemanticModel semanticModel = compilePackage.getCompilation().getSemanticModel(module.moduleId());
 
         if (!isClientClass(classSymbol) || classSymbol.getName().isEmpty()) {
@@ -463,6 +535,8 @@ public class BalConnectorAnalyzer implements Analyzer {
                         param.setDefaultValue(defaultValue);
                         param.setRequired(false);
                     }
+                    // Apply enum defaults for any enum fields nested inside record params
+                    applyEnumFieldDefaults(param, recordFieldDefaults, semanticModel);
                     component.setFunctionParam(param);
                     paramIndex++;
                 }
@@ -518,6 +592,296 @@ public class BalConnectorAnalyzer implements Analyzer {
         }
 
         connector.setConnection(connection);
+    }
+
+    /**
+     * Walks the param tree and, for any {@link io.ballerina.mi.model.param.EnumFunctionParam} nested inside a
+     * record whose Ballerina type has a declared field default, sets that default value.
+     *
+     * <p>Two-tier lookup strategy:
+     * <ol>
+     *   <li>Check the local {@code recordFieldDefaults} map (populated from the connector's own source).</li>
+     *   <li>If not found (the record type lives in a dependency like {@code ballerina/oauth2}), read the
+     *       bala source file directly to extract the exact default expression at the declared line.</li>
+     * </ol>
+     */
+    private void applyEnumFieldDefaults(FunctionParam param,
+                                        Map<String, Map<String, String>> recordFieldDefaults,
+                                        SemanticModel semanticModel) {
+        // Union members (e.g. OAuth2ClientCredentialsGrantConfig inside an auth union) are stored
+        // in getUnionMemberParams(), not getRecordFieldParams(), so we must recurse into them too.
+        if (param instanceof UnionFunctionParam unionParam) {
+            for (FunctionParam memberParam : unionParam.getUnionMemberParams()) {
+                applyEnumFieldDefaults(memberParam, recordFieldDefaults, semanticModel);
+            }
+            return;
+        }
+        if (!(param instanceof RecordFunctionParam recordParam)) {
+            return;
+        }
+        String recordTypeName = recordParam.getRecordName();
+        Map<String, String> fieldDefaults = recordFieldDefaults.get(recordTypeName);
+
+        // Lazy-loaded bala defaults for fields introduced by record inclusion (*SomeType).
+        // These are NOT present in the local fieldDefaults map because extractAllDefaults only
+        // scans direct RecordFieldWithDefaultValueNode declarations, not included type fields.
+        Map<String, String> dependencyDefaults = null;
+
+        // If not in the current-module map, resolve from the bala source (external dependency)
+        // and seed dependencyDefaults so the lazy fallback below reuses the result instead of
+        // re-scanning the bala for the same record. Always cache (even if empty) to avoid
+        // repeated file scans for the same type on subsequent calls.
+        if (fieldDefaults == null) {
+            fieldDefaults = extractFieldDefaultsFromDependencies(recordParam);
+            recordFieldDefaults.put(recordTypeName, fieldDefaults);
+            dependencyDefaults = fieldDefaults;
+        }
+
+        for (FunctionParam fieldParam : recordParam.getRecordFieldParams()) {
+            if (fieldParam instanceof EnumFunctionParam enumField
+                    && (enumField.getDefaultValue() == null || enumField.getDefaultValue().isEmpty())) {
+                String fieldName = lastPathSegment(enumField.getValue());
+                String rawDefault = fieldDefaults.get(fieldName);
+                // Field not in local defaults — it may come from a record inclusion (*Type).
+                // Lazy-load bala defaults for this record and retry.
+                if (rawDefault == null || rawDefault.isEmpty()) {
+                    if (dependencyDefaults == null) {
+                        dependencyDefaults = extractFieldDefaultsFromDependencies(recordParam);
+                        if (!dependencyDefaults.isEmpty()) {
+                            Map<String, String> merged = new HashMap<>(fieldDefaults);
+                            dependencyDefaults.forEach(merged::putIfAbsent);
+                            fieldDefaults = merged;
+                            recordFieldDefaults.put(recordTypeName, fieldDefaults);
+                        }
+                    }
+                    rawDefault = dependencyDefaults.get(fieldName);
+                }
+                if (rawDefault != null && !rawDefault.isEmpty()) {
+                    String resolved = cleanEnumDefault(rawDefault, enumField, semanticModel);
+                    if (resolved != null && !resolved.isEmpty()) {
+                        enumField.setDefaultValue(resolved);
+                    }
+                }
+            }
+            // Recurse so nested records are also covered
+            applyEnumFieldDefaults(fieldParam, recordFieldDefaults, semanticModel);
+        }
+    }
+
+    /**
+     * Resolves field default values for a record type defined in a dependency module (bala).
+     *
+     * <p>For each field with {@code hasDefaultValue() == true}, reads the bala source file
+     * directly to get the exact default expression at the declared line.
+     */
+    private Map<String, String> extractFieldDefaultsFromDependencies(RecordFunctionParam recordParam) {
+
+        io.ballerina.compiler.api.symbols.TypeSymbol typeSymbol = recordParam.getTypeSymbol();
+        if (typeSymbol == null) {
+            return Map.of();
+        }
+        io.ballerina.compiler.api.symbols.TypeSymbol actualTypeSymbol = Utils.getActualTypeSymbol(typeSymbol);
+        if (!(actualTypeSymbol instanceof io.ballerina.compiler.api.symbols.RecordTypeSymbol recordTypeSymbol)) {
+            return Map.of();
+        }
+
+        Map<String, String> defaults = new HashMap<>();
+
+        // Primary: direct fields with defaults
+        for (Map.Entry<String, io.ballerina.compiler.api.symbols.RecordFieldSymbol> entry
+                : recordTypeSymbol.fieldDescriptors().entrySet()) {
+            String fieldName = entry.getKey();
+            io.ballerina.compiler.api.symbols.RecordFieldSymbol fieldSymbol = entry.getValue();
+            if (!fieldSymbol.hasDefaultValue()) continue;
+            resolveFieldDefaultFromBalaSource(fieldSymbol).ifPresent(val -> defaults.put(fieldName, val));
+        }
+
+        // Fallback: fields from included types (*SomeType).
+        // The included type's RecordFieldSymbol carries the correct bala source location.
+        for (io.ballerina.compiler.api.symbols.TypeSymbol includedType : recordTypeSymbol.typeInclusions()) {
+            io.ballerina.compiler.api.symbols.TypeSymbol actualIncluded = Utils.getActualTypeSymbol(includedType);
+            if (!(actualIncluded instanceof io.ballerina.compiler.api.symbols.RecordTypeSymbol includedRecord)) continue;
+            for (Map.Entry<String, io.ballerina.compiler.api.symbols.RecordFieldSymbol> entry
+                    : includedRecord.fieldDescriptors().entrySet()) {
+                String fieldName = entry.getKey();
+                if (defaults.containsKey(fieldName)) continue; // local definition wins
+                io.ballerina.compiler.api.symbols.RecordFieldSymbol fieldSymbol = entry.getValue();
+                if (!fieldSymbol.hasDefaultValue()) continue;
+                resolveFieldDefaultFromBalaSource(fieldSymbol).ifPresent(val -> defaults.put(fieldName, val));
+            }
+        }
+        return defaults;
+    }
+
+    /**
+     * Resolves the default value of a record field declared in a bala dependency by
+     * reading the field's source {@code .bal} file from the local Ballerina bala cache.
+     *
+     * <p>Steps:
+     * <ol>
+     *   <li>{@code fieldSymbol.getLocation()} gives the relative file name and line number.</li>
+     *   <li>The field type's {@code ModuleSymbol.id()} gives org, module name, and version.</li>
+     *   <li>We find the file by searching the bala cache directory for the module.</li>
+     *   <li>We read the line, strip the field declaration, and extract the default expression.</li>
+     * </ol>
+     */
+    /**
+     * Resolves the default value of an enum record field from the bala source.
+     *
+     * <p>Uses a text-scan strategy: searches all {@code .bal} files in the field type's
+     * module bala for a line matching {@code <TypeName> <fieldName> = <value>;}.
+     * This is reliable even for fields that arrive via deep record-inclusion chains where
+     * {@code getLocation()} may not point to the correct file.
+     */
+    private Optional<String> resolveFieldDefaultFromBalaSource(
+            io.ballerina.compiler.api.symbols.RecordFieldSymbol fieldSymbol) {
+        try {
+            String fieldName = fieldSymbol.getName().orElse("");
+            if (fieldName.isEmpty()) return Optional.empty();
+
+            // Use typeDescriptor() without unwrapping — TypeReferenceTypeSymbol retains module info.
+            io.ballerina.compiler.api.symbols.TypeSymbol fieldType = fieldSymbol.typeDescriptor();
+            String fieldTypeName = fieldType.getName().orElse("");
+            // Without a type token the fallback pattern (\b<fieldName>\s*=\s*(.+?)\s*[;,])
+            // matches local variables, record literals, and function bodies anywhere in the
+            // .bal files and returns the wrong value. Bail out instead.
+            if (fieldTypeName.isEmpty()) return Optional.empty();
+
+            Optional<io.ballerina.compiler.api.symbols.ModuleSymbol> modOpt = fieldType.getModule();
+            if (modOpt.isEmpty()) return Optional.empty();
+
+            io.ballerina.compiler.api.ModuleID modId = modOpt.get().id();
+            String orgName    = modId.orgName();
+            String moduleName = modId.moduleName();
+            String version    = modId.version();
+            String pkgName    = moduleName.contains(".") ? moduleName.split("\\.")[0] : moduleName;
+
+            // Pattern: the type name (optionally nil-typed with "?"), whitespace, the field name,
+            // optional whitespace, "=", then capture the default expression up to ";" or ",".
+            // Handles "CredentialBearer credentialBearer = AUTH_HEADER_BEARER;" and
+            // nullable-typed variants like "CredentialBearer? credentialBearer = ...;".
+            java.util.regex.Pattern pattern = java.util.regex.Pattern.compile(
+                    "\\b" + java.util.regex.Pattern.quote(fieldTypeName)
+                            + "\\??\\s+" + java.util.regex.Pattern.quote(fieldName) + "\\s*=\\s*(.+?)\\s*[;,]");
+
+            String cacheKey = orgName + "/" + pkgName + ":" + version;
+            List<String> allLines = balaLinesCache.computeIfAbsent(cacheKey,
+                    k -> loadBalaModuleLines(buildBalaRepoRoots(orgName, pkgName, version)));
+            for (String line : allLines) {
+                java.util.regex.Matcher m = pattern.matcher(line);
+                if (m.find()) {
+                    String rawVal = m.group(1).trim();
+                    // Strip module qualifier: "pkg:CONST" -> "CONST"
+                    int colonIdx = rawVal.lastIndexOf(':');
+                    if (colonIdx >= 0) rawVal = rawVal.substring(colonIdx + 1).trim();
+                    // Strip inline comments
+                    int commentIdx = rawVal.indexOf("//");
+                    if (commentIdx >= 0) rawVal = rawVal.substring(0, commentIdx).trim();
+                    if (!rawVal.isEmpty()) return Optional.of(rawVal);
+                }
+            }
+        } catch (Exception e) {
+            // Fall through
+        }
+        return Optional.empty();
+    }
+
+    /**
+     * Reads every {@code .bal} file under the first existing bala repo root into a flat line
+     * list. Picking only the first matching root mirrors Ballerina's dependency-resolution order
+     * (distribution → central → local) and keeps the returned lines scoped to a single copy of
+     * the module, which is important because the regex scan returns the first match.
+     */
+    private static List<String> loadBalaModuleLines(List<java.nio.file.Path> repoRoots) {
+        for (java.nio.file.Path root : repoRoots) {
+            if (!java.nio.file.Files.exists(root)) continue;
+            List<String> lines = new java.util.ArrayList<>();
+            try (java.util.stream.Stream<java.nio.file.Path> pathStream = java.nio.file.Files.walk(root)) {
+                List<java.nio.file.Path> balFiles = pathStream
+                        .filter(p -> !java.nio.file.Files.isDirectory(p) && p.toString().endsWith(".bal"))
+                        .toList();
+                for (java.nio.file.Path balFile : balFiles) {
+                    try {
+                        lines.addAll(java.nio.file.Files.readAllLines(balFile));
+                    } catch (java.io.IOException ignored) {
+                        // Skip unreadable file and continue scanning the rest of the module.
+                    }
+                }
+                return lines;
+            } catch (java.io.IOException ignored) {
+                // Try the next root.
+            }
+        }
+        return List.of();
+    }
+
+    /**
+     * Builds the ordered list of bala repository roots to search for a given module
+     * ({@code orgName/pkgName:version}), mirroring the Ballerina dependency-resolution order:
+     * distribution cache first, then the central cache, then the local repository.
+     *
+     * <p>The distribution cache lives at {@code <BALLERINA_HOME>/repo/bala}; its location is
+     * resolved from the {@code ballerina.home} system property (set by the Ballerina launcher
+     * when running as a tool) and falls back to the {@code BALLERINA_HOME} environment variable.
+     */
+    private static List<java.nio.file.Path> buildBalaRepoRoots(String orgName, String pkgName, String version) {
+        List<java.nio.file.Path> repoRoots = new java.util.ArrayList<>();
+        String ballerinaHome = resolveBallerinaHome();
+        if (ballerinaHome != null) {
+            repoRoots.add(java.nio.file.Paths.get(ballerinaHome, "repo", "bala", orgName, pkgName, version));
+        }
+        String homeDir = System.getProperty("user.home");
+        repoRoots.add(java.nio.file.Paths.get(homeDir, ".ballerina", "repositories",
+                "central.ballerina.io", "bala", orgName, pkgName, version));
+        repoRoots.add(java.nio.file.Paths.get(homeDir, ".ballerina", "repositories",
+                "local", "bala", orgName, pkgName, version));
+        return repoRoots;
+    }
+
+    private static String resolveBallerinaHome() {
+        String sysProp = System.getProperty("ballerina.home");
+        if (sysProp != null && !sysProp.isEmpty()) {
+            return sysProp;
+        }
+        String env = System.getenv("BALLERINA_HOME");
+        if (env != null && !env.isEmpty()) {
+            return env;
+        }
+        return null;
+    }
+
+    /** Strips quotes / resolves identifiers from a raw default-value expression for an enum field. */
+    private String cleanEnumDefault(String rawDefault,
+                                    EnumFunctionParam enumParam,
+                                    SemanticModel semanticModel) {
+        if (rawDefault.startsWith("\"") && rawDefault.endsWith("\"") && rawDefault.length() >= 2) {
+            return rawDefault.substring(1, rawDefault.length() - 1);
+        }
+        if ("()".equals(rawDefault)) {
+            return "";
+        }
+        // Strip module qualifier (e.g. "http:KEEPALIVE_AUTO" → "KEEPALIVE_AUTO")
+        int colonIdx = rawDefault.lastIndexOf(':');
+        if (colonIdx >= 0) {
+            rawDefault = rawDefault.substring(colonIdx + 1).trim();
+        }
+        // Value is already a clean enum member — return as-is
+        if (enumParam.getEnumValues().contains(rawDefault)) {
+            return rawDefault;
+        }
+        // Bare identifier (unresolved constant name) — resolve via the semantic model
+        if (rawDefault.matches("[A-Za-z_][A-Za-z0-9_]*")) {
+            return resolveConstantValue(semanticModel, rawDefault).orElse(rawDefault);
+        }
+        return rawDefault;
+    }
+
+    private static String lastPathSegment(String qualifiedName) {
+        if (qualifiedName == null || qualifiedName.isEmpty()) {
+            return qualifiedName;
+        }
+        int dot = qualifiedName.lastIndexOf('.');
+        return dot >= 0 ? qualifiedName.substring(dot + 1) : qualifiedName;
     }
 
     /**
