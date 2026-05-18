@@ -5,6 +5,14 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- Added support for running `bal migen connector` inside a handwritten Ballerina connector source project. Previously the command only accepted pre-compiled `.bala` packages; it now detects `public client` classes in a source `BuildProject` and generates MI connector artifacts via the same `BalConnectorAnalyzer` pipeline. If no `public client` class is found, a descriptive error is shown pointing the user to `bal migen module`.
+
+### Fixed
+- Fixed `NullPointerException` in `ConnectorSerializer.copyResourcesAndPackage` when running `bal migen connector` against a source project. The `CONNECTOR_TARGET_PATH` system property is only set for `BalaProject` builds; the serializer now falls back to `sourcePath` (the emitted JAR) when the property is absent.
+
 ## [1.1.1] - 2026-05-15
 
 ### Fixed
