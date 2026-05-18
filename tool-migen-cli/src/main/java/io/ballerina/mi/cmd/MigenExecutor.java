@@ -18,6 +18,9 @@
 
 package io.ballerina.mi.cmd;
 
+import io.ballerina.compiler.api.SemanticModel;
+import io.ballerina.compiler.api.symbols.ClassSymbol;
+import io.ballerina.compiler.api.symbols.Qualifier;
 import io.ballerina.mi.analyzer.Analyzer;
 import io.ballerina.mi.analyzer.BalConnectorAnalyzer;
 import io.ballerina.mi.analyzer.BalModuleAnalyzer;
@@ -30,6 +33,7 @@ import io.ballerina.mi.validator.ConnectorValidator;
 import io.ballerina.projects.BuildOptions;
 import io.ballerina.projects.JBallerinaBackend;
 import io.ballerina.projects.JvmTarget;
+import io.ballerina.projects.Module;
 import io.ballerina.projects.Package;
 import io.ballerina.projects.PackageCompilation;
 import io.ballerina.projects.Project;
@@ -70,11 +74,6 @@ public class MigenExecutor {
 
         if (isBuildProject == null) {
             return; // Compilation/Analysis failed
-        }
-
-        if (isConnector && isBuildProject) {
-            printStream.println("ERROR: Expected a Ballerina connector (Bala) project for 'connector' command, but found a source project.");
-            return;
         }
         // Deterministic lifecycle management
         ResourceLifecycleManager lifecycle = new ResourceLifecycleManager();
@@ -155,6 +154,14 @@ public class MigenExecutor {
             return null;
         }
 
+        if (isConnector && isBuildProject) {
+            if (!hasPublicClientClass(compilePkg, packageCompilation)) {
+                printStream.println("ERROR: No public client class found in the project. " +
+                        "For projects using @mi:Operation functions, use 'bal migen module' instead.");
+                return null;
+            }
+        }
+
         balAnalyzer.analyze(compilePkg);
 
         JBallerinaBackend jBallerinaBackend = JBallerinaBackend.from(packageCompilation, JvmTarget.JAVA_21);
@@ -207,6 +214,21 @@ public class MigenExecutor {
         ConnectorSerializer connectorSerializer = new ConnectorSerializer(sourcePath, targetPath);
         connectorSerializer.serialize(connector);
         return true;
+    }
+
+    private static boolean hasPublicClientClass(Package compilePkg, PackageCompilation packageCompilation) {
+        for (Module module : compilePkg.modules()) {
+            SemanticModel semanticModel = packageCompilation.getSemanticModel(module.moduleId());
+            boolean found = semanticModel.moduleSymbols().stream()
+                    .filter(s -> s instanceof ClassSymbol)
+                    .map(s -> (ClassSymbol) s)
+                    .anyMatch(c -> c.qualifiers().contains(Qualifier.PUBLIC)
+                            && c.qualifiers().contains(Qualifier.CLIENT));
+            if (found) {
+                return true;
+            }
+        }
+        return false;
     }
 
     static void createBinFolder(Path bin) throws IOException {
