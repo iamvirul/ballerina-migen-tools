@@ -294,7 +294,8 @@ public class ConnectorSerializer {
             Files.copy(sourcePath,
                     destinationPath.resolve(Connector.LIB_PATH).resolve(connector.getModuleName() + ".jar"));
         } else {
-            Path generatedArtifactPath = Paths.get(System.getProperty(Constants.CONNECTOR_TARGET_PATH));
+            String connectorTargetProp = System.getProperty(Constants.CONNECTOR_TARGET_PATH);
+            Path generatedArtifactPath = connectorTargetProp != null ? Paths.get(connectorTargetProp) : sourcePath;
             Files.copy(generatedArtifactPath,
                     destinationPath.resolve(Connector.LIB_PATH).resolve(generatedArtifactPath.getFileName()));
         }
